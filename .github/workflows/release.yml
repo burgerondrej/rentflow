@@ -27,20 +27,68 @@ jobs:
         run: npm ci
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0.5
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        run: npm run tauri:build
+
+      - name: Get version
+        id: version
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).package.version
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          projectPath: '.'
-          distPath: '../dist'
-          tagName: ${{ github.ref_name }}
-          releaseName: 'RentFlow ${{ github.ref_name }}'
-          releaseBody: |
+          name: RentFlow v${{ steps.version.outputs.VERSION }}
+          body: |
             ## Co je nového v této verzi
             Viz popis níže nebo changelog v aplikaci.
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: true
-          updaterJsonPreferNsis: true
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.nsis.zip
+            src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/msi/*.msi.zip
+            src-tauri/target/release/bundle/msi/*.msi.zip.sig
+
+      - name: Generate update manifest
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).package.version
+          $tag = "${{ github.ref_name }}"
+          $base = "https://github.com/burgerondrej/rentflow/releases/download/$tag"
+
+          $nsisSig = Get-Content "$(Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip.sig | Select-Object -First 1)" -Raw
+          $msiSig = Get-Content "$(Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip.sig | Select-Object -First 1)" -Raw
+          $nsisFile = (Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip | Select-Object -First 1).Name
+          $msiFile = (Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip | Select-Object -First 1).Name
+
+          $manifest = @{
+            version = $version
+            notes = "## Co je nového v této verzi`nViz popis níže nebo changelog v aplikaci."
+            pub_date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ")
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $nsisSig.Trim()
+                url = "$base/$nsisFile"
+              }
+              "windows-x86_64-nsis" = @{
+                signature = $nsisSig.Trim()
+                url = "$base/$nsisFile"
+              }
+              "windows-x86_64-msi" = @{
+                signature = $msiSig.Trim()
+                url = "$base/$msiFile"
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+
+          $manifest | Out-File -FilePath "latest.json" -Encoding utf8
+          Write-Host "Generated latest.json:"
+          Get-Content latest.json
+
+      - name: Upload update manifest
+        uses: softprops/action-gh-release@v2
+        with:
+          files: latest.json
