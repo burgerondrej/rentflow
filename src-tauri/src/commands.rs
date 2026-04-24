@@ -714,3 +714,63 @@ pub fn delete_amendment(id: String, user: String, state: State<AppState>) -> std
     db.add_log(&user, "Smazání", "Dodatek smlouvy", &format!("Smazán dodatek id: {}", id))?;
     Ok(())
 }
+
+// ─────────────────────────────────────────
+// UPDATER
+// ─────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+pub struct UpdateInfo {
+    pub available: bool,
+    pub version: Option<String>,
+    pub body: Option<String>,
+}
+
+#[tauri::command]
+pub async fn check_for_update(app: tauri::AppHandle) -> std::result::Result<UpdateInfo, String> {
+    // Log do souboru pro debug
+    let log_path = app.path_resolver().app_data_dir()
+        .map(|p| p.join("update_check.log"))
+        .unwrap_or_else(|| std::path::PathBuf::from("update_check.log"));
+
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+    match app.updater().check().await {
+        Ok(update) => {
+            let available = update.is_update_available();
+            let version = update.latest_version().to_string();
+            let msg = format!("[{}] Check OK – available: {}, latest: {}\n", timestamp, available, version);
+            let _ = std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
+                .and_then(|mut f| { use std::io::Write; f.write_all(msg.as_bytes()) });
+
+            if available {
+                Ok(UpdateInfo {
+                    available: true,
+                    version: Some(version),
+                    body: update.body().map(|s| s.to_string()),
+                })
+            } else {
+                Ok(UpdateInfo { available: false, version: Some(version), body: None })
+            }
+        }
+        Err(e) => {
+            let msg = format!("[{}] Check ERROR: {}\n", timestamp, e);
+            let _ = std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
+                .and_then(|mut f| { use std::io::Write; f.write_all(msg.as_bytes()) });
+            Ok(UpdateInfo { available: false, version: None, body: None })
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn install_update(app: tauri::AppHandle) -> std::result::Result<(), String> {
+    match app.updater().check().await {
+        Ok(update) => {
+            if update.is_update_available() {
+                update.download_and_install().await.map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
