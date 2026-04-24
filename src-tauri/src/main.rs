@@ -117,6 +117,8 @@ fn main() {
             commands::delete_operational_cost,
             commands::add_amendment,
             commands::delete_amendment,
+            commands::check_for_update,
+            commands::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("Chyba při spouštění aplikace RentFlow");
