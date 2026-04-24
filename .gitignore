@@ -28,3 +28,8 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+rentflow-updater.key
+rentflow-updater.key.pub
+release.yml
+tauri.conf.json
