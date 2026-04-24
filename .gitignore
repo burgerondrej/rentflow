@@ -1,0 +1,30 @@
+# Node
+node_modules/
+dist/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/WixTools/
+
+# Build artifacts
+*.msi
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local

@@ -1,0 +1,88 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:5173",
+    "distDir": "../dist",
+    "withGlobalTauri": true
+  },
+  "package": {
+    "productName": "RentFlow",
+    "version": "1.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false,
+        "open": "^.+$"
+      },
+      "dialog": {
+        "all": true
+      },
+      "fs": {
+        "all": true,
+        "scope": [
+          "$APPDATA/**",
+          "$DOCUMENT/**",
+          "$DESKTOP/**",
+          "$HOME/**",
+          "$DOWNLOAD/**",
+          "**"
+        ]
+      },
+      "path": {
+        "all": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "cz.rentflow.app",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
+      },
+      "resources": [],
+      "externalBin": [],
+      "copyright": "",
+      "category": "Business",
+      "shortDescription": "Správa pronajímaných nemovitostí",
+      "longDescription": "RentFlow – kompletní správa portfolia nemovitostí, nájemníků a smluv."
+    },
+    "security": {
+      "csp": null
+    },
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI1MUE1QjZCQ0Q1MkNGQQpSV1Q2TE5XOHRxVlJDNlhaSnBkbDRTcDBTeWxtQldGd1JKdEY1RWQ2RitHVTZpWi9XRVM0VHVNRgo=",
+      "endpoints": [
+        "https://github.com/burgerondrej/rentflow/releases/latest/download/update-manifest.json"
+      ]
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "RentFlow",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "center": true,
+        "decorations": true,
+        "transparent": false,
+        "fileDropEnabled": false
+      }
+    ]
+  }
+}

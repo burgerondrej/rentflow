@@ -1,0 +1,21 @@
+[package]
+name = "rentflow"
+version = "1.0.0"
+description = "RentFlow – správa pronajímaných nemovitostí"
+authors = ["Ondrej Burger"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.6", features = [ "updater", "path-all", "dialog-all", "fs-all", "shell-open"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["clock"] }
+thiserror = "1"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

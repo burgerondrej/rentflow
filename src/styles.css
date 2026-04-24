@@ -1,0 +1,358 @@
+:root {
+  --bg: #ffffff;
+  --bg2: #f8faf9;
+  --bg3: #f1f4f2;
+  --text: #1a1c1b;
+  --text2: #4a4d4b;
+  --text3: #606563;
+  --border: #e1e4e2;
+  --border2: #d1d4d2;
+  --card-bg: #ffffff;
+  --card-border: rgba(0,0,0,0.08);
+  --accent: #12654A;
+  --accent-light: #e6f3ef;
+  --r: 10px;
+  
+  /* Ceny bez/s DPH – použít konzistentně cross-app */
+  --price-netto: #1565C0;   /* bez DPH – modrá (čitelná, výrazná) */
+  --price-brutto: #374151;  /* s DPH – tmavě šedá, čitelná ale potlačená */
+  
+  --green: #1d9e75; --green-bg: #e8f7f2; --green-t: #0d6b4e;
+  --amber: #d9a31a; --amber-bg: #fdf7e6; --amber-t: #856404;
+  --red: #c43a3a;   --red-bg: #fbeaea;   --red-t: #7a1c1c;
+  --blue: #2d70d6;  --blue-bg: #ebf2fd;  --blue-t: #1a448a;
+
+  /* Dashboard stat cards */
+  --dash-red-bg: #FEE2E2; --dash-red-border: #F87171; --dash-red-title: #991B1B; --dash-red-sub: #7F1D1D; --dash-red-sep: #FCA5A5;
+  --dash-orange-bg: #FFEDD5; --dash-orange-border: #FB923C; --dash-orange-title: #9A3412; --dash-orange-sub: #7C2D12; --dash-orange-sep: #FDBA74;
+  --dash-yellow-bg: #FEF9C3; --dash-yellow-border: #FACC15; --dash-yellow-title: #854D0E; --dash-yellow-sub: #713F12; --dash-yellow-sep: #FDE047;
+  --dash-green-bg: #DCFCE7; --dash-green-border: #4ADE80; --dash-green-title: #166534; --dash-green-sub: #14532D; --dash-green-sep: #86EFAC;
+  --dash-blue-bg: #E0F2FE; --dash-blue-border: #38BDF8; --dash-blue-title: #0369A1; --dash-blue-btn-border: #38BDF8; --dash-blue-btn-color: #0369A1; --dash-blue-empty: #0369A1;
+  --dash-purple-bg: #F3E8FF; --dash-purple-border: #C084FC; --dash-purple-title: #6B21A8; --dash-purple-btn-border: #C084FC; --dash-purple-btn-color: #6B21A8; --dash-purple-empty: #6B21A8;
+  --dash-item-bg: rgba(255,255,255,0.8); --dash-item-border: rgba(0,0,0,0.1);
+  --dash-inner-bg: #fff; --dash-inner-border: #E2E8F0;
+  --dash-cur-bg: #F4FCF6; --dash-cur-border: #4ade80; --dash-cur-badge-bg: #4ade80; --dash-cur-badge-color: #166534; --dash-cur-label: #166534;
+}
+
+[data-theme='dark'] {
+  --bg: #16181a;
+  --bg2: #1e2022;
+  --bg3: #262a2d;
+  --text: #e2e4e6;
+  --text2: #9ba3ab;
+  --text3: #636c75;
+  --border: #2e3338;
+  --border2: #3a4047;
+  --card-bg: #1e2022;
+  --card-border: rgba(255,255,255,0.06);
+  --accent: #2ab889;
+  --price-netto: #60A5FA;   /* bez DPH – světle modrá v dark mode */
+  --price-brutto: #9CA3AF;  /* s DPH – šedá v dark mode */
+
+  /* Dashboard stat cards – dark mode */
+  --dash-red-bg: #251c1c; --dash-red-border: #5c2626; --dash-red-title: #f4a0a0; --dash-red-sub: #f4a0a0; --dash-red-sep: #5c2626;
+  --dash-orange-bg: #251e17; --dash-orange-border: #6b3a12; --dash-orange-title: #f5bf8a; --dash-orange-sub: #f5bf8a; --dash-orange-sep: #6b3a12;
+  --dash-yellow-bg: #22201a; --dash-yellow-border: #7a5a10; --dash-yellow-title: #f0d87a; --dash-yellow-sub: #f0d87a; --dash-yellow-sep: #7a5a10;
+  --dash-green-bg: #182420; --dash-green-border: #1e5c3a; --dash-green-title: #7ddba8; --dash-green-sub: #7ddba8; --dash-green-sep: #1e5c3a;
+  --dash-blue-bg: #181f28; --dash-blue-border: #1e4a6e; --dash-blue-title: #7ab8e0; --dash-blue-btn-border: #1e4a6e; --dash-blue-btn-color: #7ab8e0; --dash-blue-empty: #7ab8e0;
+  --dash-purple-bg: #1e1828; --dash-purple-border: #5a2a8e; --dash-purple-title: #c4a8f0; --dash-purple-btn-border: #5a2a8e; --dash-purple-btn-color: #c4a8f0; --dash-purple-empty: #c4a8f0;
+  --dash-item-bg: rgba(255,255,255,0.04); --dash-item-border: rgba(255,255,255,0.07);
+  --dash-inner-bg: rgba(255,255,255,0.03); --dash-inner-border: rgba(255,255,255,0.08);
+  --dash-cur-bg: #182420; --dash-cur-border: #1e5c3a; --dash-cur-badge-bg: #1e5c3a; --dash-cur-badge-color: #7ddba8; --dash-cur-label: #7ddba8;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+
+/* Layout */
+.layout { display: flex; height: 100vh; overflow: hidden; }
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.topbar { height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--bg); flex-shrink: 0; }
+.content { flex: 1; overflow-y: auto; padding: 24px 32px 60px; }
+
+/* Typografie & Základní prvky */
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.page-title { font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
+.page-sub { font-size: 13px; color: var(--text3); margin-top: 2px; }
+
+.card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r); box-shadow: 0 1px 3px rgba(0,0,0,0.02); margin-bottom: 16px; }
+.card-body { padding: 20px; }
+.card-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+
+/* Tlačítka */
+.btn { border: 1px solid var(--border2); background: var(--bg); color: var(--text2); padding: 7px 14px; border-radius: 8px; font-size: 13.5px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all .15s; white-space: nowrap; }
+.btn:hover { background: var(--bg2); border-color: var(--text3); }
+.btn-primary { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
+.btn-primary:hover { background: var(--accent) !important; opacity: .88 !important; transform: translateY(-1px); }
+.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+
+/* Badges */
+.badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; display: inline-flex; white-space: nowrap; }
+.badge-green { background: var(--green-bg); color: var(--green-t); }
+.badge-amber { background: var(--amber-bg); color: var(--amber-t); }
+.badge-red { background: var(--red-bg); color: var(--red-t); }
+.badge-blue { background: var(--blue-bg); color: var(--blue-t); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+
+/* Mřížka nájemníků (Tenant Grid) */
+.tenant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-bottom: 32px; }
+.tenant-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.tenant-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.05); border-color: var(--border2); }
+.tenant-avatar { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+.tenant-section-header { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin: 24px 0 12px; }
+
+/* Seznam smluv (Contract List) */
+.contract-header { display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1fr 80px; gap: 16px; padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.contract-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1fr 80px; gap: 16px; padding: 14px 16px; align-items: center; border-bottom: .5px solid var(--border); cursor: pointer; transition: background .1s; }
+.contract-row:hover { background: var(--bg2); }
+
+/* Nemovitosti (Tree View) */
+.tree-firm { margin-bottom: 12px; border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden; }
+.tree-firm-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--bg2); cursor: pointer; font-weight: 600; font-size: 14px; }
+.tree-units { padding: 4px 0; background: var(--bg); }
+.tree-unit { display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 42px; border-bottom: .5px solid var(--border); transition: background .1s; }
+.tree-unit:hover { background: var(--bg3); }
+.unit-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+/* Detail Panel */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; backdrop-filter: blur(2px); }
+.detail-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 440px; background: var(--bg); z-index: 101; box-shadow: -10px 0 30px rgba(0,0,0,0.1); display: flex; flex-direction: column; animation: slideIn .25s ease-out; }
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@keyframes modalIn { from { opacity: 0; transform: scale(0.94) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+.detail-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.detail-title { font-size: 17px; font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text3); }
+.detail-body { flex: 1; overflow-y: auto; padding: 24px; }
+.detail-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; padding: 0 4px; }
+.detail-tab { padding: 8px 0 12px; font-size: 13.5px; color: var(--text3); cursor: pointer; position: relative; }
+.detail-tab.active { color: var(--accent); font-weight: 600; }
+.detail-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--accent); }
+
+.detail-section { margin-bottom: 28px; }
+.detail-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin-bottom: 12px; }
+.detail-field { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: .5px solid var(--border); font-size: 13.5px; }
+
+/* Statistiky (Dashboard) */
+.stat-card { position: relative; overflow: hidden; padding: 20px; border-radius: 12px; border: 1px solid var(--card-border); background: var(--card-bg); }
+.stat-label { font-size: 12px; color: var(--text2); margin-bottom: 4px; position: relative; z-index: 1; }
+.stat-value { font-size: 28px; font-weight: 700; position: relative; z-index: 1; }
+.stat-bg-num { position: absolute; bottom: -10px; right: -5px; font-size: 80px; font-weight: 900; opacity: 0.05; pointer-events: none; }
+.stat-card-red { border-left: 4px solid var(--red); }
+.stat-card-amber { border-left: 4px solid var(--amber); }
+.stat-card-blue { border-left: 4px solid var(--blue); }
+.stat-card-green { border-left: 4px solid var(--green); }
+
+.alert-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: .5px solid var(--border); }
+.dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.dot-red { background: var(--red); }
+.dot-amber { background: var(--amber); }
+.dot-blue { background: var(--blue); }
+.dot-green { background: var(--green); }
+
+/* Gantt / Timeline */
+.gantt-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.gantt-label { width: 120px; font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-track { flex: 1; height: 18px; background: var(--bg3); border-radius: 4px; position: relative; overflow: hidden; }
+.gantt-fill { height: 100%; border-radius: 4px; transition: width .5s ease-out; }
+.gantt-date { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 9px; font-weight: 700; }
+
+/* TISKOVÉ STYLY */
+@media print {
+  nav, .topbar, .btn, .detail-close, .overlay, .page-header button { display: none !important; }
+  .main { display: block !important; overflow: visible !important; }
+  .content { padding: 0 !important; overflow: visible !important; }
+  .card { border: 1px solid #eee !important; box-shadow: none !important; break-inside: avoid; }
+  body { background: white !important; color: black !important; }
+  .page-title { font-size: 28px !important; margin-bottom: 10px; }
+}
+/* ═══════════════════════════════════════════════════════════
+   MODAL ANIMACE
+═══════════════════════════════════════════════════════════ */
+@keyframes modalBackdropIn {
+  from { opacity: 0 }
+  to   { opacity: 1 }
+}
+@keyframes modalCardIn {
+  from { opacity: 0; transform: scale(0.92) translateY(16px) }
+  to   { opacity: 1; transform: scale(1)    translateY(0)    }
+}
+@keyframes modalCardOut {
+  from { opacity: 1; transform: scale(1)    translateY(0)    }
+  to   { opacity: 0; transform: scale(0.94) translateY(8px)  }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px) }
+  to   { opacity: 1; transform: translateY(0) }
+}
+@keyframes fadeIn {
+  from { opacity: 0 }
+  to   { opacity: 1 }
+}
+
+.modal-backdrop {
+  animation: modalBackdropIn 0.18s ease forwards;
+}
+.modal-card {
+  animation: modalCardIn 0.22s cubic-bezier(0.34, 1.3, 0.64, 1) forwards;
+}
+.modal-card-out {
+  animation: modalCardOut 0.15s ease forwards;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TENANT CARDS (redesign)
+═══════════════════════════════════════════════════════════ */
+.tenant-card-v2 {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.tenant-card-v2:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.1);
+  border-color: var(--accent);
+}
+[data-theme='dark'] .tenant-card-v2:hover {
+  box-shadow: 0 10px 28px rgba(0,0,0,0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KANBAN DARK MODE COLUMN VARS
+═══════════════════════════════════════════════════════════ */
+:root {
+  --kanban-longterm-bg: #EEF2FF; --kanban-longterm-border: #C7D2FE; --kanban-longterm-color: #4338CA; --kanban-longterm-header: rgba(99,102,241,0.08);
+  --kanban-todo-bg:     #F0FDF4; --kanban-todo-border:     #BBF7D0; --kanban-todo-color:     #166534; --kanban-todo-header:     rgba(22,101,52,0.06);
+  --kanban-waiting-bg:  #FFFBEB; --kanban-waiting-border:  #FDE68A; --kanban-waiting-color:  #92400E; --kanban-waiting-header:  rgba(146,64,14,0.06);
+  --kanban-progress-bg: #EFF6FF; --kanban-progress-border: #BFDBFE; --kanban-progress-color: #1E40AF; --kanban-progress-header: rgba(30,64,175,0.06);
+  --kanban-done-bg:     #F9FAFB; --kanban-done-border:     #E5E7EB; --kanban-done-color:     #374151; --kanban-done-header:     rgba(55,65,81,0.04);
+  --kanban-card-bg:     #ffffff; --kanban-card-border:     #E2E8F0;
+
+  /* Asset karty – světlý režim */
+  --asset-residential-bg: #F4FCF6; --asset-residential-header: #E6F6EB; --asset-residential-accent: #0F6E56; --asset-residential-border: rgba(15,110,86,0.12);
+  --asset-commercial-bg:  #F0F7FF; --asset-commercial-header:  #E0F0FE; --asset-commercial-accent:  #0B509E; --asset-commercial-border:  rgba(11,80,158,0.12);
+  --asset-ads-bg:         #FFF5FA; --asset-ads-header:         #FCE8F3; --asset-ads-accent:         #9D174D; --asset-ads-border:         rgba(157,23,77,0.12);
+  --asset-parking-bg:     #F8F5FF; --asset-parking-header:     #F1EBFE; --asset-parking-accent:     #5B21B6; --asset-parking-border:     rgba(91,33,182,0.12);
+  --asset-ostatni-bg:     #F0FDFA; --asset-ostatni-header:     #CCFBF1; --asset-ostatni-accent:     #0F766E; --asset-ostatni-border:     rgba(15,118,110,0.12);
+}
+[data-theme='dark'] {
+  --kanban-longterm-bg: #1e1b4b; --kanban-longterm-border: #3730a3; --kanban-longterm-color: #a5b4fc; --kanban-longterm-header: rgba(165,180,252,0.08);
+  --kanban-todo-bg:     #0f2318; --kanban-todo-border:     #166534; --kanban-todo-color:     #86efac; --kanban-todo-header:     rgba(134,239,172,0.08);
+  --kanban-waiting-bg:  #291d0a; --kanban-waiting-border:  #92400e; --kanban-waiting-color:  #fcd34d; --kanban-waiting-header:  rgba(252,211,77,0.08);
+  --kanban-progress-bg: #0f1f3d; --kanban-progress-border: #1e3a8a; --kanban-progress-color: #93c5fd; --kanban-progress-header: rgba(147,197,253,0.08);
+  --kanban-done-bg:     #161817; --kanban-done-border:     #2a2d2c; --kanban-done-color:     #9ca3af; --kanban-done-header:     rgba(156,163,175,0.06);
+  --kanban-card-bg:     #1d201f; --kanban-card-border:     #2a2d2c;
+
+  /* Asset karty – tmavý režim */
+  --asset-residential-bg: #182218; --asset-residential-header: #1e2e1e; --asset-residential-accent: #5ecb8a; --asset-residential-border: rgba(94,203,138,0.18);
+  --asset-commercial-bg:  #171f2c; --asset-commercial-header:  #1c2838; --asset-commercial-accent:  #7ab4e8; --asset-commercial-border:  rgba(122,180,232,0.18);
+  --asset-ads-bg:         #271a20; --asset-ads-header:         #32202a; --asset-ads-accent:         #e8a0c0; --asset-ads-border:         rgba(232,160,192,0.18);
+  --asset-parking-bg:     #1e1828; --asset-parking-header:     #261e34; --asset-parking-accent:     #b8a8e8; --asset-parking-border:     rgba(184,168,232,0.18);
+  --asset-ostatni-bg:     #172220; --asset-ostatni-header:     #1e2e2a; --asset-ostatni-accent:     #5ec8bc; --asset-ostatni-border:     rgba(94,200,188,0.18);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODAL HEADER GRADIENTS (tenant / asset types / contract)
+═══════════════════════════════════════════════════════════ */
+.modal-header-tenant     { background: linear-gradient(135deg, #0A3D2B 0%, #1A8A62 60%, #12654A 100%); }
+.modal-header-residential{ background: linear-gradient(135deg, #166534 0%, #4ADE80 100%); }
+.modal-header-commercial { background: linear-gradient(135deg, #4C1D95 0%, #8B5CF6 100%); }
+.modal-header-ads        { background: linear-gradient(135deg, #9A3412 0%, #FB923C 100%); }
+.modal-header-parking    { background: linear-gradient(135deg, #1E3A8A 0%, #60A5FA 100%); }
+.modal-header-contract   { background: linear-gradient(135deg, #0F172A 0%, #334155 100%); }
+.modal-header-ostatni   { background: linear-gradient(135deg, #134e4a 0%, #0d9488 100%); }
+
+/* ═══════════════════════════════════════════════════════════
+   EXTRA VISUAL POLISH v0.16
+═══════════════════════════════════════════════════════════ */
+
+/* Smooth card hover for contract cards */
+.card-interactive {
+  transition: transform 0.16s ease, box-shadow 0.16s ease !important;
+}
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important;
+}
+
+/* Subtle page fade-in on view switch */
+.content > * {
+  animation: fadeIn 0.18s ease forwards;
+}
+
+/* Focus ring na inputech - zelená akcent barva */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2.5px rgba(18,101,74,0.25) !important;
+  border-color: var(--accent) !important;
+}
+[data-theme='dark'] input:focus, [data-theme='dark'] select:focus, [data-theme='dark'] textarea:focus {
+  box-shadow: 0 0 0 2.5px rgba(29,185,138,0.3) !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* Smooth sidebar nav items */
+.sidebar-nav-item {
+  transition: background 0.12s ease, opacity 0.12s ease !important;
+}
+
+/* ── Global transitions & polish v0.20 ── */
+
+/* Btn hover lift */
+.btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.btn:active {
+  transform: translateY(0px) scale(0.98);
+}
+
+/* Badge micro-bounce */
+.badge {
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+/* Card border glow on hover */
+.card:hover {
+  border-color: rgba(18,101,74,0.2) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+[data-theme='dark'] .card:hover {
+  border-color: rgba(29,185,138,0.25) !important;
+}
+
+/* Page title fade in */
+.page-title {
+  animation: slideUp 0.22s ease forwards;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Input smooth border */
+input, select, textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+/* Modal backdrop blur enhancement */
+.modal-backdrop {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Progress bar smooth */
+[style*="border-radius: 99"] [style*="background: #22c55e"],
+[style*="border-radius: 99"] [style*="background: linear-gradient(90deg"] {
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
