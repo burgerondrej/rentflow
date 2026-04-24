@@ -734,23 +734,6 @@ pub async fn check_for_update(app: tauri::AppHandle) -> std::result::Result<Upda
 
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    // Debug: přímý HTTP request na manifest URL
-    let manifest_url = "https://burgerondrej.github.io/rentflow-updates/latest.json";
-    match reqwest::blocking::get(manifest_url) {
-        Ok(resp) => {
-            let status = resp.status();
-            let body = resp.text().unwrap_or_else(|_| "cannot read body".to_string());
-            let msg = format!("[{}] HTTP {} from {}\nBody: {}\n", timestamp, status, manifest_url, &body[..body.len().min(500)]);
-            let _ = std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
-                .and_then(|mut f| { use std::io::Write; f.write_all(msg.as_bytes()) });
-        }
-        Err(e) => {
-            let msg = format!("[{}] HTTP ERROR: {}\n", timestamp, e);
-            let _ = std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
-                .and_then(|mut f| { use std::io::Write; f.write_all(msg.as_bytes()) });
-        }
-    }
-
     match app.updater().check().await {
         Ok(update) => {
             let available = update.is_update_available();
@@ -770,7 +753,7 @@ pub async fn check_for_update(app: tauri::AppHandle) -> std::result::Result<Upda
             }
         }
         Err(e) => {
-            let msg = format!("[{}] Check ERROR: {}\n", timestamp, e);
+            let msg = format!("[{}] Check ERROR: {:?}\n", timestamp, e);
             let _ = std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
                 .and_then(|mut f| { use std::io::Write; f.write_all(msg.as_bytes()) });
             Ok(UpdateInfo { available: false, version: None, body: None })

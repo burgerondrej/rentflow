@@ -99,7 +99,7 @@ jobs:
 
           $manifest = @{
             version = $version
-            notes = "## Co je nového v této verzi`nViz changelog v aplikaci."
+            notes = "Co je nového v této verzi: viz changelog v aplikaci."
             pub_date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ")
             platforms = @{
               "windows-x86_64" = @{
@@ -117,7 +117,7 @@ jobs:
             }
           } | ConvertTo-Json -Depth 5
 
-          $manifest | Out-File -FilePath "latest.json" -Encoding utf8
+          $manifest | Out-File -FilePath "latest.json" -Encoding utf8NoBOM
           Write-Host "Generated latest.json:"
           Get-Content latest.json
 

@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "RentFlow",
-    "version": "1.0.3"
+    "version": "1.0.0"
   },
   "tauri": {
     "allowlist": {
@@ -66,7 +66,7 @@
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI1MUE1QjZCQ0Q1MkNGQQpSV1Q2TE5XOHRxVlJDNlhaSnBkbDRTcDBTeWxtQldGd1JKdEY1RWQ2RitHVTZpWi9XRVM0VHVNRgo=",
       "endpoints": [
-        "https://github.com/burgerondrej.github.io/rentflow-updates/latest.json"
+        "https://burgerondrej.github.io/rentflow-updates/latest.json"
       ]
     },
     "windows": [
