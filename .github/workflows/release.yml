@@ -38,26 +38,59 @@ jobs:
           $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).package.version
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: RentFlow v${{ steps.version.outputs.VERSION }}
-          body: |
-            ## Co je nového v této verzi
-            Viz popis níže nebo changelog v aplikaci.
-          files: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/nsis/*.nsis.zip
-            src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/msi/*.msi.zip
-            src-tauri/target/release/bundle/msi/*.msi.zip.sig
-
-      - name: Generate update manifest
+      - name: Create release in rentflow-releases
+        env:
+          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
-          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).package.version
           $tag = "${{ github.ref_name }}"
-          $base = "https://github.com/burgerondrej/rentflow/releases/download/$tag"
+          $version = "${{ steps.version.outputs.VERSION }}"
+
+          # Vytvoř release přes GitHub API
+          $body = @{
+            tag_name = $tag
+            name = "RentFlow v$version"
+            body = "## Co je nového v této verzi`nViz changelog v aplikaci."
+            draft = $false
+            prerelease = $false
+          } | ConvertTo-Json
+
+          $headers = @{
+            Authorization = "token $env:RELEASES_TOKEN"
+            Accept = "application/vnd.github.v3+json"
+          }
+
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/burgerondrej/rentflow-releases/releases" -Method Post -Headers $headers -Body $body -ContentType "application/json"
+          $uploadUrl = $release.upload_url -replace '\{.*\}', ''
+
+          # Upload souborů
+          $files = @(
+            (Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1),
+            (Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip | Select-Object -First 1),
+            (Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip.sig | Select-Object -First 1),
+            (Get-ChildItem src-tauri/target/release/bundle/msi/*.msi | Select-Object -First 1),
+            (Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip | Select-Object -First 1),
+            (Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip.sig | Select-Object -First 1)
+          )
+
+          foreach ($file in $files) {
+            $uploadUri = "$uploadUrl`?name=$($file.Name)"
+            Invoke-RestMethod -Uri $uploadUri -Method Post -Headers $headers -InFile $file.FullName -ContentType "application/octet-stream"
+            Write-Host "Uploaded: $($file.Name)"
+          }
+
+          # Ulož upload URL pro další krok
+          echo "RELEASE_ID=$($release.id)" >> $env:GITHUB_OUTPUT
+          echo "UPLOAD_URL=$uploadUrl" >> $env:GITHUB_OUTPUT
+        id: create_release
+
+      - name: Generate and upload update manifest
+        env:
+          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $tag = "${{ github.ref_name }}"
+          $base = "https://github.com/burgerondrej/rentflow-releases/releases/download/$tag"
 
           $nsisSig = Get-Content "$(Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip.sig | Select-Object -First 1)" -Raw
           $msiSig = Get-Content "$(Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip.sig | Select-Object -First 1)" -Raw
@@ -66,7 +99,7 @@ jobs:
 
           $manifest = @{
             version = $version
-            notes = "## Co je nového v této verzi`nViz popis níže nebo changelog v aplikaci."
+            notes = "## Co je nového v této verzi`nViz changelog v aplikaci."
             pub_date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ")
             platforms = @{
               "windows-x86_64" = @{
@@ -85,16 +118,15 @@ jobs:
           } | ConvertTo-Json -Depth 5
 
           $manifest | Out-File -FilePath "latest.json" -Encoding utf8
+          Write-Host "Generated latest.json:"
+          Get-Content latest.json
 
-      - name: Upload manifest to rentflow-updates
-        env:
-          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
-        run: |
+          # Push do rentflow-updates GitHub Pages
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
           git clone https://burgerondrej:$env:PAGES_TOKEN@github.com/burgerondrej/rentflow-updates.git pages-repo
           Copy-Item latest.json pages-repo/latest.json -Force
           cd pages-repo
           git add latest.json
-          git commit -m "Update manifest to ${{ github.ref_name }}"
+          git commit -m "Update manifest to $tag"
           git push
