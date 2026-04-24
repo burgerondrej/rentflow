@@ -15,6 +15,7 @@ import { Docs, Alerts } from './views/DocsAlerts.jsx'
 import History from './views/History.jsx'
 import OperationalCosts from './views/OperationalCosts.jsx'
 import SettingsPanel from './SettingsPanel.jsx'
+import UpdateDialog from './UpdateDialog.jsx'
 
 const ALL_SUBJECTS = [
   'METROPOLE CB – Komerční prostory',
@@ -57,6 +58,19 @@ function AppInner() {
   const [showSettings, setShowSettings] = useState(false)
   const [backupStatus, setBackupStatus] = useState({ lastBackup: '…', syncing: false })
   const [unsavedSinceBackup, setUnsavedSinceBackup] = useState(false)
+
+  // Auto-update
+  const [updateInfo, setUpdateInfo] = useState(null)
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/tauri')
+        const info = await invoke('check_for_update')
+        if (info.available) setUpdateInfo(info)
+      } catch (e) { }
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [])
 
   // PIN ochrana přepnutí na Ondra
   const ADMIN_PIN = '0750'
@@ -251,6 +265,13 @@ function AppInner() {
             </div>
           </div>
         </div>
+      )}
+      {updateInfo && (
+        <UpdateDialog
+          version={updateInfo.version}
+          body={updateInfo.body}
+          onClose={() => setUpdateInfo(null)}
+        />
       )}
       <Sidebar active={view} onNav={handleNav} width={sbWidth} onResizeStart={handleResizeStart} urgentContracts={urgentContracts} unreadCount={unreadCount} />
       <div className="main">
