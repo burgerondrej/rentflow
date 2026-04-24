@@ -85,10 +85,16 @@ jobs:
           } | ConvertTo-Json -Depth 5
 
           $manifest | Out-File -FilePath "latest.json" -Encoding utf8
-          Write-Host "Generated latest.json:"
-          Get-Content latest.json
 
-      - name: Upload update manifest
-        uses: softprops/action-gh-release@v2
-        with:
-          files: latest.json
+      - name: Upload manifest to rentflow-updates
+        env:
+          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+        run: |
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git clone https://burgerondrej:$env:PAGES_TOKEN@github.com/burgerondrej/rentflow-updates.git pages-repo
+          Copy-Item latest.json pages-repo/latest.json -Force
+          cd pages-repo
+          git add latest.json
+          git commit -m "Update manifest to ${{ github.ref_name }}"
+          git push
