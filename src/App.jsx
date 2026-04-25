@@ -64,12 +64,10 @@ function AppInner() {
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
-        console.log("UPDATE CHECK STARTING")
         const { invoke } = await import('@tauri-apps/api/tauri')
         const info = await invoke('check_for_update')
-        console.log("UPDATE RESULT:", JSON.stringify(info))
         if (info.available) setUpdateInfo(info)
-      } catch (e) { console.error('UPDATE ERROR:', e) }
+      } catch (e) { }
     }, 3000)
     return () => clearTimeout(t)
   }, [])

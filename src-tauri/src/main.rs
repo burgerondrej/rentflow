@@ -69,8 +69,7 @@ fn main() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::get_tenants,
+        .invoke_handler(tauri::generate_handler![            commands::get_tenants,
             commands::add_tenant,
             commands::update_tenant,
             commands::delete_tenant,
@@ -120,6 +119,18 @@ fn main() {
             commands::check_for_update,
             commands::install_update,
         ])
+        // ⚠️ KLÍČOVÁ OPRAVA: Checkpoint WAL při zavírání okna.
+        // Bez toho může dojít ke ztrátě dat pokud je proces ukončen před
+        // automatickým checkpointem SQLite.
+        .on_window_event(|event| {
+            if let tauri::WindowEvent::Destroyed = event.event() {
+                if let Some(state) = event.window().try_state::<AppState>() {
+                    if let Ok(db) = state.db.lock() {
+                        let _ = db.checkpoint();
+                    }
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("Chyba při spouštění aplikace RentFlow");
 }

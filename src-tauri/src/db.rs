@@ -4,7 +4,8 @@ use uuid::Uuid;
 use crate::models::*;
 
 pub struct Database {
-    conn: Connection,
+    pub conn: Connection,
+    pub db_path: std::path::PathBuf,
 }
 
 impl Database {
@@ -18,9 +19,18 @@ impl Database {
             PRAGMA foreign_keys=ON;
         ")?;
 
-        let db = Database { conn };
+        // Checkpoint WAL při startu – ochrana před ztrátou dat z předchozího nečistého ukončení
+        let _ = conn.execute_batch("PRAGMA wal_checkpoint(PASSIVE);");
+
+        let db = Database { conn, db_path: path.to_path_buf() };
         db.init_tables()?;
         Ok(db)
+    }
+
+    /// Vynutí zápis WAL do hlavního DB souboru (volat před zálohováním a zavřením)
+    pub fn checkpoint(&self) -> Result<()> {
+        self.conn.execute_batch("PRAGMA wal_checkpoint(FULL);")?;
+        Ok(())
     }
 
     fn init_tables(&self) -> Result<()> {

@@ -422,20 +422,47 @@ pub fn empty_trash(state: State<AppState>) -> std::result::Result<(), AppError> 
 pub fn get_db_path(app_handle: tauri::AppHandle) -> std::result::Result<String, AppError> {
     let app_dir = app_handle.path_resolver().app_data_dir()
         .ok_or_else(|| AppError::Other("Cannot get app data dir".into()))?;
-    Ok(app_dir.join("rentflow.db").to_string_lossy().into_owned())
+    let settings = load_settings(&app_dir);
+    let db_path = if let Some(custom) = settings.get("dbPath").and_then(|v| v.as_str()) {
+        if !custom.is_empty() { std::path::PathBuf::from(custom) } else { app_dir.join("rentflow.db") }
+    } else {
+        app_dir.join("rentflow.db")
+    };
+    Ok(db_path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
 pub fn create_backup(app_handle: tauri::AppHandle) -> std::result::Result<String, AppError> {
     use std::fs;
     use chrono::Local;
+    use tauri::Manager;
 
     let app_dir = app_handle.path_resolver().app_data_dir()
         .ok_or_else(|| AppError::Other("Cannot get app data dir".into()))?;
-    let db_path = app_dir.join("rentflow.db");
     let backup_dir = app_dir.join("backups");
     fs::create_dir_all(&backup_dir)
         .map_err(|e| AppError::Other(e.to_string()))?;
+
+    // Získej skutečnou cestu DB (respektuj případný custom dbPath ze settings)
+    let settings = load_settings(&app_dir);
+    let db_path = if let Some(custom) = settings.get("dbPath").and_then(|v| v.as_str()) {
+        if !custom.is_empty() {
+            std::path::PathBuf::from(custom)
+        } else {
+            app_dir.join("rentflow.db")
+        }
+    } else {
+        app_dir.join("rentflow.db")
+    };
+
+    // ⚠️ KLÍČOVÁ OPRAVA: Před kopírováním souboru vynutit checkpoint WAL.
+    // V WAL módu jdou zápisy do rentflow.db-wal, hlavní soubor se aktualizuje
+    // až při checkpointu. Bez toho záloha vždy kopíruje stará data.
+    if let Some(state) = app_handle.try_state::<crate::AppState>() {
+        if let Ok(db) = state.db.lock() {
+            let _ = db.checkpoint();
+        }
+    }
 
     let today = Local::now().format("%Y-%m-%d").to_string();
     let backup_name = format!("backup-{}.db", today);
