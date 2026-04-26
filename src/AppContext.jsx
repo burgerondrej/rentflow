@@ -33,9 +33,18 @@ export function AppProvider({ children }) {
   const [operationalCosts, setOperationalCosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [splashStatus, setSplashStatus] = useState('Spouštím RentFlow…')
-  const [currentUser, setCurrentUser] = useState('Ondra')
+  const [currentUser, setCurrentUserState] = useState(() => localStorage.getItem('rentflow_user') || 'Ondra')
   const isReadOnly = currentUser === 'Pavel'
-  const [theme, setTheme] = useState('light')
+  const setCurrentUser = (user) => {
+    localStorage.setItem('rentflow_user', user)
+    setCurrentUserState(user)
+  }
+  const [theme, setThemeState] = useState(() => localStorage.getItem('rentflow_theme') || 'light')
+  const setTheme = (valOrFn) => {
+    const next = typeof valOrFn === 'function' ? valOrFn(theme) : valOrFn
+    localStorage.setItem('rentflow_theme', next)
+    setThemeState(next)
+  }
 
   // Guard pro read-only – Pavel nesmí zapisovat
   const guardWrite = () => {
