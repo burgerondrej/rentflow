@@ -43,6 +43,33 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [amendForm, setAmendForm] = useState(false)
   const [amendData, setAmendData] = useState({ effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '' })
 
+  // Helper: vrátí platné finanční hodnoty smlouvy k dnešnímu datu (respektuje amendments)
+  const effectiveToday = (c) => {
+    const base = {
+      rent: Number(c.rent) || 0,
+      deposit: Number(c.deposit) || 0,
+      depositWater: Number(c.depositWater) || 0,
+      flatFee: Number(c.flatFee) || 0,
+      parking: Number(c.parking) || 0,
+    }
+    if (!c.amendments || c.amendments.length === 0) return base
+    const now = new Date()
+    const todayTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const vals = { ...base }
+    for (const a of c.amendments) {
+      const parts = (a.effectiveFrom || '').split('.').map(p => p.trim())
+      if (parts.length !== 3) continue
+      const aDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime()
+      if (aDate > todayTs) break
+      if (a.rent        !== null && a.rent        !== undefined) vals.rent        = Number(a.rent)
+      if (a.deposit     !== null && a.deposit     !== undefined) vals.deposit     = Number(a.deposit)
+      if (a.depositWater !== null && a.depositWater !== undefined) vals.depositWater = Number(a.depositWater)
+      if (a.flatFee     !== null && a.flatFee     !== undefined) vals.flatFee     = Number(a.flatFee)
+      if (a.parking     !== null && a.parking     !== undefined) vals.parking     = Number(a.parking)
+    }
+    return vals
+  }
+
   // Esc to close
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') handleClose() }
@@ -563,7 +590,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 const isBurger = effSub.startsWith('Bürger Pavel')
                 const isResidential = asset?.type === 'residential'
                 const pLen = { 'Čtvrtletně': 3, 'Pololetně': 6, 'Ročně': 12 }[c.paymentFrequency] || 1
-                const rent = ((Number(c.rent) || 0) + (isResidential && c.parking > 0 ? Number(c.parking || 0) : 0) + (Number(c.flatFee) || 0)) / pLen
+                const rent = ((effectiveToday(c).rent) + (isResidential && c.parking > 0 ? (effectiveToday(c).parking) : 0) + (effectiveToday(c).flatFee)) / pLen
                 if (isBurger) acc.burger += rent
                 else if (isResidential) acc.metroNoDph += rent
                 else acc.metroDph += rent
@@ -621,7 +648,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                   }
                   return displayItems.map((item, idx) => {
                     if (item.kind === 'group') {
-                      const totalRent = item.contracts.reduce((s, c) => s + Number(c.rent || 0), 0)
+                      const totalRent = item.contracts.reduce((s, c) => s + effectiveToday(c).rent, 0)
                       const firstC = item.contracts[0]
                       const firstAsset = assets.find(a => a.id === firstC?.assetId)
                       const effSub = firstC?.billingSubject || firstAsset?.subject || ''
@@ -646,7 +673,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                           <div style={{ padding: '8px 16px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {item.contracts.map(c => {
                               const asset = assets.find(a => a.id === c.assetId)
-                              const rent = Number(c.rent || 0)
+                              const rent = effectiveToday(c).rent
                               return (
                                 <div key={c.id} style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.6)', borderRadius: 8, cursor: 'pointer', border: '1px solid #BFDBFE' }}
                                   onClick={() => onOpen('contract', c.id)}>
@@ -676,9 +703,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                   const effectiveSub = c.billingSubject || asset?.subject || ''
                   const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : !effectiveSub.startsWith('Bürger Pavel')
                   const showDph = (aType === 'commercial' || aType === 'ads' || aType === 'parking' || aType === 'ostatni') && isDphSubject
-                  const rent = Number(c.rent || 0) + (aType === 'residential' && c.includedParkingSpots > 0 ? Number(c.parking || 0) : 0)
-                  const deposit = Number(c.deposit || 0)
-                  const depositWater = Number(c.depositWater || 0)
+                  const _eff = effectiveToday(c)
+                  const rent = _eff.rent + (aType === 'residential' && c.includedParkingSpots > 0 ? _eff.parking : 0)
+                  const deposit = _eff.deposit
+                  const depositWater = _eff.depositWater
                   return (
                     <div key={c.id}
                       style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s' }}
@@ -761,17 +789,17 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                           </>
                         )}
                         {/* Paušální poplatek */}
-                        {aType === 'commercial' && Number(c.flatFee || 0) > 0 && (
+                        {aType === 'commercial' && _eff.flatFee > 0 && (
                           <>
                             <div style={{ height: 1, background: bdr, margin: '2px 0' }} />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>{showDph ? 'Paušál energií bez DPH' : 'Paušál energií a služeb'}</span>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--price-netto)' }}>{Number(c.flatFee).toLocaleString('cs-CZ')} Kč</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--price-netto)' }}>{_eff.flatFee.toLocaleString('cs-CZ')} Kč</span>
                             </div>
                             {showDph && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>s DPH 21 %</span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--price-brutto)' }}>{(Number(c.flatFee) * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--price-brutto)' }}>{(_eff.flatFee * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
                               </div>
                             )}
                           </>
@@ -1835,6 +1863,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         )}
 
         {/* Finanční sekce */}
+        {(() => {
+          const _eff = effectiveToday(c)
+          const effRent = _eff.rent
+          const effParking = _eff.parking
+          const effDeposit = _eff.deposit
+          const effDepWater = _eff.depositWater
+          const effFlatFee = _eff.flatFee
+          return (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px' }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>💰 Finanční přehled</span>
@@ -1858,20 +1894,20 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                   <span style={{ fontSize: 13, color: 'var(--text2)' }}>Nájemné bez DPH</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--price-netto)' }}>{(c.rent || 0).toLocaleString('cs-CZ')} Kč</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--price-netto)' }}>{effRent.toLocaleString('cs-CZ')} Kč</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 11, color: 'var(--text3)' }}>s DPH 21 %</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--price-brutto)' }}>{((c.rent || 0) * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--price-brutto)' }}>{(effRent * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
                 </div>
               </div>
             ) : (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 13, color: 'var(--text2)' }}>Nájemné</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--price-netto)' }}>
-                  {(a?.type === 'residential' && c.parking > 0
-                    ? (c.rent || 0) + (c.parking || 0)
-                    : (c.rent || 0)
+                  {(a?.type === 'residential' && effParking > 0
+                    ? effRent + effParking
+                    : effRent
                   ).toLocaleString('cs-CZ')} Kč
                 </span>
               </div>
@@ -1882,14 +1918,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               <div style={{ padding: '6px 16px 9px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                   <span style={{ fontSize: 12, color: 'var(--text3)' }}>z toho holé nájemné</span>
-                  <span style={{ fontSize: 12, color: 'var(--text2)' }}>{(c.rent || 0).toLocaleString('cs-CZ')} Kč</span>
+                  <span style={{ fontSize: 12, color: 'var(--text2)' }}>{effRent.toLocaleString('cs-CZ')} Kč</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--text3)' }}>
                     z toho parkování{c.includedParkingSpots > 0 ? ` (${c.includedParkingSpots} ${c.includedParkingSpots === 1 ? 'místo' : c.includedParkingSpots < 5 ? 'místa' : 'míst'})` : ''}
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--text2)' }}>
-                    {c.parking > 0 ? `${c.parking.toLocaleString('cs-CZ')} Kč` : 'zahrnuto v nájemném'}
+                    {effParking > 0 ? `${effParking.toLocaleString('cs-CZ')} Kč` : 'zahrnuto v nájemném'}
                   </span>
                 </div>
               </div>
@@ -1899,38 +1935,38 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             {a?.type === 'residential' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 13, color: 'var(--text2)' }}>Zálohy energií a služeb</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--price-netto)' }}>{(c.deposit || 0).toLocaleString('cs-CZ')} Kč</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--price-netto)' }}>{effDeposit.toLocaleString('cs-CZ')} Kč</span>
               </div>
             )}
 
             {/* Zálohy – commercial s DPH */}
-            {a?.type === 'commercial' && isDphSubject && (c.deposit > 0) && (
+            {a?.type === 'commercial' && isDphSubject && (effDeposit > 0) && (
               <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                   <span style={{ fontSize: 13, color: 'var(--text2)' }}>Zálohy energií a služeb bez DPH</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--price-netto)' }}>{c.deposit.toLocaleString('cs-CZ')} Kč</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--price-netto)' }}>{effDeposit.toLocaleString('cs-CZ')} Kč</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 11, color: 'var(--text3)' }}>s DPH 21 %</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--price-brutto)' }}>{(c.deposit * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--price-brutto)' }}>{(effDeposit * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
                 </div>
               </div>
             )}
-            {a?.type === 'commercial' && !isDphSubject && c.deposit > 0 && (
+            {a?.type === 'commercial' && !isDphSubject && effDeposit > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 13, color: 'var(--text2)' }}>Zálohy energií a služeb</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--price-netto)' }}>{c.deposit.toLocaleString('cs-CZ')} Kč</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--price-netto)' }}>{effDeposit.toLocaleString('cs-CZ')} Kč</span>
               </div>
             )}
-            {a?.type === 'commercial' && isDphSubject && (c.depositWater > 0) && (
+            {a?.type === 'commercial' && isDphSubject && (effDepWater > 0) && (
               <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                   <span style={{ fontSize: 13, color: 'var(--text2)' }}>Zálohy — voda a srážkovné bez DPH</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--price-netto)' }}>{c.depositWater.toLocaleString('cs-CZ')} Kč</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--price-netto)' }}>{effDepWater.toLocaleString('cs-CZ')} Kč</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 11, color: 'var(--text3)' }}>s DPH 12 %</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--price-brutto)' }}>{(c.depositWater * 1.12).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--price-brutto)' }}>{(effDepWater * 1.12).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
                 </div>
               </div>
             )}
@@ -1944,10 +1980,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             )}
 
             {/* Parkovné – non-residential */}
-            {c.parking > 0 && a?.type !== 'residential' && (
+            {effParking > 0 && a?.type !== 'residential' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 13, color: 'var(--text2)' }}>Parkovné</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.parking.toLocaleString('cs-CZ')} Kč</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{effParking.toLocaleString('cs-CZ')} Kč</span>
               </div>
             )}
             {/* Parkovací stání v nájemném – non-residential */}
@@ -1959,6 +1995,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             )}
           </div>
         </div>
+          )
+        })()}
 
         {/* Podmínky smlouvy */}
         {(a?.type === 'residential'

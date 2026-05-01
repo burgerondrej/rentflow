@@ -346,6 +346,22 @@ export function AppProvider({ children }) {
 
   const updatePayment = (id, updates) => setPayments(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
 
+  const updatePaymentAmount = async (id, amount, agreed) => {
+    if (guardWrite()) return
+    // Optimistic update ihned
+    setPayments(prev => prev.map(p => p.id === id ? { ...p, amount, agreed: !!agreed } : p))
+    try {
+      await invoke('update_payment_amount', { id, amount, agreed: !!agreed, user: currentUser })
+    } catch (err) {
+      console.error('updatePaymentAmount error:', err)
+      // Rollback při chybě
+      try {
+        const fresh = await invoke('get_payments')
+        if (fresh) setPayments(fresh)
+      } catch { /* ignore */ }
+    }
+  }
+
   const deletePayment = async (id) => {
     if (guardWrite()) return
     try {
@@ -608,7 +624,7 @@ export function AppProvider({ children }) {
     // CRUD – Smlouvy
     addContract, updateContract, deleteContract, archiveContract,
     // CRUD – Platby
-    addPayment, updatePayment, deletePayment,
+    addPayment, updatePayment, updatePaymentAmount, deletePayment,
     // CRUD – Kanban
     addTask, updateTask, deleteTask,
     // CRUD – Revize

@@ -205,6 +205,8 @@ pub struct Payment {
     pub group_label: Option<String>,
     #[serde(default)]
     pub note: String,
+    #[serde(default)]
+    pub agreed: bool,
 }
 
 // ─────────────────────────────────────────

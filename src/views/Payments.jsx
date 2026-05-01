@@ -1,5 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useApp } from '../AppContext.jsx'
+import { save } from '@tauri-apps/api/dialog'
+import { invoke } from '@tauri-apps/api/tauri'
 
 const SUBJECTS = [
   // Sloupec 1
@@ -377,8 +379,86 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
   )
 }
 
+// ─── Modal pro editaci uhrazené částky ──────────────────────────────────────
+function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }) {
+  const [amount, setAmount] = useState(String(payment.amount || ''))
+  const [agreed, setAgreed] = useState(payment.agreed || false)
+  const [step, setStep] = useState('edit') // 'edit' | 'confirm'
+  const parsed = parseFloat(amount.replace(',', '.'))
+  const isValid = !isNaN(parsed) && parsed >= 0
+
+  if (step === 'confirm') {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+        onClick={onClose}>
+        <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>Potvrdit úpravu platby</div>
+          <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20, lineHeight: 1.6 }}>
+            Změnit uhrazenou částku za <strong>{monthLabel}</strong>{tenantName ? ` (${tenantName})` : ''} na{' '}
+            <strong>{parsed.toLocaleString('cs-CZ')} Kč</strong>?
+            {agreed && <div style={{ marginTop: 8, color: '#16A34A', fontWeight: 700, fontSize: 12 }}>✓ Bude označeno jako odsouhlasená plná úhrada</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn" style={{ flex: 1 }} onClick={() => setStep('edit')}>← Zpět</button>
+            <button className="btn" style={{ flex: 2, background: '#D97706', color: '#fff', border: 'none', fontWeight: 700 }}
+              onClick={() => onConfirm(parsed, agreed)}>
+              ✓ Uložit změnu
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+      onClick={onClose}>
+      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Upravit uhrazenou částku</div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 18 }}>
+          {monthLabel}{tenantName ? ` · ${tenantName}` : ''}
+        </div>
+        <input
+          className="btn"
+          type="number"
+          style={{ width: '100%', textAlign: 'left', cursor: 'text', background: 'var(--bg2)', boxSizing: 'border-box', marginBottom: 12 }}
+          value={amount}
+          onChange={e => setAmount(e.target.value)}
+          autoFocus
+          onKeyDown={e => { if (e.key === 'Enter' && isValid) setStep('confirm') }}
+          placeholder="Částka v Kč"
+        />
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, cursor: 'pointer', padding: '10px 14px', background: agreed ? '#F0FDF4' : 'var(--bg2)', border: `1.5px solid ${agreed ? '#16A34A' : 'var(--border)'}`, borderRadius: 10, transition: '0.15s' }}>
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={e => setAgreed(e.target.checked)}
+            style={{ marginTop: 2, accentColor: '#16A34A', width: 16, height: 16, flexShrink: 0 }}
+          />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: agreed ? '#15803D' : 'var(--text)' }}>Odsouhlasená plná úhrada</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, lineHeight: 1.4 }}>
+              Tato částka je finální dohodnutá výše — bude považována za 100% uhrazeno bez ohledu na výši nájmu ve smlouvě.
+            </div>
+          </div>
+        </label>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn" style={{ flex: 1 }} onClick={onClose}>Zrušit</button>
+          <button className="btn" style={{ flex: 2, background: isValid ? '#D97706' : '#9CA3AF', color: '#fff', border: 'none', fontWeight: 700 }}
+            disabled={!isValid}
+            onClick={() => { if (isValid) setStep('confirm') }}>
+            Dále →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Payments() {
-  const { contracts = [], tenants = [], assets = [], payments = [], addPayment, deletePayment, addAmendment, deleteAmendment, isReadOnly } = useApp() || {}
+  const { contracts = [], tenants = [], assets = [], payments = [], addPayment, deletePayment, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly } = useApp() || {}
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedYear, setSelectedYear]   = useState(new Date().getFullYear())
   const [showPicker, setShowPicker]       = useState(false)
@@ -390,6 +470,8 @@ export default function Payments() {
   const [pendingPayment, setPendingPayment] = useState(null)   // { contract, tenantName, paymentType }
   const [periodPicker, setPeriodPicker]     = useState(null)   // { contract, preselectedKeys }
   const [combinedModal, setCombinedModal]   = useState(null)   // { contract, tenantName, rentAmount, depositAmount }
+  const [editAmountModal, setEditAmountModal] = useState(null) // { payment, monthLabel, tenantName }
+  const [reportLoading, setReportLoading]   = useState(false)
 
   const monthKey   = `${selectedYear}-${selectedMonth}`
   const monthLabel = `${MONTHS[selectedMonth]} ${selectedYear}`
@@ -523,7 +605,9 @@ export default function Payments() {
         if (!seenGroups.has(c.groupLabel)) {
           seenGroups.add(c.groupLabel)
           const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
-          if (gp) total += Number(gp.amount) || 0
+          if (gp) {
+            total += Number(gp.amount) || 0
+          }
         }
       } else {
         const isMulti = ['Čtvrtletně','Pololetně','Ročně'].includes(c.paymentFrequency)
@@ -601,11 +685,15 @@ export default function Payments() {
     if (isMulti) {
       const [y, m] = key.split('-').map(Number)
       const paid = isPeriodPaid(c, y, m)
+      const payment = getPayment(c.id, key)
+      if (payment?.agreed) return { status: 'paid', payment, remaining: 0 }
       return paid
-        ? { status: 'paid', payment: getPayment(c.id, key), remaining: 0 }
+        ? { status: 'paid', payment, remaining: 0 }
         : { status: 'unpaid', payment: null, remaining: effPeriodRent(c) }
     }
     const payment = getPayment(c.id, key)
+    // Odsouhlasená platba = vždy paid bez ohledu na výši
+    if (payment?.agreed) return { status: 'paid', payment, remaining: 0 }
     const [yr, mo] = key.split('-').map(Number)
     const ev = getEffectiveValues(c, yr, mo)
     const expected = ev.rent + ev.parking + ev.flatFee
@@ -614,7 +702,25 @@ export default function Payments() {
     return { status: 'paid', payment, remaining: 0 }
   }
 
-  const globalPaidCount = activeContracts.filter(c => getRentStatus(c, monthKey).status === 'paid').length
+  const globalPaidCount = (() => {
+    const seenG = new Set()
+    let count = 0
+    for (const c of activeContracts) {
+      if (c.groupLabel) {
+        if (seenG.has(c.groupLabel)) continue
+        seenG.add(c.groupLabel)
+        const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
+        if (!gp) continue
+        if (gp.agreed) { count++; continue }
+        const members = activeContracts.filter(x => x.groupLabel === c.groupLabel)
+        const groupTotal = members.reduce((s, mc) => { const ev = getEffectiveValues(mc, selectedYear, selectedMonth); return s + ev.rent + ev.parking + ev.flatFee }, 0)
+        if (Number(gp.amount) >= groupTotal - 0.01) count++
+      } else {
+        if (getRentStatus(c, monthKey).status === 'paid') count++
+      }
+    }
+    return count
+  })()
 
   // Počty pro sidebar badge — respektuje skupiny i multimonth
   const getSubStatus = (subName) => {
@@ -628,9 +734,13 @@ export default function Payments() {
       total++
       if (c.groupLabel) {
         const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
-        if (!gp) unpaid++
+        if (!gp) { unpaid++; return }
+        if (gp.agreed) return // paid
+        const members = sub.filter(x => x.groupLabel === c.groupLabel)
+        const groupTotal = members.reduce((s, mc) => { const ev = getEffectiveValues(mc, selectedYear, selectedMonth); return s + ev.rent + ev.parking + ev.flatFee }, 0)
+        if (Number(gp.amount) < groupTotal - 0.01) unpaid++ // partial
       } else {
-        if (getRentStatus(c, monthKey).status === 'unpaid') unpaid++
+        if (getRentStatus(c, monthKey).status !== 'paid') unpaid++
       }
     })
     return { unpaid, total }
@@ -658,6 +768,7 @@ export default function Payments() {
   }
 
   const subContracts = contractsForSub(activeSub)
+  // DEBUG: breakdown per contract
   const subExpected  = subContracts.reduce((s, c) => s + effRent(c), 0)
   const subReceived  = (() => {
     const seenGroups = new Set()
@@ -667,18 +778,21 @@ export default function Payments() {
         if (!seenGroups.has(c.groupLabel)) {
           seenGroups.add(c.groupLabel)
           const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
-          if (gp && gp.paymentType !== 'deposit') total += Number(gp.amount) || 0
+          if (gp && gp.paymentType !== 'deposit') {
+            total += Number(gp.amount) || 0
+          } else {
+          }
         }
       } else {
         const freq = c.paymentFrequency || 'Měsíčně'
         const isMulti = freq === 'Čtvrtletně' || freq === 'Pololetně' || freq === 'Ročně'
         const p = getPayment(c.id, monthKey)
         if (isMulti) {
-          // Pro multimonth: pokud existuje platba pro tento měsíc, přičti měsíční ekvivalent
-          // (p.amount může být stará plná splátka nebo nová per-month — vždy používáme effRent)
-          total += p && p.paymentType !== 'deposit' ? effRent(c) : 0
+          const added = p && p.paymentType !== 'deposit' ? effRent(c) : 0
+          total += added
         } else {
-          total += (p && p.paymentType !== 'deposit' ? Number(p.amount) || 0 : 0)
+          const added = (p && p.paymentType !== 'deposit') ? (Number(p.amount) || 0) : 0
+          total += added
         }
       }
     }
@@ -829,7 +943,8 @@ export default function Payments() {
         if (seenG.has(c.groupLabel)) return s
         seenG.add(c.groupLabel)
         const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === key)
-        return s + (gp && gp.paymentType !== 'deposit' ? Number(gp.amount) || 0 : 0)
+        if (!gp || gp.paymentType === 'deposit') return s
+        return s + (Number(gp.amount) || 0)
       }
       const p = payments.find(pp => pp.contractId === c.id && pp.month === key && pp.paymentType !== 'deposit')
       if (!p) return s
@@ -842,10 +957,38 @@ export default function Payments() {
   const maxRec = Math.max(...last6Months.map(m => m.exp), 1)
 
   // ── Dlužníci ──────────────────────────────────────────────────────────────
-  const debtors = activeContracts
-    .map(c => ({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c), rs: getRentStatus(c, monthKey) }))
-    .filter(({ rs }) => rs.status !== 'paid')
-    .sort((a, b) => effRent(b.contract) - effRent(a.contract))
+  const debtors = (() => {
+    const seenGroups = new Set()
+    const result = []
+    for (const c of activeContracts) {
+      if (c.groupLabel) {
+        // Skupinové smlouvy — zpracuj jednou za skupinu
+        if (seenGroups.has(c.groupLabel)) continue
+        seenGroups.add(c.groupLabel)
+        const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
+        // Agreed → paid, přeskočit
+        if (gp?.agreed) continue
+        // Spočítej celkový expected skupiny
+        const members = activeContracts.filter(x => x.groupLabel === c.groupLabel)
+        const groupTotal = members.reduce((s, mc) => {
+          const ev = getEffectiveValues(mc, selectedYear, selectedMonth)
+          return s + ev.rent + ev.parking + ev.flatFee
+        }, 0)
+        if (!gp) {
+          result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c), rs: { status: 'unpaid', payment: null, remaining: groupTotal }, isGroup: true, groupLabel: c.groupLabel, groupTotal })
+        } else if (Number(gp.amount) < groupTotal - 0.01) {
+          result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c), rs: { status: 'partial', payment: gp, remaining: groupTotal - Number(gp.amount) }, isGroup: true, groupLabel: c.groupLabel, groupTotal })
+        }
+        // Jinak paid → nepřidávat
+      } else {
+        const rs = getRentStatus(c, monthKey)
+        if (rs.status !== 'paid') {
+          result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c), rs, isGroup: false })
+        }
+      }
+    }
+    return result.sort((a, b) => (b.groupTotal || effRent(b.contract)) - (a.groupTotal || effRent(a.contract)))
+  })()
 
   const contractHistory = (contractId) =>
     payments.filter(p => p.contractId === contractId)
@@ -860,6 +1003,328 @@ export default function Payments() {
   const formatMonthKey = (key) => {
     const [yr, mo] = key.split('-')
     return `${MONTHS[parseInt(mo)]} ${yr}`
+  }
+
+  // ── Poslední den daného měsíce ────────────────────────────────────────────
+  const lastDayOfMonth = (year, month) => new Date(year, month + 1, 0).getDate()
+
+  // ── Pomocná: je smlouva aktivní v daném roce/měsíci? ─────────────────────
+  const isContractActiveInPeriod = (c, y, m) => {
+    const mStart = new Date(y, m, 1)
+    const mEnd   = new Date(y, m + 1, 0)
+    const startD = parseDate(c.start)
+    const endD   = parseDate(c.end)
+    if (startD && startD > mEnd) return false
+    if (endD   && endD   < mStart) return false
+    return true
+  }
+
+  // ── Stav platby skupiny pro daný měsíc ───────────────────────────────────
+  const getGroupStatus = (label, members, y, m) => {
+    const key = `${y}-${m}`
+    const groupPayment = payments.find(p => p.groupLabel === label && p.month === key)
+    const groupTotal = members.reduce((s, c) => {
+      const ev = getEffectiveValues(c, y, m)
+      return s + ev.rent + ev.parking + ev.flatFee
+    }, 0)
+    if (!groupPayment) return { status: 'unpaid', payment: null, remaining: groupTotal, expected: groupTotal }
+    // Odsouhlasená platba = vždy paid
+    if (groupPayment.agreed) return { status: 'paid', payment: groupPayment, remaining: 0, expected: groupTotal }
+    const paid = Number(groupPayment.amount)
+    if (paid < groupTotal - 0.01) return { status: 'partial', payment: groupPayment, remaining: groupTotal - paid, expected: groupTotal }
+    return { status: 'paid', payment: groupPayment, remaining: 0, expected: groupTotal }
+  }
+
+  // ── Report nezaplacených k poslednímu dni vybraného měsíce ────────────────
+  const generateUnpaidReport = async () => {
+    setReportLoading(true)
+    try {
+      const reportDate = new Date(selectedYear, selectedMonth + 1, 0) // poslední den měsíce
+      const reportDateStr = reportDate.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
+      const stamp = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`
+
+      // Všechny měsíce pro report: od 11 měsíců zpět AŽ PO vybraný měsíc včetně
+      // Klíč formát: "RRRR-M" kde M je 0-based index měsíce
+      const allReportMonths = []
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(selectedYear, selectedMonth - i, 1)
+        const k = `${d.getFullYear()}-${d.getMonth()}`
+        allReportMonths.push({ year: d.getFullYear(), month: d.getMonth(), key: k })
+      }
+      const currentKey = `${selectedYear}-${selectedMonth}`
+      // pastMonths = všechny kromě aktuálního (pro "historické dluhy" sekci)
+      const pastMonths = allReportMonths.slice(0, -1)
+
+      console.log('[Report] selectedYear:', selectedYear, 'selectedMonth:', selectedMonth)
+
+      // Sestavení dat per subjekt
+      const subjectData = SUBJECTS.map(subName => {
+        // Všechny aktivní smlouvy pro tento subjekt v daném (vybraném) měsíci
+        const subContracts = contractsForSub(subName)
+
+        const tenantRows = []
+        const seenGroups = new Set()
+
+        subContracts.forEach(c => {
+          if (c.groupLabel) {
+            // Skupinové smlouvy – zpracuj jednou za skupinu
+            if (seenGroups.has(c.groupLabel)) return
+            seenGroups.add(c.groupLabel)
+
+            const members = subContracts.filter(x => x.groupLabel === c.groupLabel)
+            const tenant  = getTenantForContract(members[0])
+            const asset   = getAssetForContract(members[0])
+            const tName   = tenant?.name || '—'
+            const aUnit   = `${c.groupLabel} (${members.length} ${asset?.type === 'commercial' ? 'prostory' : 'stání'})`
+
+            // Stav aktuálního měsíce
+            const currentStatus = getGroupStatus(c.groupLabel, members, selectedYear, selectedMonth)
+
+            // Dluhy v předchozích měsících — jen od prvního zaznamenaného měsíce skupiny
+            const groupPayments = payments.filter(p => p.groupLabel === c.groupLabel)
+            const oldestGroupMonth = groupPayments.length > 0
+              ? groupPayments.reduce((oldest, p) => {
+                  const [py, pm] = p.month.split('-').map(Number)
+                  const [oy, om] = oldest.split('-').map(Number)
+                  return (py < oy || (py === oy && pm < om)) ? p.month : oldest
+                }, groupPayments[0].month)
+              : currentKey
+
+            const pastDebts = []
+            pastMonths.forEach(({ year: y, month: m, key: k }) => {
+              const anyActive = members.some(mc => isContractActiveInPeriod(mc, y, m))
+              if (!anyActive) return
+              const [oy, om] = oldestGroupMonth.split('-').map(Number)
+              if (y < oy || (y === oy && m < om)) return
+              const st = getGroupStatus(c.groupLabel, members, y, m)
+              if (st.status !== 'paid') {
+                const paid = st.payment ? Number(st.payment.amount) : 0
+                pastDebts.push({
+                  monthLabel: formatMonthKey(k),
+                  expected: Math.round(st.expected),
+                  paid: Math.round(paid),
+                  remaining: Math.round(st.remaining),
+                  status: st.status,
+                })
+              }
+            })
+
+            tenantRows.push({ tName, aUnit, currentStatus, pastDebts, contract: members[0], isGroup: true })
+          } else {
+            // Jednotlivá smlouva
+            const tenant = getTenantForContract(c)
+            const asset  = getAssetForContract(c)
+            const tName  = tenant?.name || '—'
+            const aUnit  = asset?.unit || asset?.name || '—'
+
+            const currentStatus = getRentStatus(c, currentKey)
+
+            // Najdi nejstarší zaznamenanou platbu pro tuto smlouvu
+            // — dluhy reportujeme jen od prvního zaznamenaného měsíce v systému
+            const contractPayments = payments.filter(p => p.contractId === c.id)
+            const oldestPaymentMonth = contractPayments.length > 0
+              ? contractPayments.reduce((oldest, p) => {
+                  const [py, pm] = p.month.split('-').map(Number)
+                  const [oy, om] = oldest.split('-').map(Number)
+                  return (py < oy || (py === oy && pm < om)) ? p.month : oldest
+                }, contractPayments[0].month)
+              : currentKey // pokud žádná platba není, sledujeme jen aktuální měsíc
+
+            const pastDebts = []
+            pastMonths.forEach(({ year: y, month: m, key: k }) => {
+              if (!isContractActiveInPeriod(c, y, m)) return
+              // Přeskočit měsíce starší než první zaznamenaná platba
+              const [oy, om] = oldestPaymentMonth.split('-').map(Number)
+              if (y < oy || (y === oy && m < om)) return
+              const st = getRentStatus(c, k)
+              if (st.status !== 'paid') {
+                const ev = getEffectiveValues(c, y, m)
+                const expected = ev.rent + ev.parking + ev.flatFee
+                const paid = st.payment ? Number(st.payment.amount) : 0
+                pastDebts.push({
+                  monthLabel: formatMonthKey(k),
+                  expected: Math.round(expected),
+                  paid: Math.round(paid),
+                  remaining: Math.round(expected - paid),
+                  status: st.status,
+                })
+              }
+            })
+
+            tenantRows.push({ tName, aUnit, currentStatus, pastDebts, contract: c, isGroup: false })
+          }
+        })
+
+        const unpaidRows = tenantRows.filter(r => r.currentStatus.status !== 'paid' || r.pastDebts.length > 0)
+        const allOk = unpaidRows.length === 0
+
+        return { subName, allOk, unpaidRows }
+      })
+
+      // ── Generuj HTML ──────────────────────────────────────────────────────
+      const PRINT_CSS = `
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, 'Helvetica Neue', sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; }
+        .page { max-width: 860px; margin: 0 auto; padding: 32px 40px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #12654A; }
+        .header-title { font-size: 22px; font-weight: 800; color: #12654A; }
+        .header-sub { font-size: 12px; color: #666; margin-top: 4px; }
+        .header-right { text-align: right; }
+        .header-date { font-size: 13px; font-weight: 700; color: #374151; }
+        .header-gen { font-size: 11px; color: #9CA3AF; margin-top: 3px; }
+        .section { margin-bottom: 24px; break-inside: avoid; }
+        .section-title { font-size: 13px; font-weight: 800; color: #12654A; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; padding: 6px 12px; background: #F0FDF4; border-left: 3px solid #12654A; border-radius: 0 6px 6px 0; display: flex; justify-content: space-between; align-items: center; }
+        .ok-badge { font-size: 11px; font-weight: 700; color: #166534; background: #DCFCE7; padding: 2px 10px; border-radius: 20px; letter-spacing: 0; text-transform: none; }
+        .ok-msg { font-size: 13px; color: #166534; font-style: italic; padding: 10px 14px; background: #F0FDF4; border-radius: 8px; border: 1px solid #BBF7D0; }
+        .tenant-block { margin-bottom: 14px; border: 1px solid #E5E7EB; border-radius: 10px; overflow: hidden; }
+        .tenant-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; }
+        .tenant-name { font-size: 13px; font-weight: 700; color: #111827; }
+        .tenant-unit { font-size: 11px; color: #6B7280; margin-top: 2px; }
+        .debt-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid #F3F4F6; }
+        .debt-row:last-child { border-bottom: none; }
+        .debt-month { font-size: 12px; font-weight: 600; color: #374151; }
+        .debt-current { background: #FFF7ED; }
+        .debt-current .debt-month { color: #92400E; }
+        .debt-amounts { display: flex; gap: 18px; align-items: center; font-size: 12px; }
+        .debt-label { color: #9CA3AF; font-size: 10px; margin-bottom: 1px; }
+        .debt-val { font-weight: 700; }
+        .debt-exp { color: #374151; }
+        .debt-paid { color: #16A34A; }
+        .debt-rem { color: #DC2626; }
+        .badge-unpaid { background: #FEF2F2; color: #991B1B; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+        .badge-partial { background: #FFFBEB; color: #92400E; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+        .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #E5E5E5; font-size: 10px; color: #9CA3AF; display: flex; justify-content: space-between; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      `
+
+      const genTenantBlock = (row) => {
+        const { tName, aUnit, currentStatus, pastDebts, isGroup } = row
+        let expected, paid, remaining
+        if (isGroup) {
+          // Skupiny: expected je v currentStatus.expected
+          expected = Math.round(currentStatus.expected || 0)
+        } else {
+          const ev = getEffectiveValues(row.contract, selectedYear, selectedMonth)
+          expected = Math.round(ev.rent + ev.parking + ev.flatFee)
+        }
+        paid = currentStatus.payment ? Math.round(Number(currentStatus.payment.amount)) : 0
+        remaining = Math.round(expected - paid)
+
+        let rows = ''
+
+        // Předchozí dluhy
+        pastDebts.forEach(d => {
+          rows += `
+            <div class="debt-row">
+              <div>
+                <div class="debt-month">${d.monthLabel}</div>
+              </div>
+              <div class="debt-amounts">
+                <div style="text-align:right">
+                  <div class="debt-label">Předpis</div>
+                  <div class="debt-val debt-exp">${d.expected.toLocaleString('cs-CZ')} Kč</div>
+                </div>
+                ${d.paid > 0 ? `<div style="text-align:right"><div class="debt-label">Uhrazeno</div><div class="debt-val debt-paid">${d.paid.toLocaleString('cs-CZ')} Kč</div></div>` : ''}
+                <div style="text-align:right">
+                  <div class="debt-label">Dluh</div>
+                  <div class="debt-val debt-rem">${d.remaining.toLocaleString('cs-CZ')} Kč</div>
+                </div>
+                <span class="${d.status === 'partial' ? 'badge-partial' : 'badge-unpaid'}">${d.status === 'partial' ? 'Částečně' : 'Nezaplaceno'}</span>
+              </div>
+            </div>`
+        })
+
+        // Aktuální měsíc (pokud nezaplaceno)
+        if (currentStatus.status !== 'paid') {
+          rows += `
+            <div class="debt-row debt-current">
+              <div>
+                <div class="debt-month">${formatMonthKey(currentKey)} (aktuální)</div>
+              </div>
+              <div class="debt-amounts">
+                <div style="text-align:right">
+                  <div class="debt-label">Předpis</div>
+                  <div class="debt-val debt-exp">${expected.toLocaleString('cs-CZ')} Kč</div>
+                </div>
+                ${paid > 0 ? `<div style="text-align:right"><div class="debt-label">Uhrazeno</div><div class="debt-val debt-paid">${paid.toLocaleString('cs-CZ')} Kč</div></div>` : ''}
+                <div style="text-align:right">
+                  <div class="debt-label">Dluh</div>
+                  <div class="debt-val debt-rem">${remaining.toLocaleString('cs-CZ')} Kč</div>
+                </div>
+                <span class="${currentStatus.status === 'partial' ? 'badge-partial' : 'badge-unpaid'}">${currentStatus.status === 'partial' ? 'Částečně' : 'Nezaplaceno'}</span>
+              </div>
+            </div>`
+        }
+
+        return `
+          <div class="tenant-block">
+            <div class="tenant-header">
+              <div>
+                <div class="tenant-name">${tName}</div>
+                <div class="tenant-unit">${aUnit}</div>
+              </div>
+            </div>
+            ${rows}
+          </div>`
+      }
+
+      const sectionsHtml = subjectData.map(({ subName, allOk, unpaidRows }) => `
+        <div class="section">
+          <div class="section-title">
+            <span>${subName}</span>
+            ${allOk ? '<span class="ok-badge">✓ Vše v pořádku</span>' : ''}
+          </div>
+          ${allOk
+            ? '<div class="ok-msg">Vše uhrazeno a v pořádku.</div>'
+            : unpaidRows.map(row => genTenantBlock(row)).join('')
+          }
+        </div>`
+      ).join('')
+
+      const now = new Date()
+      const genDateStr = now.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
+
+      const html = `<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RentFlow — Report nezaplacených — ${stamp}</title>
+  <style>${PRINT_CSS}</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="header-title">Report nezaplacených plateb</div>
+      <div class="header-sub">RentFlow · Stav k ${reportDateStr}</div>
+    </div>
+    <div class="header-right">
+      <div class="header-date">${MONTHS[selectedMonth]} ${selectedYear}</div>
+      <div class="header-gen">Vygenerováno ${genDateStr}</div>
+    </div>
+  </div>
+  ${sectionsHtml}
+  <div class="footer">
+    <span>RentFlow</span>
+    <span>Report k ${reportDateStr}</span>
+  </div>
+</div>
+</body>
+</html>`
+
+      const outPath = await save({
+        defaultPath: `RentFlow-Nezaplacene-${stamp}.pdf`,
+        filters: [{ name: 'PDF soubor', extensions: ['pdf'] }],
+      })
+      if (!outPath) return
+
+      await invoke('export_to_pdf', { html, outPath })
+    } catch (e) {
+      console.error('Report error:', e)
+    } finally {
+      setReportLoading(false)
+    }
   }
 
   return (
@@ -881,6 +1346,18 @@ export default function Payments() {
           monthLabel={monthLabel}
           onConfirm={handleCombinedConfirm}
           onClose={() => setCombinedModal(null)}
+        />
+      )}
+      {editAmountModal && (
+        <EditAmountModal
+          payment={editAmountModal.payment}
+          monthLabel={editAmountModal.monthLabel}
+          tenantName={editAmountModal.tenantName}
+          onConfirm={async (newAmount, newAgreed) => {
+            await updatePaymentAmount(editAmountModal.payment.id, newAmount, newAgreed)
+            setEditAmountModal(null)
+          }}
+          onClose={() => setEditAmountModal(null)}
         />
       )}
       {periodPicker && (
@@ -1049,10 +1526,20 @@ export default function Payments() {
       </div>
 
       {/* VNITŘNÍ ZÁLOŽKY */}
-      <div style={{ display: 'flex', gap: 0, margin: '0 0 20px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', gap: 0, margin: '0 0 20px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
         {[['overview','📋 Přehled plateb za aktuální měsíc'],['history','📈 Historie za posledních 6 měsíců'],['debtors','🔴 Dosud neuhrazené platby napříč firmami za aktuální měsíc']].map(([id, label]) => (
           <button key={id} onClick={() => setActiveTab(id)} style={{ padding: '10px 20px', border: 'none', background: 'transparent', borderBottom: activeTab === id ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === id ? 'var(--accent)' : 'var(--text3)', fontWeight: activeTab === id ? 700 : 500, fontSize: 13, cursor: 'pointer', marginBottom: '-1px', transition: '0.1s' }}>{label}</button>
         ))}
+        <div style={{ flex: 1 }} />
+        {!isReadOnly && (
+          <button
+            onClick={generateUnpaidReport}
+            disabled={reportLoading}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: '1.5px solid var(--accent)', background: 'transparent', color: 'var(--accent)', fontWeight: 700, fontSize: 12, cursor: reportLoading ? 'wait' : 'pointer', marginBottom: 6, opacity: reportLoading ? 0.6 : 1, transition: '0.15s', whiteSpace: 'nowrap' }}
+          >
+            {reportLoading ? '⏳ Generuji…' : '📄 Report nezaplacených'}
+          </button>
+        )}
       </div>
 
       {/* ══ TAB: PŘEHLED ══ */}
@@ -1135,8 +1622,17 @@ export default function Payments() {
                               {members[0]?.dueDay || '—'}
                             </td>
                             <td style={{ padding: '14px 12px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: isPaid ? '#16A34A' : '#DC2626' }}>
-                              {groupTotal.toLocaleString('cs-CZ')} Kč
-                              {showDph && groupTotal > 0 && <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginTop: 1 }}>s DPH: {(groupTotal * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>}
+                              {(() => {
+                                const displayAmt = groupPayment?.agreed ? Number(groupPayment.amount) : groupTotal
+                                return <>
+                                  {displayAmt.toLocaleString('cs-CZ')} Kč
+                                  {groupPayment?.agreed && displayAmt !== groupTotal && (
+                                    <div style={{ fontSize: 10, color: '#16A34A', fontWeight: 600, marginTop: 1 }}>✓ odsouhlaseno (smlouva: {groupTotal.toLocaleString('cs-CZ')} Kč)</div>
+                                  )}
+                                  {showDph && displayAmt > 0 && !groupPayment?.agreed && <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginTop: 1 }}>s DPH: {(displayAmt * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>}
+                                  {showDph && displayAmt > 0 && groupPayment?.agreed && <div style={{ fontSize: 10, color: '#16A34A', fontWeight: 600, marginTop: 1 }}>s DPH: {(displayAmt * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>}
+                                </>
+                              })()}
                             </td>
                             <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: isPaid ? '#16A34A' : '#DC2626' }}>
                               {(() => {
@@ -1169,10 +1665,29 @@ export default function Payments() {
                             </td>
                             <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                               {isPaid ? (
-                                <button onClick={handleGroupToggle} className="btn btn-sm"
-                                  style={{ background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
-                                  Zrušit
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                                  {!isReadOnly && (
+                                    <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment: groupPayment, monthLabel: formatMonthKey(monthKey), tenantName: tenant?.name || '' }) }} className="btn btn-sm"
+                                      style={{ background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, minWidth: 'unset', padding: '4px 8px' }}
+                                      title="Upravit částku">✏️</button>
+                                  )}
+                                  <button onClick={handleGroupToggle} className="btn btn-sm"
+                                    style={{ background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
+                                    Zrušit
+                                  </button>
+                                </div>
+                              ) : isPartial ? (
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontSize: 11, fontWeight: 800, color: '#D97706', marginBottom: 4 }}>
+                                    ⚠ Částečně: {Number(groupPayment.amount).toLocaleString('cs-CZ')} Kč
+                                  </div>
+                                  <div style={{ fontSize: 10, color: '#D97706', marginBottom: 4 }}>Zbývá: {(groupTotal - Number(groupPayment.amount)).toLocaleString('cs-CZ')} Kč</div>
+                                  {!isReadOnly && (
+                                    <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment: groupPayment, monthLabel: formatMonthKey(monthKey), tenantName: tenant?.name || '' }) }} className="btn btn-sm"
+                                      style={{ background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                      title="Upravit částku">✏️ Upravit</button>
+                                  )}
+                                </div>
                               ) : (
                                 <button onClick={handleGroupToggle} className="btn btn-sm"
                                   style={{ background: '#22C55E', color: '#fff', borderColor: '#22C55E', fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
@@ -1198,8 +1713,8 @@ export default function Payments() {
                       const isPaid    = rentStatus === 'paid'
                       const isPartial = rentStatus === 'partial'
                       const isRes     = asset?.type === 'residential'
-                      const depPaymentRow = isRes ? getDepositPayment(c.id, monthKey) : null
-                      const depPaidRow    = isRes && !!depPaymentRow
+                      const depPaymentRow = getDepositPayment(c.id, monthKey)
+                      const depPaidRow    = !!depPaymentRow
                       const hasDeposit    = isRes && ev.deposit > 0
                       // Výsledný stav řádku — zohledňuje nájem i zálohy pro bytové
                       const rowAllPaid    = isPaid && (!hasDeposit || depPaidRow)
@@ -1246,25 +1761,32 @@ export default function Payments() {
                             {c.dueDay || '—'}
                           </td>
                           <td style={{ padding: '14px 12px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: isPaid ? '#16A34A' : isPartial ? '#D97706' : '#DC2626' }}>
-                            {rentTotal.toLocaleString('cs-CZ')} Kč
-                            {isMultiMonth && effRent(c) !== rentTotal && (
-                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 500, marginTop: 1 }}>= {effRent(c).toLocaleString('cs-CZ', { maximumFractionDigits: 0 })} Kč/měs.</div>
-                            )}
-                            {showDph && rentTotal > 0 && <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginTop: 1 }}>s DPH: {(rentTotal * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>}
-                            {isPartial && <div style={{ fontSize: 10, color: '#D97706', fontWeight: 600, marginTop: 2 }}>Uhrazeno: {Number(payment.amount).toLocaleString('cs-CZ')} Kč</div>}
+                            {(() => {
+                              const displayAmt = payment?.agreed ? Number(payment.amount) : rentTotal
+                              return <>
+                                {displayAmt.toLocaleString('cs-CZ')} Kč
+                                {payment?.agreed && displayAmt !== rentTotal && (
+                                  <div style={{ fontSize: 10, color: '#16A34A', fontWeight: 600, marginTop: 1 }}>✓ odsouhlaseno (smlouva: {rentTotal.toLocaleString('cs-CZ')} Kč)</div>
+                                )}
+                                {!payment?.agreed && isMultiMonth && effRent(c) !== rentTotal && (
+                                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 500, marginTop: 1 }}>= {effRent(c).toLocaleString('cs-CZ', { maximumFractionDigits: 0 })} Kč/měs.</div>
+                                )}
+                                {showDph && displayAmt > 0 && <div style={{ fontSize: 10, color: payment?.agreed ? '#16A34A' : 'var(--text3)', fontWeight: 600, marginTop: 1 }}>s DPH: {(displayAmt * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>}
+                                {isPartial && !payment?.agreed && <div style={{ fontSize: 10, color: '#D97706', fontWeight: 600, marginTop: 2 }}>Uhrazeno: {Number(payment.amount).toLocaleString('cs-CZ')} Kč</div>}
+                              </>
+                            })()}
                           </td>
                           <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: 14, fontWeight: 800 }}>
                             {(() => {
                               const dep  = ev.deposit
                               const depW = ev.depositWater
                               if (dep === 0 && depW === 0) return <span style={{ color: 'var(--text3)', fontWeight: 400 }}>—</span>
-                              const isRes = asset?.type === 'residential'
-                              const depPayment = isRes ? getDepositPayment(c.id, monthKey) : null
-                              const depPaid    = isRes && !!depPayment
-                              const depPartial = isRes && depPayment && Number(depPayment.amount) < dep - 0.01
-                              const depColor   = isRes
-                                ? (depPartial ? '#D97706' : depPaid ? '#16A34A' : '#DC2626')
-                                : (isPaid ? '#16A34A' : isPartial ? '#D97706' : '#DC2626')
+                              const depPayment = getDepositPayment(c.id, monthKey)
+                              const depPaid    = !!depPayment
+                              const depPartial = depPayment && Number(depPayment.amount) < dep - 0.01
+                              const depColor   = depPayment
+                                ? (depPartial ? '#D97706' : '#16A34A')
+                                : (hasDeposit ? (isPaid ? 'var(--text)' : '#DC2626') : (isPaid ? '#16A34A' : isPartial ? '#D97706' : '#DC2626'))
                               return (
                                 <div style={{ color: depColor }}>
                                   {dep > 0 && (
@@ -1290,16 +1812,33 @@ export default function Payments() {
                           </td>
                           <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                             {isPaid ? (
-                              <button onClick={(e) => handleToggle(e, c, payment)} className="btn btn-sm"
-                                style={{ background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
-                                Zrušit
-                              </button>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                                {!isReadOnly && (
+                                  <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment, monthLabel: formatMonthKey(monthKey), tenantName: getTenantForContract(c)?.name || '' }) }} className="btn btn-sm"
+                                    style={{ background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, minWidth: 'unset', padding: '4px 8px' }}
+                                    title="Upravit nájem">✏️</button>
+                                )}
+                                {!isReadOnly && depPaymentRow && (
+                                  <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment: depPaymentRow, monthLabel: formatMonthKey(monthKey), tenantName: (getTenantForContract(c)?.name || '') + ' (zálohy)' }) }} className="btn btn-sm"
+                                    style={{ background: '#fff', color: '#1E40AF', borderColor: '#BFDBFE', fontWeight: 700, borderRadius: 8, minWidth: 'unset', padding: '4px 8px' }}
+                                    title="Upravit zálohy">✏️💧</button>
+                                )}
+                                <button onClick={(e) => handleToggle(e, c, payment)} className="btn btn-sm"
+                                  style={{ background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
+                                  Zrušit
+                                </button>
+                              </div>
                             ) : isPartial ? (
                               <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontSize: 11, fontWeight: 800, color: '#D97706', marginBottom: 4 }}>
                                   ⚠ Částečně: {Number(payment.amount).toLocaleString('cs-CZ')} Kč
                                 </div>
-                                <div style={{ fontSize: 10, color: '#D97706' }}>Zbývá: {remaining.toLocaleString('cs-CZ')} Kč</div>
+                                <div style={{ fontSize: 10, color: '#D97706', marginBottom: 4 }}>Zbývá: {remaining.toLocaleString('cs-CZ')} Kč</div>
+                                {!isReadOnly && (
+                                  <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment, monthLabel: formatMonthKey(monthKey), tenantName: getTenantForContract(c)?.name || '' }) }} className="btn btn-sm"
+                                    style={{ background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                    title="Upravit částku">✏️ Upravit</button>
+                                )}
                               </div>
                             ) : (
                               <button onClick={(e) => handleToggle(e, c, payment)} className="btn btn-sm"
@@ -1441,8 +1980,8 @@ export default function Payments() {
                   </tr>
                 </thead>
                 <tbody>
-                  {debtors.map(({ contract: c, tenant, asset, rs }) => (
-                    <tr key={c.id} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', transition: '0.15s' }}
+                  {debtors.map(({ contract: c, tenant, asset, rs, isGroup, groupLabel, groupTotal }) => (
+                    <tr key={isGroup ? `group-${groupLabel}` : c.id} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', transition: '0.15s' }}
                       onClick={() => { setDetailContract(c); setActiveTab('overview'); setActiveSub(asset?.subject || SUBJECTS[0]) }}
                       onMouseOver={e => e.currentTarget.style.background = rs.status === 'partial' ? '#FFFBEB' : '#FEF2F2'}
                       onMouseOut={e => e.currentTarget.style.background = 'transparent'}
@@ -1450,9 +1989,10 @@ export default function Payments() {
                       <td style={{ padding: '14px 20px' }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>
                         {tenant?.phone && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>📞 {tenant.phone}</div>}
+                        {isGroup && <div style={{ marginTop: 3 }}><span style={{ fontSize: 10, background: '#EDE9FE', color: '#6D28D9', padding: '1px 7px', borderRadius: 8, fontWeight: 700 }}>🔗 {groupLabel}</span></div>}
                       </td>
                       <td style={{ padding: '14px 20px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{asset?.unit || '—'}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{isGroup ? `Skupina (${activeContracts.filter(x => x.groupLabel === groupLabel).length} smlouvy)` : (asset?.unit || '—')}</div>
                         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{asset?.subject || '—'}</div>
                       </td>
                       <td style={{ padding: '14px 20px', textAlign: 'right' }}>
@@ -1467,7 +2007,7 @@ export default function Payments() {
                           </>
                         ) : (
                           <div style={{ fontWeight: 900, fontSize: 15, color: '#DC2626' }}>
-                            {effRent(c).toLocaleString('cs-CZ')} Kč
+                            {(isGroup ? groupTotal : effRent(c)).toLocaleString('cs-CZ')} Kč
                           </div>
                         )}
                       </td>
@@ -1558,8 +2098,12 @@ export default function Payments() {
                             <div style={{ fontSize: 11, color: '#16A34A', fontWeight: 700, marginBottom: 6 }}>✓ Uhrazeno{rentPayment.date ? ` · ${rentPayment.date}` : ''}</div>
                           )}
                           {!isReadOnly && (
-                            <button className="btn btn-sm" style={{ width: '100%', background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
-                              onClick={() => deletePayment(rentPayment.id)}>Zrušit</button>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                onClick={() => setEditAmountModal({ payment: rentPayment, monthLabel: monthLabel, tenantName: tenant?.name || '' })}>✏️ Upravit</button>
+                              <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                onClick={() => deletePayment(rentPayment.id)}>Zrušit</button>
+                            </div>
                           )}
                         </div>
                       ) : (
@@ -1594,8 +2138,12 @@ export default function Payments() {
                               <div style={{ fontSize: 11, color: '#16A34A', fontWeight: 700, marginBottom: 6 }}>✓ Uhrazeno{depositPayment.date ? ` · ${depositPayment.date}` : ''}</div>
                             )}
                             {!isReadOnly && (
-                              <button className="btn btn-sm" style={{ width: '100%', background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
-                                onClick={() => deletePayment(depositPayment.id)}>Zrušit</button>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                  onClick={() => setEditAmountModal({ payment: depositPayment, monthLabel: monthLabel, tenantName: tenant?.name || '' })}>✏️ Upravit</button>
+                                <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                  onClick={() => deletePayment(depositPayment.id)}>Zrušit</button>
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -1610,19 +2158,100 @@ export default function Payments() {
                     )}
                   </div>
                 ) : (
-                  /* Nerezidentní – původní 2-sloupcový display bez tlačítek */
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
-                    <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '12px 14px' }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: 4 }}>Nájem</div>
-                      <div style={{ fontSize: 17, fontWeight: 900, color: '#166534' }}>{rentTotal.toLocaleString('cs-CZ')} Kč</div>
-                    </div>
-                    {depositAmt > 0 && (
-                      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
-                        <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 4 }}>Zálohy</div>
-                        <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--text)' }}>{depositAmt.toLocaleString('cs-CZ')} Kč</div>
+                  /* Nerezidentní – interaktivní display s tlačítky */
+                  (() => {
+                    const commPayment    = rentPayment
+                    const commDepPayment = getPayment(c.id, monthKey, 'deposit')
+                    const commIsPartial    = commPayment && !commPayment.agreed && Number(commPayment.amount) < rentTotal - 0.01
+                    const commDepIsPartial = commDepPayment && !commDepPayment.agreed && Number(commDepPayment.amount) < depositAmt - 0.01
+                    return (
+                      <div style={{ display: 'grid', gridTemplateColumns: depositAmt > 0 ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 18 }}>
+                        {/* Nájem */}
+                        <div style={{ background: commIsPartial ? '#FFFBEB' : commPayment ? '#F0FDF4' : 'var(--bg2)', border: `1px solid ${commIsPartial ? '#FCD34D' : commPayment ? '#BBF7D0' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                          <div style={{ fontSize: 9, fontWeight: 800, color: commIsPartial ? '#D97706' : commPayment ? '#166534' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>
+                            Nájem{Number(c.parking) > 0 ? ' + parkování' : ''}
+                          </div>
+                          <div style={{ fontSize: 20, fontWeight: 900, color: commIsPartial ? '#D97706' : commPayment ? '#166534' : 'var(--text)', marginBottom: 10 }}>
+                            {commPayment?.agreed ? Number(commPayment.amount).toLocaleString('cs-CZ') : rentTotal.toLocaleString('cs-CZ')} Kč
+                            {commPayment?.agreed && Number(commPayment.amount) !== rentTotal && (
+                              <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600, marginLeft: 6 }}>(sml. {rentTotal.toLocaleString('cs-CZ')})</span>
+                            )}
+                          </div>
+                          {commPayment ? (
+                            <div>
+                              {commPayment.agreed ? (
+                                <div style={{ fontSize: 11, color: '#16A34A', fontWeight: 700, marginBottom: 6 }}>✓ Odsouhlaseno{commPayment.date ? ` · ${commPayment.date}` : ''}</div>
+                              ) : commIsPartial ? (
+                                <>
+                                  <div style={{ fontSize: 11, color: '#D97706', fontWeight: 800, marginBottom: 2 }}>⚠ Částečně: {Number(commPayment.amount).toLocaleString('cs-CZ')} Kč</div>
+                                  <div style={{ fontSize: 10, color: '#D97706', marginBottom: 4 }}>{commPayment.date && `${commPayment.date} · `}Zbývá: {(rentTotal - Number(commPayment.amount)).toLocaleString('cs-CZ')} Kč</div>
+                                </>
+                              ) : (
+                                <div style={{ fontSize: 11, color: '#16A34A', fontWeight: 700, marginBottom: 6 }}>✓ Uhrazeno{commPayment.date ? ` · ${commPayment.date}` : ''}</div>
+                              )}
+                              {!isReadOnly && (
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                    onClick={() => setEditAmountModal({ payment: commPayment, monthLabel: monthLabel, tenantName: tenant?.name || '' })}>✏️ Upravit</button>
+                                  <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                    onClick={() => deletePayment(commPayment.id)}>Zrušit</button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            !isReadOnly && (
+                              <button className="btn btn-sm" style={{ width: '100%', background: '#22C55E', color: '#fff', border: 'none', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                onClick={() => setPendingPayment({ contract: c, tenantName: tenant?.name || '', paymentType: 'rent', fullAmount: rentTotal })}>
+                                Nájem uhrazen
+                              </button>
+                            )
+                          )}
+                        </div>
+
+                        {/* Zálohy komerční */}
+                        {depositAmt > 0 && (
+                          <div style={{ background: commDepIsPartial ? '#FFFBEB' : commDepPayment ? '#F0FDF4' : 'var(--bg2)', border: `1px solid ${commDepIsPartial ? '#FCD34D' : commDepPayment ? '#BBF7D0' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                            <div style={{ fontSize: 9, fontWeight: 800, color: commDepIsPartial ? '#D97706' : commDepPayment ? '#166534' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Zálohy</div>
+                            <div style={{ fontSize: 20, fontWeight: 900, color: commDepIsPartial ? '#D97706' : commDepPayment ? '#166534' : 'var(--text)', marginBottom: 10 }}>
+                              {commDepPayment?.agreed ? Number(commDepPayment.amount).toLocaleString('cs-CZ') : depositAmt.toLocaleString('cs-CZ')} Kč
+                              {commDepPayment?.agreed && Number(commDepPayment.amount) !== depositAmt && (
+                                <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600, marginLeft: 6 }}>(sml. {depositAmt.toLocaleString('cs-CZ')})</span>
+                              )}
+                            </div>
+                            {commDepPayment ? (
+                              <div>
+                                {commDepPayment.agreed ? (
+                                  <div style={{ fontSize: 11, color: '#16A34A', fontWeight: 700, marginBottom: 6 }}>✓ Odsouhlaseno{commDepPayment.date ? ` · ${commDepPayment.date}` : ''}</div>
+                                ) : commDepIsPartial ? (
+                                  <>
+                                    <div style={{ fontSize: 11, color: '#D97706', fontWeight: 800, marginBottom: 2 }}>⚠ Částečně: {Number(commDepPayment.amount).toLocaleString('cs-CZ')} Kč</div>
+                                    <div style={{ fontSize: 10, color: '#D97706', marginBottom: 4 }}>{commDepPayment.date && `${commDepPayment.date} · `}Zbývá: {(depositAmt - Number(commDepPayment.amount)).toLocaleString('cs-CZ')} Kč</div>
+                                  </>
+                                ) : (
+                                  <div style={{ fontSize: 11, color: '#16A34A', fontWeight: 700, marginBottom: 6 }}>✓ Uhrazeno{commDepPayment.date ? ` · ${commDepPayment.date}` : ''}</div>
+                                )}
+                                {!isReadOnly && (
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                      onClick={() => setEditAmountModal({ payment: commDepPayment, monthLabel: monthLabel, tenantName: (tenant?.name || '') + ' (zálohy)' })}>✏️ Upravit</button>
+                                    <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                      onClick={() => deletePayment(commDepPayment.id)}>Zrušit</button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              !isReadOnly && (
+                                <button className="btn btn-sm" style={{ width: '100%', background: '#22C55E', color: '#fff', border: 'none', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                  onClick={() => setPendingPayment({ contract: c, tenantName: tenant?.name || '', paymentType: 'deposit', fullAmount: depositAmt })}>
+                                  Zálohy uhrazeny
+                                </button>
+                              )
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    )
+                  })()
                 )}
 
                 {/* Platnost */}
@@ -1659,7 +2288,17 @@ export default function Payments() {
                           </div>
                           {p.date && <div style={{ fontSize: 10, color: '#4ADE80', marginTop: 1 }}>Přijato: {p.date}</div>}
                         </div>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: '#166534' }}>{Number(p.amount || 0).toLocaleString('cs-CZ')} Kč</div>                      </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: '#166534' }}>{Number(p.amount || 0).toLocaleString('cs-CZ')} Kč</div>
+                          {!isReadOnly && (
+                            <button
+                              onClick={() => setEditAmountModal({ payment: p, monthLabel: formatMonthKey(p.month), tenantName: tenant?.name || '' })}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, border: '1px solid #BBF7D0', background: '#fff', cursor: 'pointer', color: '#166534', fontSize: 12, flexShrink: 0 }}
+                              title="Upravit částku"
+                            >✏️</button>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}

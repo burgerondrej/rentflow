@@ -85,6 +85,7 @@ fn main() {
             commands::get_payments,
             commands::add_payment,
             commands::delete_payment,
+            commands::update_payment_amount,
             commands::get_tasks,
             commands::add_task,
             commands::update_task,

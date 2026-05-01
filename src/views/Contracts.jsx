@@ -49,6 +49,26 @@ export default function Contracts({ activeSubject, onOpen }) {
     dragId.current = null; dragOverId.current = null
   }
 
+  // Helper: platné finanční hodnoty k dnešnímu datu (respektuje amendments)
+  const effectiveToday = (c) => {
+    const base = { rent: Number(c.rent) || 0, deposit: Number(c.deposit) || 0, depositWater: Number(c.depositWater) || 0, flatFee: Number(c.flatFee) || 0, parking: Number(c.parking) || 0 }
+    if (!c.amendments || c.amendments.length === 0) return base
+    const now = new Date(); const todayTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const vals = { ...base }
+    for (const a of c.amendments) {
+      const parts = (a.effectiveFrom || '').split('.').map(p => p.trim())
+      if (parts.length !== 3) continue
+      const aDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime()
+      if (aDate > todayTs) break
+      if (a.rent !== null && a.rent !== undefined) vals.rent = Number(a.rent)
+      if (a.deposit !== null && a.deposit !== undefined) vals.deposit = Number(a.deposit)
+      if (a.depositWater !== null && a.depositWater !== undefined) vals.depositWater = Number(a.depositWater)
+      if (a.flatFee !== null && a.flatFee !== undefined) vals.flatFee = Number(a.flatFee)
+      if (a.parking !== null && a.parking !== undefined) vals.parking = Number(a.parking)
+    }
+    return vals
+  }
+
   const enrichedContracts = contracts.map(c => {
     const tenant = tenants.find(t => t.id === c.tenantId) || {}
     const asset = assets.find(a => a.id === c.assetId) || {}
@@ -63,9 +83,11 @@ export default function Contracts({ activeSubject, onOpen }) {
       }
     }
 
+    const eff = effectiveToday(c)
     const assetSubject = (asset.type === 'ostatni') ? asset.subject : (c.billingSubject || asset.subject)
     return { ...c, tenantName: tenant.name, assetUnit: asset.unit, assetType: asset.type, assetSubject, daysLeft,
-      totalDeposit: (Number(c.deposit) || 0) + (Number(c.depositWater) || 0) }
+      totalDeposit: eff.deposit + eff.depositWater,
+      effRent: eff.rent, effParking: eff.parking, effFlatFee: eff.flatFee }
   })
 
   let filtered = enrichedContracts
@@ -165,7 +187,7 @@ export default function Contracts({ activeSubject, onOpen }) {
                     <span style={{ fontSize: 11 }}>💰</span>
                     <div style={{ fontSize: 10.5, color: 'var(--text2)' }}>Měsíční nájem</div>
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: showDph ? 'var(--price-netto)' : 'var(--text)' }}>{((c.rent || 0) + (c.parking || 0)).toLocaleString('cs-CZ')} Kč</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: showDph ? 'var(--price-netto)' : 'var(--text)' }}>{((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč</div>
                   {showDph && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>bez DPH</div>}
                 </div>
                 {c.totalDeposit > 0 && (

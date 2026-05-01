@@ -218,6 +218,14 @@ pub fn delete_payment(id: String, state: State<AppState>) -> std::result::Result
     db!(state).delete_payment(&id)
 }
 
+#[tauri::command]
+pub fn update_payment_amount(id: String, amount: f64, agreed: bool, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    db.update_payment_amount(&id, amount, agreed)?;
+    db.add_log(&user, "Úprava", "Platby", &format!("Upravena výše platby ID {}: {} Kč{}", id, amount, if agreed { " (odsouhlaseno)" } else { "" }))?;
+    Ok(())
+}
+
 // ─────────────────────────────────────────
 // TASKS (Kanban)
 // ─────────────────────────────────────────

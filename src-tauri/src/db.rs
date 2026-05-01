@@ -316,6 +316,9 @@ impl Database {
         let _ = self.conn.execute("ALTER TABLE documents ADD COLUMN contract_link_id TEXT", []);
         let _ = self.conn.execute("ALTER TABLE documents ADD COLUMN contract_link_type TEXT", []);
 
+        // v0.53 migrations
+        let _ = self.conn.execute("ALTER TABLE payments ADD COLUMN agreed INTEGER NOT NULL DEFAULT 0", []);
+
         Ok(())
     }
 
@@ -580,7 +583,7 @@ impl Database {
 
     pub fn get_payments(&self) -> Result<Vec<Payment>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, contract_id, amount, date, month, COALESCE(payment_type, ''), COALESCE(group_label, ''), COALESCE(note, '') FROM payments ORDER BY created_at DESC"
+            "SELECT id, contract_id, amount, date, month, COALESCE(payment_type, ''), COALESCE(group_label, ''), COALESCE(note, ''), COALESCE(agreed, 0) FROM payments ORDER BY created_at DESC"
         )?;
         let items = stmt.query_map([], |row| {
             let contract_id_raw: String = row.get::<_, Option<String>>(1)?.unwrap_or_default();
@@ -600,6 +603,7 @@ impl Database {
                 payment_type: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
                 group_label: if group_label_raw.is_empty() { None } else { Some(group_label_raw) },
                 note: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
+                agreed: row.get::<_, i64>(8).unwrap_or(0) != 0,
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(items)
@@ -614,8 +618,8 @@ impl Database {
             Some(&p.contract_id)
         };
         self.conn.execute(
-            "INSERT INTO payments (id, contract_id, amount, date, month, payment_type, group_label, note) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![id, contract_id_db, p.amount, p.date, p.month, p.payment_type, p.group_label, p.note],
+            "INSERT INTO payments (id, contract_id, amount, date, month, payment_type, group_label, note, agreed) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![id, contract_id_db, p.amount, p.date, p.month, p.payment_type, p.group_label, p.note, p.agreed as i64],
         )?;
         let mut result = p.clone();
         result.id = id;
@@ -624,6 +628,14 @@ impl Database {
 
     pub fn delete_payment(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM payments WHERE id=?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn update_payment_amount(&self, id: &str, amount: f64, agreed: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE payments SET amount=?1, agreed=?2 WHERE id=?3",
+            params![amount, agreed as i64, id],
+        )?;
         Ok(())
     }
 
