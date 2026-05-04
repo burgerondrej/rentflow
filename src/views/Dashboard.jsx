@@ -197,8 +197,8 @@ export default function Dashboard({ onNav, onOpen }) {
                   <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{task.title}</div>
                   {task.tag && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{task.tag}</div>}
                 </div>
-                <div className="badge" style={{ background: task.status === 'progress' ? '#FEF08A' : task.status === 'waiting' ? '#FEE2E2' : task.status === 'longterm' ? '#EDE9FE' : 'var(--bg3)', color: 'var(--text2)', marginBottom: 0 }}>
-                  {task.status === 'todo' ? 'Je třeba udělat' : task.status === 'progress' ? 'V řešení' : task.status === 'waiting' ? 'Čeká' : task.status === 'longterm' ? 'Dlouhodobé' : 'Hotovo'}
+                <div className="badge" style={{ background: task.status === 'progress' ? '#FEF08A' : task.status === 'waiting' ? '#FEE2E2' : task.status === 'longterm' ? '#EDE9FE' : task.status === 'signature' ? '#F5D0FE' : 'var(--bg3)', color: 'var(--text2)', marginBottom: 0 }}>
+                  {task.status === 'todo' ? 'Je třeba udělat' : task.status === 'progress' ? 'V řešení' : task.status === 'waiting' ? 'Čeká' : task.status === 'longterm' ? 'Dlouhodobé' : task.status === 'signature' ? 'Čeká na podpis' : 'Ostatní'}
                 </div>
               </div>
             ))}

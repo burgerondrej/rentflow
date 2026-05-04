@@ -137,6 +137,8 @@ pub struct Contract {
     pub rent_total: f64, // informativní: celkové nájemné za dobu smlouvy (zadává uživatel ručně)
     #[serde(default)]
     pub amendments: Vec<ContractAmendment>, // historie změn nájemného/záloh s datem účinnosti
+    #[serde(default)]
+    pub calendar_year_billing: bool, // pro Ročně: platební okno = Jan–Dec místo výročí smlouvy
 }
 
 // ─────────────────────────────────────────
@@ -185,6 +187,8 @@ pub struct OperationalCost {
     pub notes: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub added: Option<String>,
+    #[serde(default)]
+    pub vat_included: bool,
 }
 
 // ─────────────────────────────────────────

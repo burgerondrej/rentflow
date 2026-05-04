@@ -5,11 +5,11 @@ import ConfirmDialog from '../ConfirmDialog.jsx'
 const PRESET_TAGS = ['METROPOLE CB', 'Bürger Pavel', 'JIHOTANK', 'JIHOTANK CB']
 
 const COLUMNS = [
-  { id: 'longterm', title: 'Dlouhodobé úkoly',             cssKey: 'longterm' },
-  { id: 'todo',     title: 'Je třeba udělat',              cssKey: 'todo'     },
-  { id: 'waiting',  title: 'Čeká na něco – viz poznámka',  cssKey: 'waiting'  },
-  { id: 'progress', title: 'V řešení',                     cssKey: 'progress' },
-  { id: 'done',     title: 'Hotovo',                       cssKey: 'done'     },
+  { id: 'longterm',  title: 'Dlouhodobé úkoly',            cssKey: 'longterm'  },
+  { id: 'todo',      title: 'Je třeba udělat',             cssKey: 'todo'      },
+  { id: 'waiting',   title: 'Čeká na něco – viz poznámka', cssKey: 'waiting'   },
+  { id: 'progress',  title: 'V řešení',                    cssKey: 'progress'  },
+  { id: 'signature', title: 'Čeká na podpis',              cssKey: 'signature' },
 ]
 
 const EMPTY_FORM = {

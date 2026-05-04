@@ -49,6 +49,7 @@ export default function ContractForm({ onClose }) {
     occupants: '',
     permanentResidents: '',
     paymentFrequency: 'Měsíčně',
+    calendarYearBilling: false,
     contractNotes: '',
     includedParkingEnabled: false,
     includedParkingSpots: '',

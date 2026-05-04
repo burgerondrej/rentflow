@@ -230,6 +230,7 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --kanban-todo-bg:     #F0FDF4; --kanban-todo-border:     #BBF7D0; --kanban-todo-color:     #166534; --kanban-todo-header:     rgba(22,101,52,0.06);
   --kanban-waiting-bg:  #FFFBEB; --kanban-waiting-border:  #FDE68A; --kanban-waiting-color:  #92400E; --kanban-waiting-header:  rgba(146,64,14,0.06);
   --kanban-progress-bg: #EFF6FF; --kanban-progress-border: #BFDBFE; --kanban-progress-color: #1E40AF; --kanban-progress-header: rgba(30,64,175,0.06);
+  --kanban-signature-bg: #FDF4FF; --kanban-signature-border: #E9D5FF; --kanban-signature-color: #7E22CE; --kanban-signature-header: rgba(126,34,206,0.06);
   --kanban-done-bg:     #F9FAFB; --kanban-done-border:     #E5E7EB; --kanban-done-color:     #374151; --kanban-done-header:     rgba(55,65,81,0.04);
   --kanban-card-bg:     #ffffff; --kanban-card-border:     #E2E8F0;
 
@@ -245,6 +246,7 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --kanban-todo-bg:     #0f2318; --kanban-todo-border:     #166534; --kanban-todo-color:     #86efac; --kanban-todo-header:     rgba(134,239,172,0.08);
   --kanban-waiting-bg:  #291d0a; --kanban-waiting-border:  #92400e; --kanban-waiting-color:  #fcd34d; --kanban-waiting-header:  rgba(252,211,77,0.08);
   --kanban-progress-bg: #0f1f3d; --kanban-progress-border: #1e3a8a; --kanban-progress-color: #93c5fd; --kanban-progress-header: rgba(147,197,253,0.08);
+  --kanban-signature-bg: #240d3b; --kanban-signature-border: #6b21a8; --kanban-signature-color: #d8b4fe; --kanban-signature-header: rgba(216,180,254,0.08);
   --kanban-done-bg:     #161817; --kanban-done-border:     #2a2d2c; --kanban-done-color:     #9ca3af; --kanban-done-header:     rgba(156,163,175,0.06);
   --kanban-card-bg:     #1d201f; --kanban-card-border:     #2a2d2c;
 

@@ -319,6 +319,10 @@ impl Database {
         // v0.53 migrations
         let _ = self.conn.execute("ALTER TABLE payments ADD COLUMN agreed INTEGER NOT NULL DEFAULT 0", []);
 
+        // v0.56 migrations
+        let _ = self.conn.execute("ALTER TABLE operational_costs ADD COLUMN vat_included INTEGER NOT NULL DEFAULT 0", []);
+        let _ = self.conn.execute("ALTER TABLE contracts ADD COLUMN calendar_year_billing INTEGER NOT NULL DEFAULT 0", []);
+
         Ok(())
     }
 
@@ -455,7 +459,7 @@ impl Database {
 
     pub fn get_contracts(&self) -> Result<Vec<Contract>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, tenant_id, asset_id, rent, deposit, cauce, parking, start_date, end_date, status, addenda, due_day, termination_months, renewal_method, valorization_enabled, valorization_date, invoice_due, contract_version, occupants, permanent_residents, payment_frequency, deposit_water, co_residents, contract_notes, energy_settlements, handover_date, included_parking_spots, billing_subject, vat_exempt, group_label, auto_renewal_type, flat_fee, rent_total FROM contracts ORDER BY created_at"
+            "SELECT id, tenant_id, asset_id, rent, deposit, cauce, parking, start_date, end_date, status, addenda, due_day, termination_months, renewal_method, valorization_enabled, valorization_date, invoice_due, contract_version, occupants, permanent_residents, payment_frequency, deposit_water, co_residents, contract_notes, energy_settlements, handover_date, included_parking_spots, billing_subject, vat_exempt, group_label, auto_renewal_type, flat_fee, rent_total, COALESCE(calendar_year_billing, 0) FROM contracts ORDER BY created_at"
         )?;
         let items = stmt.query_map([], |row| {
             let addenda_str: String = row.get(10).unwrap_or_else(|_| "[]".into());
@@ -494,7 +498,8 @@ impl Database {
                 auto_renewal_type: row.get(30)?,
                 flat_fee: row.get(31).unwrap_or(0.0),
                 rent_total: row.get(32).unwrap_or(0.0),
-                amendments: vec![], // naplníme níže
+                amendments: vec![],
+                calendar_year_billing: row.get::<_, i64>(33).unwrap_or(0) != 0,
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
 
@@ -530,9 +535,9 @@ impl Database {
         let addenda_json = serde_json::to_string(&c.addenda)?;
         let energy_json = serde_json::to_string(&c.energy_settlements)?;
         self.conn.execute(
-            "INSERT INTO contracts (id, tenant_id, asset_id, rent, deposit, cauce, parking, start_date, end_date, status, addenda, due_day, termination_months, renewal_method, valorization_enabled, valorization_date, invoice_due, contract_version, occupants, permanent_residents, payment_frequency, deposit_water, co_residents, contract_notes, energy_settlements, handover_date, included_parking_spots, billing_subject, vat_exempt, group_label, auto_renewal_type, flat_fee, rent_total)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33)",
-            params![id, c.tenant_id, c.asset_id, c.rent, c.deposit, c.cauce, c.parking, c.start, c.end, c.status, addenda_json, c.due_day, c.termination_months, c.renewal_method, c.valorization_enabled, c.valorization_date, c.invoice_due, c.contract_version, c.occupants, c.permanent_residents, c.payment_frequency, c.deposit_water, c.co_residents, c.contract_notes, energy_json, c.handover_date, c.included_parking_spots, c.billing_subject, c.vat_exempt, c.group_label, c.auto_renewal_type, c.flat_fee, c.rent_total],
+            "INSERT INTO contracts (id, tenant_id, asset_id, rent, deposit, cauce, parking, start_date, end_date, status, addenda, due_day, termination_months, renewal_method, valorization_enabled, valorization_date, invoice_due, contract_version, occupants, permanent_residents, payment_frequency, deposit_water, co_residents, contract_notes, energy_settlements, handover_date, included_parking_spots, billing_subject, vat_exempt, group_label, auto_renewal_type, flat_fee, rent_total, calendar_year_billing)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34)",
+            params![id, c.tenant_id, c.asset_id, c.rent, c.deposit, c.cauce, c.parking, c.start, c.end, c.status, addenda_json, c.due_day, c.termination_months, c.renewal_method, c.valorization_enabled, c.valorization_date, c.invoice_due, c.contract_version, c.occupants, c.permanent_residents, c.payment_frequency, c.deposit_water, c.co_residents, c.contract_notes, energy_json, c.handover_date, c.included_parking_spots, c.billing_subject, c.vat_exempt, c.group_label, c.auto_renewal_type, c.flat_fee, c.rent_total, c.calendar_year_billing as i64],
         )?;
         self.conn.execute("UPDATE assets SET status='occupied' WHERE id=?1", params![c.asset_id])?;
         let mut result = c.clone();
@@ -544,8 +549,8 @@ impl Database {
         let addenda_json = serde_json::to_string(&c.addenda)?;
         let energy_json = serde_json::to_string(&c.energy_settlements)?;
         self.conn.execute(
-            "UPDATE contracts SET tenant_id=?1, asset_id=?2, rent=?3, deposit=?4, cauce=?5, parking=?6, start_date=?7, end_date=?8, status=?9, addenda=?10, due_day=?11, termination_months=?12, renewal_method=?13, valorization_enabled=?14, valorization_date=?15, invoice_due=?16, contract_version=?17, occupants=?18, permanent_residents=?19, payment_frequency=?20, deposit_water=?21, co_residents=?22, contract_notes=?23, energy_settlements=?24, handover_date=?25, included_parking_spots=?26, billing_subject=?27, vat_exempt=?28, group_label=?29, auto_renewal_type=?30, flat_fee=?31, rent_total=?32 WHERE id=?33",
-            params![c.tenant_id, c.asset_id, c.rent, c.deposit, c.cauce, c.parking, c.start, c.end, c.status, addenda_json, c.due_day, c.termination_months, c.renewal_method, c.valorization_enabled, c.valorization_date, c.invoice_due, c.contract_version, c.occupants, c.permanent_residents, c.payment_frequency, c.deposit_water, c.co_residents, c.contract_notes, energy_json, c.handover_date, c.included_parking_spots, c.billing_subject, c.vat_exempt, c.group_label, c.auto_renewal_type, c.flat_fee, c.rent_total, id],
+            "UPDATE contracts SET tenant_id=?1, asset_id=?2, rent=?3, deposit=?4, cauce=?5, parking=?6, start_date=?7, end_date=?8, status=?9, addenda=?10, due_day=?11, termination_months=?12, renewal_method=?13, valorization_enabled=?14, valorization_date=?15, invoice_due=?16, contract_version=?17, occupants=?18, permanent_residents=?19, payment_frequency=?20, deposit_water=?21, co_residents=?22, contract_notes=?23, energy_settlements=?24, handover_date=?25, included_parking_spots=?26, billing_subject=?27, vat_exempt=?28, group_label=?29, auto_renewal_type=?30, flat_fee=?31, rent_total=?32, calendar_year_billing=?33 WHERE id=?34",
+            params![c.tenant_id, c.asset_id, c.rent, c.deposit, c.cauce, c.parking, c.start, c.end, c.status, addenda_json, c.due_day, c.termination_months, c.renewal_method, c.valorization_enabled, c.valorization_date, c.invoice_due, c.contract_version, c.occupants, c.permanent_residents, c.payment_frequency, c.deposit_water, c.co_residents, c.contract_notes, energy_json, c.handover_date, c.included_parking_spots, c.billing_subject, c.vat_exempt, c.group_label, c.auto_renewal_type, c.flat_fee, c.rent_total, c.calendar_year_billing as i64, id],
         )?;
         Ok(())
     }
@@ -617,6 +622,19 @@ impl Database {
         } else {
             Some(&p.contract_id)
         };
+
+        // Ochrana před duplikáty — pokud platba pro (contract_id, month, payment_type) už existuje, vrátíme ji
+        let existing: Option<String> = self.conn.query_row(
+            "SELECT id FROM payments WHERE contract_id IS ?1 AND month=?2 AND payment_type=?3 LIMIT 1",
+            params![contract_id_db, p.month, p.payment_type],
+            |row| row.get(0),
+        ).ok();
+        if let Some(existing_id) = existing {
+            let mut result = p.clone();
+            result.id = existing_id;
+            return Ok(result);
+        }
+
         self.conn.execute(
             "INSERT INTO payments (id, contract_id, amount, date, month, payment_type, group_label, note, agreed) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![id, contract_id_db, p.amount, p.date, p.month, p.payment_type, p.group_label, p.note, p.agreed as i64],
@@ -629,6 +647,17 @@ impl Database {
     pub fn delete_payment(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM payments WHERE id=?1", params![id])?;
         Ok(())
+    }
+
+    pub fn cleanup_duplicate_payments(&self) -> Result<usize> {
+        let deleted = self.conn.execute(
+            "DELETE FROM payments WHERE id NOT IN (
+                SELECT MIN(id) FROM payments
+                GROUP BY COALESCE(contract_id, ''), month, COALESCE(payment_type, '')
+            )",
+            [],
+        )?;
+        Ok(deleted)
     }
 
     pub fn update_payment_amount(&self, id: &str, amount: f64, agreed: bool) -> Result<()> {
@@ -868,7 +897,7 @@ impl Database {
 
     pub fn get_operational_costs(&self) -> Result<Vec<OperationalCost>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, object_name, category, amount, frequency, period_from, period_to, notes, added FROM operational_costs ORDER BY created_at DESC"
+            "SELECT id, object_name, category, amount, frequency, period_from, period_to, notes, added, COALESCE(vat_included, 0) FROM operational_costs ORDER BY created_at DESC"
         )?;
         let items = stmt.query_map([], |row| {
             Ok(OperationalCost {
@@ -881,6 +910,7 @@ impl Database {
                 period_to: row.get(6)?,
                 notes: row.get(7)?,
                 added: row.get(8)?,
+                vat_included: row.get::<_, i64>(9).unwrap_or(0) != 0,
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(items)
@@ -890,8 +920,8 @@ impl Database {
         let id = Self::new_id();
         let today = Local::now().format("%-d. %-m. %Y").to_string();
         self.conn.execute(
-            "INSERT INTO operational_costs (id, object_name, category, amount, frequency, period_from, period_to, notes, added) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![id, oc.object_name, oc.category, oc.amount, oc.frequency, oc.period_from, oc.period_to, oc.notes, oc.added.as_deref().unwrap_or(&today)],
+            "INSERT INTO operational_costs (id, object_name, category, amount, frequency, period_from, period_to, notes, added, vat_included) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![id, oc.object_name, oc.category, oc.amount, oc.frequency, oc.period_from, oc.period_to, oc.notes, oc.added.as_deref().unwrap_or(&today), oc.vat_included as i64],
         )?;
         let mut result = oc.clone();
         result.id = id;
@@ -900,8 +930,8 @@ impl Database {
 
     pub fn update_operational_cost(&self, id: &str, oc: &OperationalCost) -> Result<()> {
         self.conn.execute(
-            "UPDATE operational_costs SET object_name=?1, category=?2, amount=?3, frequency=?4, period_from=?5, period_to=?6, notes=?7 WHERE id=?8",
-            params![oc.object_name, oc.category, oc.amount, oc.frequency, oc.period_from, oc.period_to, oc.notes, id],
+            "UPDATE operational_costs SET object_name=?1, category=?2, amount=?3, frequency=?4, period_from=?5, period_to=?6, notes=?7, vat_included=?8 WHERE id=?9",
+            params![oc.object_name, oc.category, oc.amount, oc.frequency, oc.period_from, oc.period_to, oc.notes, oc.vat_included as i64, id],
         )?;
         Ok(())
     }

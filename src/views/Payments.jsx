@@ -654,6 +654,10 @@ export default function Payments() {
     }
 
     if (freq === 'Ročně') {
+      // Pokud je zaškrtnuto "Platby dle kalendářního roku" → okno Jan–Dec refYear
+      if (contract.calendarYearBilling) {
+        return Array.from({ length: 12 }, (_, i) => `${refYear}-${i}`)
+      }
       const refDate = new Date(refYear, refMonth, 1)
       let windowStart = new Date(startYear, startMonth, 1)
       while (new Date(windowStart.getFullYear() + 1, windowStart.getMonth(), 1) <= refDate) {
@@ -786,11 +790,11 @@ export default function Payments() {
       } else {
         const freq = c.paymentFrequency || 'Měsíčně'
         const isMulti = freq === 'Čtvrtletně' || freq === 'Pololetně' || freq === 'Ročně'
-        const p = getPayment(c.id, monthKey)
         if (isMulti) {
-          const added = p && p.paymentType !== 'deposit' ? effRent(c) : 0
-          total += added
+          const paid = isPeriodPaid(c, selectedYear, selectedMonth)
+          total += paid ? effRent(c) : 0
         } else {
+          const p = getPayment(c.id, monthKey)
           const added = (p && p.paymentType !== 'deposit') ? (Number(p.amount) || 0) : 0
           total += added
         }

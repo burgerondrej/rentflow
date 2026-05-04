@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from './AppContext.jsx'
 import { getVersion } from '@tauri-apps/api/app'
+import { invoke } from '@tauri-apps/api/tauri'
 
 export default function SettingsPanel({ onClose, onBackupDone }) {
-  const { createBackup, getBackupInfo, saveSettings, getSettings } = useApp()
+  const { createBackup, getBackupInfo, saveSettings, getSettings, isReadOnly } = useApp()
 
   const [backupInfo, setBackupInfo] = useState({ lastBackup: '…', backupCount: 0, gdrivePath: '' })
   const [gdrivePath, setGdrivePath] = useState('')
@@ -13,6 +14,7 @@ export default function SettingsPanel({ onClose, onBackupDone }) {
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
   const [appVersion, setAppVersion] = useState('…')
+  const [cleanupState, setCleanupState] = useState(null) // null | 'running' | number
 
   useEffect(() => {
     getBackupInfo().then(info => {
@@ -113,6 +115,25 @@ export default function SettingsPanel({ onClose, onBackupDone }) {
             >
               {backing ? '⏳ Zálohuji…' : backupDone ? '✅ Záloha uložena!' : '💾 Vytvořit zálohu teď'}
             </button>
+
+            {!isReadOnly && (
+              <button
+                className="btn"
+                style={{ width: '100%', justifyContent: 'center', marginTop: 8, color: cleanupState === 0 ? '#16a34a' : 'var(--text2)', opacity: cleanupState === 'running' ? 0.7 : 1 }}
+                disabled={cleanupState === 'running'}
+                onClick={async () => {
+                  setCleanupState('running')
+                  try {
+                    const deleted = await invoke('cleanup_duplicate_payments')
+                    setCleanupState(deleted)
+                  } catch { setCleanupState(0) }
+                }}
+              >
+                {cleanupState === 'running' ? '⏳ Čistím…'
+                  : typeof cleanupState === 'number' ? `✅ Smazáno ${cleanupState} duplikátů`
+                  : '🧹 Vyčistit duplicitní platby'}
+              </button>
+            )}
           </section>
 
           {/* ── SEKCE GOOGLE DRIVE ── */}

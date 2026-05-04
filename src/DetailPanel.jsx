@@ -1233,6 +1233,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         occupants: c.occupants != null ? String(c.occupants) : '',
         permanentResidents: c.permanentResidents != null ? String(c.permanentResidents) : '',
         paymentFrequency: c.paymentFrequency || 'Měsíčně',
+        calendarYearBilling: !!c.calendarYearBilling,
         coResidents: c.coResidents || '',
         contractNotes: c.contractNotes || '',
         includedParkingEnabled: !!(c.includedParkingSpots && c.includedParkingSpots > 0),
@@ -1275,6 +1276,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         occupants: formData.occupants ? parseInt(formData.occupants) : null,
         permanentResidents: formData.permanentResidents ? parseInt(formData.permanentResidents) : null,
         paymentFrequency: formData.paymentFrequency || null,
+        calendarYearBilling: !!(formData.paymentFrequency === 'Ročně' && formData.calendarYearBilling),
         coResidents: formData.coResidents || null,
         contractNotes: formData.contractNotes || null,
         energySettlements: formData.energySettlements || [],
@@ -1463,10 +1465,18 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Frekvence plateb</label>
               <select className="btn" style={{ width: '100%', cursor: 'pointer' }}
                 value={formData.paymentFrequency || 'Měsíčně'}
-                onChange={e => setFormData({...formData, paymentFrequency: e.target.value})}>
+                onChange={e => setFormData({...formData, paymentFrequency: e.target.value, calendarYearBilling: false})}>
                 {['Měsíčně', 'Čtvrtletně', 'Pololetně', 'Ročně'].map(f => <option key={f}>{f}</option>)}
                 {a?.type === 'parking' && <option value="Zahrnuto v nájemném">Zahrnuto v nájemném</option>}
               </select>
+              {formData.paymentFrequency === 'Ročně' && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', userSelect: 'none' }}>
+                  <input type="checkbox" checked={!!formData.calendarYearBilling}
+                    onChange={e => setFormData({...formData, calendarYearBilling: e.target.checked})}
+                    style={{ width: 14, height: 14, accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                  <span style={{ fontSize: 12, color: 'var(--text2)' }}>Platby dle kalendářního roku (Jan–Dec)</span>
+                </label>
+              )}
             </div>
           )}
           {(a?.type === 'ads' || a?.type === 'parking' || a?.type === 'ostatni') && formData.paymentFrequency !== 'Zahrnuto v nájemném' && (

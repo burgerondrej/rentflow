@@ -25,7 +25,7 @@ const FREQ_COLOR = {
   'Ročně':      { bg: '#f3e8ff', color: '#6b21a8' },
 }
 
-const EMPTY_FORM = { objectName: OBJECTS[0], category: CATEGORIES[0], amount: '', frequency: 'Ročně', notes: '' }
+const EMPTY_FORM = { objectName: OBJECTS[0], category: CATEGORIES[0], amount: '', frequency: 'Ročně', notes: '', vatIncluded: false }
 
 export default function OperationalCosts() {
   const { operationalCosts = [], addOperationalCost, updateOperationalCost, deleteOperationalCost, isReadOnly } = useApp() || {}
@@ -40,13 +40,29 @@ export default function OperationalCosts() {
   const openAdd = () => { setEditId(null); setForm({ ...EMPTY_FORM, objectName: activeObj }); setShowForm(true) }
   const openEdit = (oc) => {
     setEditId(oc.id)
-    setForm({ objectName: oc.objectName || activeObj, category: oc.category || CATEGORIES[0], amount: oc.amount?.toString() || '', frequency: oc.frequency || 'Ročně', notes: oc.notes || '' })
+    setForm({
+      objectName: oc.objectName || activeObj,
+      category: oc.category || CATEGORIES[0],
+      amount: oc.amount?.toString() || '',
+      frequency: oc.frequency || 'Ročně',
+      notes: oc.notes || '',
+      vatIncluded: !!oc.vatIncluded,
+    })
     setShowForm(true)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const payload = { objectName: form.objectName, category: form.category, amount: Number(form.amount) || 0, frequency: form.frequency, periodFrom: null, periodTo: null, notes: form.notes || null }
+    const payload = {
+      objectName: form.objectName,
+      category: form.category,
+      amount: Number(form.amount) || 0,
+      frequency: form.frequency,
+      periodFrom: null,
+      periodTo: null,
+      notes: form.notes || null,
+      vatIncluded: form.vatIncluded,
+    }
     try {
       if (editId) { await updateOperationalCost(editId, payload) } else { await addOperationalCost(payload) }
       setShowForm(false); setEditId(null)
@@ -63,9 +79,17 @@ export default function OperationalCosts() {
     })
   }
 
+  const freqMult = { 'Měsíčně': 12, 'Čtvrtletně': 4, 'Pololetně': 2, 'Ročně': 1 }
+
+  // Roční netto součet (všechny položky — zadaná částka je vždy bez DPH)
+  const annualNetto = filtered.reduce((sum, oc) => {
+    return sum + (Number(oc.amount) || 0) * (freqMult[oc.frequency] || 1)
+  }, 0)
+
+  // Roční celkové náklady — pro položky s DPH brutto, bez DPH jen netto
   const annualTotal = filtered.reduce((sum, oc) => {
-    const f = { 'Měsíčně': 12, 'Čtvrtletně': 4, 'Pololetně': 2, 'Ročně': 1 }
-    return sum + (Number(oc.amount) || 0) * (f[oc.frequency] || 1)
+    const base = (Number(oc.amount) || 0) * (freqMult[oc.frequency] || 1)
+    return sum + (oc.vatIncluded ? base * 1.21 : base)
   }, 0)
 
   const lbl = (text, req) => (
@@ -120,11 +144,11 @@ export default function OperationalCosts() {
           </div>
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 20px' }}>
             <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>Roční náklady bez DPH</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)' }}>{annualTotal.toLocaleString('cs-CZ')} Kč</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--price-netto)' }}>{annualNetto.toLocaleString('cs-CZ')} Kč</div>
           </div>
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 20px' }}>
-            <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>Roční náklady s DPH 21 %</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{(annualTotal * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>Roční náklady celkem</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--price-brutto)' }}>{annualTotal.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>
           </div>
         </div>
       )}
@@ -141,7 +165,7 @@ export default function OperationalCosts() {
           {filtered.map(oc => {
             const fc = FREQ_COLOR[oc.frequency] || { bg: 'var(--bg2)', color: 'var(--text2)' }
             const amount = Number(oc.amount) || 0
-            const amountDph = amount * 1.21
+            const amountBrutto = amount * 1.21
             const catIcon = {
               'Pojištění': '🛡️', 'Účetní firma': '📊', 'Úklid společných prostor': '🧹',
               'Údržba objektu': '🔧', 'Správa objektu': '🏢', 'Daň z nemovitosti': '🏛️',
@@ -160,13 +184,10 @@ export default function OperationalCosts() {
                 display: 'flex', alignItems: 'stretch', overflow: 'hidden',
                 boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
               }}>
-                {/* Barevný levý pruh */}
                 <div style={{ width: 4, background: catColor, flexShrink: 0 }} />
-                {/* Ikona */}
                 <div style={{ display: 'flex', alignItems: 'center', padding: '0 14px', background: catColor + '12', flexShrink: 0 }}>
                   <span style={{ fontSize: 22 }}>{catIcon}</span>
                 </div>
-                {/* Obsah */}
                 <div style={{ flex: 1, minWidth: 0, padding: '13px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{oc.category}</span>
@@ -177,12 +198,18 @@ export default function OperationalCosts() {
                     {oc.objectName}
                   </div>
                 </div>
-                {/* Částka */}
+                {/* Částka — podmíněně s/bez DPH */}
                 <div style={{ textAlign: 'right', padding: '13px 16px', flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--price-netto)' }}>{amount.toLocaleString('cs-CZ')} Kč</div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3 }}>bez DPH</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--price-brutto)' }}>{amountDph.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)' }}>s DPH 21 %</div>
+                  {oc.vatIncluded ? (
+                    <>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--price-netto)' }}>{amount.toLocaleString('cs-CZ')} Kč</div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3 }}>bez DPH</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--price-brutto)' }}>{amountBrutto.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>s DPH 21 %</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{amount.toLocaleString('cs-CZ')} Kč</div>
+                  )}
                 </div>
                 {!isReadOnly && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center', padding: '8px 12px 8px 0', flexShrink: 0 }}>
@@ -226,9 +253,9 @@ export default function OperationalCosts() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    {lbl('Částka bez DPH (Kč)', true)}
+                    {lbl('Částka (Kč)', true)}
                     <input type="number" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'text' }} min="0" value={form.amount} onChange={e => set('amount', e.target.value)} required />
-                    {Number(form.amount) > 0 && (
+                    {form.vatIncluded && Number(form.amount) > 0 && (
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
                         s DPH 21 %: <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{(Number(form.amount) * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
                       </div>
@@ -241,6 +268,23 @@ export default function OperationalCosts() {
                     </select>
                   </div>
                 </div>
+
+                {/* DPH checkbox */}
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={form.vatIncluded}
+                      onChange={e => set('vatIncluded', e.target.checked)}
+                      style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Fakturováno s DPH 21 %</span>
+                  </label>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4, paddingLeft: 26 }}>
+                    Zadaná částka je bez DPH. S DPH se zobrazí automaticky.
+                  </div>
+                </div>
+
                 <div>
                   {lbl('Poznámka')}
                   <input type="text" className="btn" style={{ width: '100%', cursor: 'text' }} placeholder="Volitelná poznámka…" value={form.notes} onChange={e => set('notes', e.target.value)} />

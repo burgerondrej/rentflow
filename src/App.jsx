@@ -343,25 +343,29 @@ function AppInner() {
               title={theme === 'dark' ? 'Přepnout na světlý režim' : 'Přepnout na tmavý režim'}
             >{theme === 'dark' ? '☀️' : '🌙'}</button>
             <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-            {/* Backup status */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)' }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: backupStatus.syncing ? '#FBBF24'
-                  : unsavedSinceBackup ? '#F59E0B'
-                  : backupStatus.lastBackup === 'Nikdy' ? '#EF4444'
-                  : '#22C55E',
-                boxShadow: unsavedSinceBackup ? '0 0 0 2px rgba(245,158,11,0.3)' : 'none',
-              }} />
-              <span style={{ fontWeight: 500 }}>
-                {unsavedSinceBackup
-                  ? `Nezálohováno${backupStatus.lastBackup && backupStatus.lastBackup !== 'Nikdy' ? ` • ${backupStatus.lastBackup}` : ''}`
-                  : backupStatus.lastBackup === 'Nikdy'
-                    ? 'Nikdy nezálohováno'
-                    : `Záloha: ${backupStatus.lastBackup}`}
-              </span>
-            </div>
-            <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+            {/* Backup status — skryto pro Pavla */}
+            {currentUser !== 'Pavel' && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)' }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: backupStatus.syncing ? '#FBBF24'
+                      : unsavedSinceBackup ? '#F59E0B'
+                      : backupStatus.lastBackup === 'Nikdy' ? '#EF4444'
+                      : '#22C55E',
+                    boxShadow: unsavedSinceBackup ? '0 0 0 2px rgba(245,158,11,0.3)' : 'none',
+                  }} />
+                  <span style={{ fontWeight: 500 }}>
+                    {unsavedSinceBackup
+                      ? `Nezálohováno${backupStatus.lastBackup && backupStatus.lastBackup !== 'Nikdy' ? ` • ${backupStatus.lastBackup}` : ''}`
+                      : backupStatus.lastBackup === 'Nikdy'
+                        ? 'Nikdy nezálohováno'
+                        : `Záloha: ${backupStatus.lastBackup}`}
+                  </span>
+                </div>
+                <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+              </>
+            )}
             <span style={{ color: 'var(--text3)', fontWeight: 500 }}>Přihlášen jako:</span>
             <select value={currentUser} onChange={e => handleUserChange(e.target.value)} style={{ padding: '8px 14px', border: '1px solid #BBF7D0', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, background: '#F0FDF4', color: '#115E59', cursor: 'pointer', outline: 'none' }}>
               <option value="Ondra">Ondra</option>

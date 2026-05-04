@@ -219,6 +219,11 @@ pub fn delete_payment(id: String, state: State<AppState>) -> std::result::Result
 }
 
 #[tauri::command]
+pub fn cleanup_duplicate_payments(state: State<AppState>) -> std::result::Result<usize, AppError> {
+    db!(state).cleanup_duplicate_payments()
+}
+
+#[tauri::command]
 pub fn update_payment_amount(id: String, amount: f64, agreed: bool, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
     let db = db!(state);
     db.update_payment_amount(&id, amount, agreed)?;
@@ -503,7 +508,7 @@ pub fn create_backup(app_handle: tauri::AppHandle) -> std::result::Result<String
                 // Také přepsat hlavní soubor pro přímý sync
                 let _ = fs::copy(&db_path, gdrive_path.join("rentflow.db"));
                 // Synchronizace složky documents/ na GDrive
-                let local_docs = app_dir.join("documents");
+                let local_docs = app_dir.join("rentflow").join("documents");
                 let gdrive_docs = gdrive_path.join("documents");
                 if local_docs.exists() {
                     let _ = fs::create_dir_all(&gdrive_docs);
