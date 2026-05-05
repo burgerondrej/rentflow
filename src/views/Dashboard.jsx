@@ -1,22 +1,8 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 
-const SUBJECT_ORDER = [
-  'METROPOLE CB – Komerční prostory',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Parkování',
-  'METROPOLE CB – Reklamní plochy',
-  'METROPOLE CB – Ubytovací jednotky',
-  'Bürger Pavel – Parkování',
-  'Bürger Pavel – Reklamní plochy',
-  'Ostatní',
-  'JIHOTANK',
-  'JIHOTANK CB',
-]
-
 export default function Dashboard({ onNav, onOpen }) {
-  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [] } = useApp() || {}
+  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [] } = useApp() || {}
   const [expandedGroup, setExpandedGroup] = useState(null) // { days, colorVar, list }
 
   const today = new Date()
@@ -232,7 +218,7 @@ export default function Dashboard({ onNav, onOpen }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Přehled nájemného po subjektech</div>
 
-        {SUBJECT_ORDER.map(subject => {
+        {subjects.map(subject => {
           const subContracts = activeContracts.filter(c => {
             if (c.paymentFrequency === 'Zahrnuto v nájemném') return false
             const asset = assets.find(a => a.id === c.assetId)

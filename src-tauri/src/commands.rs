@@ -754,6 +754,20 @@ pub fn delete_amendment(id: String, user: String, state: State<AppState>) -> std
 }
 
 // ─────────────────────────────────────────
+// SUBJECTS + OBJECTS
+// ─────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_subjects(state: State<AppState>) -> std::result::Result<Vec<Subject>, AppError> {
+    db!(state).get_subjects()
+}
+
+#[tauri::command]
+pub fn get_objects(state: State<AppState>) -> std::result::Result<Vec<String>, AppError> {
+    db!(state).get_objects()
+}
+
+// ─────────────────────────────────────────
 // UPDATER
 // ─────────────────────────────────────────
 

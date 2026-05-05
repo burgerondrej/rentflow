@@ -2,25 +2,8 @@ import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import AssetForm from '../AssetForm.jsx'
 
-const SUBJECT_ORDER = [
-  'Bürger Pavel – Parkování',
-  'Bürger Pavel – Reklamní plochy',
-  'JIHOTANK',
-  'JIHOTANK CB',
-  'METROPOLE CB – Komerční prostory',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Parkování',
-  'METROPOLE CB – Reklamní plochy',
-  'METROPOLE CB – Ubytovací jednotky',
-]
 
 // Sekce pro bytové jednotky
-const RESIDENTIAL_SECTIONS = [
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Ubytovací jednotky',
-]
 
 // Sekce pro parkovací stání (dle umístění = format pole)
 const PARKING_SECTIONS = [
@@ -35,7 +18,7 @@ const ADS_SECTIONS = [
   'Billboard Novohradská',
   'Billboard u silnice',
   'Reklama plot U Staré trati',
-  'Střecha METROPOLE CB',
+  'Střecha CB objektu',
 ]
 
 const CONFIG = {
@@ -83,7 +66,7 @@ function useDragOrder(initialItems) {
 }
 
 export default function Assets({ type, activeSubject, onOpen }) {
-  const { assets = [], contracts = [], tenants = [] } = useApp()
+  const { assets = [], contracts = [], tenants = [] , residentialSubjects = [] } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
@@ -218,8 +201,8 @@ export default function Assets({ type, activeSubject, onOpen }) {
 
   // Pro bytové jednotky — render po sekcích (57a, 53/55, UJ) – styl jako Smlouvy
   const renderResidentialSections = () => {
-    const sections = [...RESIDENTIAL_SECTIONS]
-    const others = filtered.filter(a => !RESIDENTIAL_SECTIONS.includes(a.subject))
+    const sections = [...residentialSubjects]
+    const others = filtered.filter(a => !residentialSubjects.includes(a.subject))
     if (others.length > 0) sections.push('Ostatní')
 
     return sections.map(sectionName => {
@@ -229,7 +212,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
       if (items.length === 0) return null
 
       const isCollapsed = collapsedSections[sectionName]
-      const shortName = sectionName.replace('METROPOLE CB – ', '')
+      const shortName = sectionName.includes(' – ') ? sectionName.split(' – ').slice(1).join(' – ') : sectionName
       const activeCount = items.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && c.status === 'active')).length
 
       let sectionIcon = '🏠'

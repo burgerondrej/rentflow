@@ -6,12 +6,6 @@ import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { open as shellOpen } from '@tauri-apps/api/shell'
 
-const PREDEFINED_TAGS = [
-  'Novohradská 57a', 'Novohradská 53/55', 'Komerční prostory', 'Ubytovací jednotky', 
-  'METROPOLE CB', 'JIHOTANK', 'JIHOTANK CB', 'Bürger Pavel', 'METROPOLE CB – Reklamní plochy', 'METROPOLE CB – Parkování', 
-  'Byt', 'Kancelář', 'Obchod', 'Sklad', 'Parkovací stání', 
-  'Střecha Billboard', 'Billboard u silnice', 'Reklama plot', 'Reklamní místo pod billboardem (parking)'
-]
 
 const TYPE_META = {
   tenant:      { headerClass: 'modal-header-tenant',   icon: '👤', label: 'Karta nájemce' },
@@ -24,7 +18,22 @@ const TYPE_META = {
 }
 
 export default function DetailPanel({ type, id, onClose, onOpen }) {
-  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly } = useApp()
+  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], parkingBillingOptions = [], adsBillingOptions = [] } = useApp()
+
+  const SEP = ' – '
+  const PREDEFINED_TAGS = [
+    // Sekce z bytových a komerčních subjektů (adresy/typy bez firemního prefixu)
+    ...subjectData.filter(s => s.assetType === 'residential' || s.assetType === 'commercial')
+      .map(s => s.name.includes(SEP) ? s.name.split(SEP).slice(1).join(SEP) : null)
+      .filter(Boolean),
+    // Skupiny pronajímatelů
+    ...subjectGroups,
+    // Konkrétní subjekty ads/parking s DPH (pro tagování)
+    ...subjectData.filter(s => (s.assetType === 'ads' || s.assetType === 'parking') && s.isVatPayer).map(s => s.name),
+    // Generické tagy
+    'Byt', 'Kancelář', 'Obchod', 'Sklad', 'Parkovací staní',
+    'Střecha Billboard', 'Billboard u silnice', 'Reklama plot', 'Reklamní místo pod billboardem (parking)',
+  ]
   
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({})
@@ -362,7 +371,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
     if (!t) return <div style={{ padding: '24px 32px' }}>Nájemce nenalezen.</div>
     const activeContracts = contracts.filter(c => c.tenantId === id && c.status === 'active')
 
-    let defaultSubject = 'Bürger Pavel'
+    let defaultSubject = billingGroups.find(g => !g.isVatPayer)?.val || ''
     if (activeContracts.length > 0) {
       const relatedAsset = assets.find(a => a.id === activeContracts[0].assetId)
       if (relatedAsset) defaultSubject = relatedAsset.subject
@@ -587,7 +596,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               const calcRents = activeContracts.reduce((acc, c) => {
                 const asset = assets.find(a => a.id === c.assetId)
                 const effSub = c.billingSubject || asset?.subject || ''
-                const isBurger = effSub.startsWith('Bürger Pavel')
+                const isBurger = billingGroups.find(g => !g.isVatPayer && effSub.startsWith(g.val)) !== undefined
                 const isResidential = asset?.type === 'residential'
                 const pLen = { 'Čtvrtletně': 3, 'Pololetně': 6, 'Ročně': 12 }[c.paymentFrequency] || 1
                 const rent = ((effectiveToday(c).rent) + (isResidential && c.parking > 0 ? (effectiveToday(c).parking) : 0) + (effectiveToday(c).flatFee)) / pLen
@@ -602,7 +611,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
                   {calcRents.metro > 0 && (
                     <div style={{ flex: 1, minWidth: 160, background: '#F0FDFA', border: '1px solid #5EEAD4', borderRadius: 10, padding: '10px 14px' }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>METROPOLE CB</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>{subjectGroups.find(g => billingGroups.find(b => b.val === g)?.isVatPayer && subjects.some(s => s.includes(' – ') && s.startsWith(g)))}</div>
                       {calcRents.metroDph > 0 && (
                         <>
                           <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--price-netto)' }}>{calcRents.metroDph.toLocaleString('cs-CZ')} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)' }}>Kč bez DPH</span></div>
@@ -616,7 +625,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                   )}
                   {calcRents.burger > 0 && (
                     <div style={{ flex: 1, minWidth: 160, background: '#FAF5FF', border: '1px solid #C4B5FD', borderRadius: 10, padding: '10px 14px' }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Bürger Pavel</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>{billingGroups.find(g => !g.isVatPayer)?.label}</div>
                       <div style={{ fontSize: 15, fontWeight: 900, color: '#7C3AED' }}>{calcRents.burger.toLocaleString('cs-CZ')} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)' }}>Kč</span></div>
                       <div style={{ fontSize: 11, color: 'var(--text3)' }}>neplátce DPH</div>
                     </div>
@@ -652,7 +661,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                       const firstC = item.contracts[0]
                       const firstAsset = assets.find(a => a.id === firstC?.assetId)
                       const effSub = firstC?.billingSubject || firstAsset?.subject || ''
-                      const groupDph = firstC?.vatExempt === 2 ? true : firstC?.vatExempt === 1 ? false : !effSub.startsWith('Bürger Pavel')
+                      const groupDph = firstC?.vatExempt === 2 ? true : firstC?.vatExempt === 1 ? false : (billingGroups.find(g => effSub.startsWith(g.val))?.isVatPayer ?? true)
                       const groupAssetType = firstAsset?.type || 'parking'
                       const groupIcon = groupAssetType === 'ads' ? '📢' : groupAssetType === 'commercial' ? '🏢' : '🅿️'
                       const groupTypeLabel = groupAssetType === 'ads' ? 'Skupina reklamních ploch' : groupAssetType === 'commercial' ? 'Skupina komerčních prostor' : 'Skupina parkovacích stání'
@@ -701,7 +710,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                     const bg  = typeBg[aType]  || 'var(--bg2)'
                     const bdr = typeBdr[aType] || 'var(--border)'
                   const effectiveSub = c.billingSubject || asset?.subject || ''
-                  const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : !effectiveSub.startsWith('Bürger Pavel')
+                  const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => effectiveSub.startsWith(g.val))?.isVatPayer ?? true)
                   const showDph = (aType === 'commercial' || aType === 'ads' || aType === 'parking' || aType === 'ostatni') && isDphSubject
                   const _eff = effectiveToday(c)
                   const rent = _eff.rent + (aType === 'residential' && c.includedParkingSpots > 0 ? _eff.parking : 0)
@@ -1163,14 +1172,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
     const effectiveSubject = c.billingSubject || a?.subject || ''
     const isDphSubject = c.vatExempt === 2 ? true
       : c.vatExempt === 1 ? false
-      : !effectiveSubject.startsWith('Bürger Pavel')
-    const isMetropoleParkingAsset = a?.subject === 'METROPOLE CB – Parkování'
-    const isMetropoleAdsAsset = a?.subject === 'METROPOLE CB – Reklamní plochy'
+      : (billingGroups.find(g => effectiveSubject.startsWith(g.val))?.isVatPayer ?? true)
+    const isMetropoleParkingAsset = (parkingBillingOptions[0]?.label ? a?.subject === parkingBillingOptions[0].label : false)
+    const isMetropoleAdsAsset = (adsBillingOptions[0]?.label ? a?.subject === adsBillingOptions[0].label : false)
     // isDphSubject pro edit formulář (reaguje na živý výběr billingSubject)
     const formEffSub = formData.billingSubject || a?.subject || ''
     const formIsDphSubject = (formData.vatExempt || 0) === 2 ? true
       : (formData.vatExempt || 0) === 1 ? false
-      : !formEffSub.startsWith('Bürger Pavel')
+      : (billingGroups.find(g => formEffSub.startsWith(g.val))?.isVatPayer ?? true)
 
     const czToIso = (cz) => {
       if (!cz) return ''
@@ -1240,8 +1249,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         includedParkingSpots: c.includedParkingSpots ? String(c.includedParkingSpots) : '',
         includedParkingRent: (c.includedParkingSpots > 0 && c.parking) ? String(c.parking) : '',
         billingSubject: (() => {
-          // Pro ads/parking assety mimo METROPOLE CB billingSubject nemá smysl — vymazat
-          if ((a?.type === 'ads' || a?.type === 'parking') && !a?.subject?.startsWith('METROPOLE CB')) return ''
+          // Pro ads/parking assety mimo DPH-plátce billingSubject nemá smysl — vymazat
+          if ((a?.type === 'ads' || a?.type === 'parking') && !(adsBillingOptions[0]?.label ? a?.subject?.startsWith(adsBillingOptions[0].label.split(' – ')[0]) : false)) return ''
           return c.billingSubject || ''
         })(),
         vatExempt: c.vatExempt || 0,
@@ -1304,10 +1313,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Vyberte, za který subjekt je smlouva uzavírána. Ovlivňuje DPH a zaúčtování příjmů.</div>
                   {[
-                    { val: 'METROPOLE CB', label: 'METROPOLE CB', sub: 'Plátce DPH (21 %)' },
-                    { val: 'Bürger Pavel', label: 'Bürger Pavel', sub: 'Neplátce DPH' },
-                    { val: 'JIHOTANK',     label: 'JIHOTANK',     sub: 'Plátce DPH (21 %)' },
-                    { val: 'JIHOTANK CB',  label: 'JIHOTANK CB',  sub: 'Plátce DPH (21 %)' },
+                    ...billingGroups,
                   ].map(({ val, label, sub }) => {
                     const selected = (formData.billingSubject || '') === val
                     return (
@@ -1332,11 +1338,9 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               ) : (
                 <div style={{ display: 'flex', gap: 8 }}>
                   {(isMetropoleParkingAsset ? [
-                    { val: '', label: 'METROPOLE CB – Parkování', sub: 'Plátce DPH' },
-                    { val: 'Bürger Pavel – Parkování', label: 'Bürger Pavel – Parkování', sub: 'Neplátce DPH' },
+                    ...parkingBillingOptions,
                   ] : [
-                    { val: '', label: 'METROPOLE CB – Reklamní plochy', sub: 'Plátce DPH' },
-                    { val: 'Bürger Pavel – Reklamní plochy', label: 'Bürger Pavel – Reklamní plochy', sub: 'Neplátce DPH' },
+                    ...adsBillingOptions,
                   ]).map(({ val, label, sub }) => {
                     const selected = (formData.billingSubject || '') === val
                     return (
@@ -1811,8 +1815,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           </div>
         </div>
 
-        {/* Pronajímatel – jen když je přepsán (ne pro vlastní Bürger Pavel ads/parking assety) */}
-        {c.billingSubject && !((a?.type === 'ads' || a?.type === 'parking') && !a?.subject?.startsWith('METROPOLE CB')) && (
+        {/* Pronajímatel – jen když je přepsán (ne pro vlastní neplatčcovy ads/parking assety) */}
+        {c.billingSubject && !((a?.type === 'ads' || a?.type === 'parking') && !(adsBillingOptions[0]?.label ? a?.subject?.startsWith(adsBillingOptions[0].label.split(' – ')[0]) : false)) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10 }}>
             <span style={{ fontSize: 13 }}>🏢</span>
             <div>
@@ -1820,7 +1824,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>
                 {c.billingSubject}
                 <span style={{ fontWeight: 400, fontSize: 11 }}>
-                  {' · '}{c.billingSubject.startsWith('Bürger Pavel') ? 'Neplátce DPH' : 'Plátce DPH (21 %)'}
+                  {' · '}{(billingGroups.find(g => c.billingSubject.startsWith(g.val))?.isVatPayer ? 'Plátce DPH (21 %)' : 'Neplátce DPH')}
                 </span>
               </div>
             </div>

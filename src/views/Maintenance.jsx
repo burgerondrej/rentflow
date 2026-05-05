@@ -12,7 +12,7 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
         {subjects.map(sub => {
           const isActive = active === sub
           const sub2 = sub.includes('\u2013') ? sub.split('\u2013').slice(1).join('\u2013').trim() : sub
-          const group = sub.includes('METROPOLE CB') ? 'METROPOLE CB' : sub.includes('Bürger Pavel') ? 'Bürger Pavel' : ''
+          const group = sub.includes(' – ') ? sub.split(' – ')[0] : ''
           return (
             <button key={sub} onClick={() => onSelect(sub)} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
@@ -38,20 +38,13 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
   )
 }
 
-const SUBJECTS = [
-  'METROPOLE CB – U Staré trati',
-  'Novohradská 57a',
-  'Novohradská 53/55',
-  'JIHOTANK',
-  'JIHOTANK CB',
-]
 
 export default function Maintenance() {
-  const { revisions = [], assets = [], addRevision, deleteRevision } = useApp()
+  const { revisions = [], assets = [], addRevision, deleteRevision, mainObjects = [] } = useApp()
   const [showForm, setShowForm] = useState(false)
   
   // Zvolená firma pro filtraci zobrazení (výchozí "Vše")
-  const [activeSub, setActiveSub] = useState(SUBJECTS[0])
+  const [activeSub, setActiveSub] = useState(mainObjects[0] || '')
   
   // Stavy pro nový formulář
   const [newSubject, setNewSubject] = useState('')
@@ -123,7 +116,7 @@ export default function Maintenance() {
         <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Nová revize</button>
       </div>
 
-      <SubjectSelector subjects={SUBJECTS} active={activeSub} onSelect={setActiveSub} />
+      <SubjectSelector subjects={mainObjects} active={activeSub} onSelect={setActiveSub} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16, marginBottom: 32 }}>
         <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: 24, borderRadius: 16 }}>
@@ -195,7 +188,7 @@ export default function Maintenance() {
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Objekt / Budova</label>
               <select className="btn" style={{ width: '100%', textAlign: 'left' }} value={newSubject} onChange={e => setNewSubject(e.target.value)}>
                 <option value="">-- Vyberte objekt --</option>
-                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                {mainObjects.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 

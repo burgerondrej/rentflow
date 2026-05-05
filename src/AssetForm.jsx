@@ -1,24 +1,12 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
 
-const SUBJECT_ORDER = [
-  'Bürger Pavel – Parkování',
-  'Bürger Pavel – Reklamní plochy',
-  'JIHOTANK',
-  'JIHOTANK CB',
-  'METROPOLE CB – Komerční prostory',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Parkování',
-  'METROPOLE CB – Reklamní plochy',
-  'METROPOLE CB – Ubytovací jednotky',
-]
 
 const ADS_LOCATIONS = [
   'Billboard Novohradská',
   'Billboard u silnice',
   'Reklama plot U Staré trati',
-  'Střecha METROPOLE CB',
+  'Střecha CB objektu',
 ]
 
 const PARKING_LOCATIONS = [
@@ -37,7 +25,7 @@ const CONFIG = {
 }
 
 export default function AssetForm({ type, onClose }) {
-  const { addAsset } = useApp()
+  const { addAsset, subjects = [] } = useApp()
   const conf = CONFIG[type]
 
   const [formData, setFormData] = useState({
@@ -134,7 +122,7 @@ export default function AssetForm({ type, onClose }) {
               {lbl('Subjekt / Budova *')}
               <select className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }} value={formData.subject} onChange={e => set('subject', e.target.value)} required>
                 <option value="" disabled>— Vyberte subjekt —</option>
-                {SUBJECT_ORDER.filter(s => s !== 'Ostatní').map(s => <option key={s} value={s}>{s}</option>)}
+                {subjects.filter(s => s !== 'Ostatní').map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           )}
@@ -244,7 +232,7 @@ export default function AssetForm({ type, onClose }) {
             <>
               <div>
                 {lbl('Název *')}
-                <input type="text" className="btn" style={inp} placeholder="např. Nájemní smlouva JIHOTANK ↔ METROPOLE CB" value={formData.unit} onChange={e => set('unit', e.target.value)} required autoFocus />
+                <input type="text" className="btn" style={inp} placeholder="např. Nájemní smlouva A ↔ B" value={formData.unit} onChange={e => set('unit', e.target.value)} required autoFocus />
               </div>
               <div>
                 {lbl('Stručný popis')}

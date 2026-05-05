@@ -120,6 +120,8 @@ fn main() {
             commands::delete_amendment,
             commands::check_for_update,
             commands::install_update,
+            commands::get_subjects,
+            commands::get_objects,
         ])
         // ⚠️ KLÍČOVÁ OPRAVA: Checkpoint WAL při zavírání okna.
         // Bez toho může dojít ke ztrátě dat pokud je proces ukončen před

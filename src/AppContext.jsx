@@ -31,6 +31,8 @@ export function AppProvider({ children }) {
   const [trash, setTrash] = useState([])
   const [logs, setLogs] = useState([])
   const [operationalCosts, setOperationalCosts] = useState([])
+  const [subjectData, setSubjectData] = useState([])
+  const [mainObjects, setMainObjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [splashStatus, setSplashStatus] = useState('Spouštím RentFlow…')
   const [currentUser, setCurrentUserState] = useState(() => localStorage.getItem('rentflow_user') || 'Ondra')
@@ -90,6 +92,14 @@ export function AppProvider({ children }) {
         if (tr) setTrash(tr)
         if (l) setLogs(l)
         if (oc) setOperationalCosts(oc)
+
+        setSplashStatus('Načítám konfiguraci…')
+        const [subj, objs] = await Promise.all([
+          invoke('get_subjects'),
+          invoke('get_objects'),
+        ])
+        if (subj) setSubjectData(subj)
+        if (objs) setMainObjects(objs)
 
         setSplashStatus('Vše připraveno ✓')
         await new Promise(r => setTimeout(r, 400))
@@ -597,6 +607,35 @@ export function AppProvider({ children }) {
   }
 
   // ─────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // SUBJECTS — odvozené hodnoty
+  // ─────────────────────────────────────────
+  const SEP = ' \u2013 ' // EN DASH oddělovač skupiny a sekce
+  const subjects = subjectData.map(s => s.name)
+  const residentialSubjects = subjectData.filter(s => s.assetType === 'residential').map(s => s.name)
+  const subjectGroups = [...new Set(
+    subjectData
+      .filter(s => s.name !== 'Ostatn\u00ed')
+      .map(s => s.name.includes(SEP) ? s.name.split(SEP)[0] : s.name)
+  )]
+  // Skupiny pronajímatelů pro selector billing_subject
+  const billingGroups = subjectGroups.map(g => {
+    const rep = subjectData.find(s => (s.name.includes(SEP) ? s.name.split(SEP)[0] : s.name) === g)
+    return { val: g, label: g, sub: rep?.isVatPayer ? 'Plátce DPH (21\u00a0%)' : 'Neplátce DPH', isVatPayer: rep?.isVatPayer ?? true }
+  })
+  // Parkovací billing options (pro selector u parking assetů)
+  const _parkSubs = subjectData.filter(s => s.assetType === 'parking')
+  const parkingBillingOptions = [
+    { val: '', label: _parkSubs.find(s => s.isVatPayer)?.name || '', sub: 'Plátce DPH' },
+    { val: _parkSubs.find(s => !s.isVatPayer)?.name || '', label: _parkSubs.find(s => !s.isVatPayer)?.name || '', sub: 'Neplátce DPH' },
+  ]
+  // Reklamní billing options (pro selector u ads assetů)
+  const _adsSubs = subjectData.filter(s => s.assetType === 'ads')
+  const adsBillingOptions = [
+    { val: '', label: _adsSubs.find(s => s.isVatPayer)?.name || '', sub: 'Plátce DPH' },
+    { val: _adsSubs.find(s => !s.isVatPayer)?.name || '', label: _adsSubs.find(s => !s.isVatPayer)?.name || '', sub: 'Neplátce DPH' },
+  ]
+
   // CONTEXT VALUE
   // ─────────────────────────────────────────
   const value = {
@@ -612,6 +651,15 @@ export function AppProvider({ children }) {
     trash,
     logs,
     operationalCosts,
+    // Subjects (načtené z DB — bez hardcoded názvů v JS)
+    subjects,
+    residentialSubjects,
+    subjectGroups,
+    subjectData,
+    billingGroups,
+    parkingBillingOptions,
+    adsBillingOptions,
+    mainObjects,
     // State
     loading,
     currentUser, setCurrentUser,

@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
 
-const PRESET_TAGS = ['METROPOLE CB', 'Bürger Pavel', 'JIHOTANK', 'JIHOTANK CB']
 
 const COLUMNS = [
   { id: 'longterm',  title: 'Dlouhodobé úkoly',            cssKey: 'longterm'  },
@@ -23,7 +22,7 @@ const parseTags = (tag) => (tag || '').split(',').map(t => t.trim()).filter(Bool
 const joinTags  = (arr)  => arr.join(', ')
 
 export default function Kanban() {
-  const { tasks = [], addTask, updateTask, deleteTask, isReadOnly } = useApp()
+  const { tasks = [], addTask, updateTask, deleteTask, isReadOnly, subjectGroups = [] } = useApp()
 
   const [showForm, setShowForm]           = useState(false)
   const [formMode, setFormMode]           = useState('add')
@@ -226,7 +225,7 @@ export default function Kanban() {
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>Tagy / Firma</label>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                    {PRESET_TAGS.map(pt => {
+                    {subjectGroups.map(pt => {
                       const isA = selectedTags.includes(pt)
                       return (
                         <button key={pt} type="button" onClick={() => togglePreset(pt)}

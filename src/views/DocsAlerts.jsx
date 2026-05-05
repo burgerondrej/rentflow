@@ -15,7 +15,7 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
         {subjects.map(sub => {
           const isActive = active === sub
           const sub2 = sub.includes('\u2013') ? sub.split('\u2013').slice(1).join('\u2013').trim() : sub
-          const group = sub.includes('METROPOLE CB') ? 'METROPOLE CB' : sub.includes('B\u00fcrger Pavel') ? 'B\u00fcrger Pavel' : ''
+          const group = sub.includes(' – ') ? sub.split(' – ')[0] : ''
           return (
             <button key={sub} onClick={() => onSelect(sub)} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
@@ -41,30 +41,17 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
   )
 }
 
-const SUBJECTS = [
-  'METROPOLE CB – Komerční prostory',
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Ubytovací jednotky',
-  'METROPOLE CB – Reklamní plochy',
-  'METROPOLE CB – Parkování',
-  'Bürger Pavel – Reklamní plochy',
-  'Bürger Pavel – Parkování',
-  'Ostatní',
-  'JIHOTANK',
-  'JIHOTANK CB',
-]
 
 // ------------------------------------------------------------------
 // 1. MODUL DOKUMENTŮ
 // ------------------------------------------------------------------
 export function Docs() {
-  const { documents = [], contracts = [], tenants = [], assets = [], addDocument, deleteDocument, getSettings } = useApp() || {}
-  const [activeSub, setActiveSub] = useState(SUBJECTS[0])
+  const { documents = [], contracts = [], tenants = [], assets = [], addDocument, deleteDocument, getSettings, subjects = [] } = useApp() || {}
+  const [activeSub, setActiveSub] = useState(subjects[0] || '')
   const [showForm, setShowForm]   = useState(false)
   const [newName, setNewName]     = useState('')
   const [newType, setNewType]     = useState('Smlouva')
-  const [newSubject, setNewSubject] = useState(SUBJECTS[0])
+  const [newSubject, setNewSubject] = useState(subjects[0] || '')
   const [newNotes, setNewNotes]   = useState('')
   const [pickedFile, setPickedFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -351,7 +338,7 @@ export function Docs() {
         <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Nahrát dokument</button>
       </div>
 
-      <SubjectSelector subjects={SUBJECTS} active={activeSub} onSelect={setActiveSub} />
+      <SubjectSelector subjects={subjects} active={activeSub} onSelect={setActiveSub} />
 
       {/* ── STROM ─────────────────────────────────────────────────── */}
       {totalDocs === 0 ? (
@@ -481,7 +468,7 @@ export function Docs() {
             <div className="form-group" style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Firma / Subjekt</label>
               <select className="btn" style={{ width: '100%', textAlign: 'left' }} value={newSubject} onChange={e => setNewSubject(e.target.value)}>
-                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                {subjects.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 

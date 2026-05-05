@@ -1,18 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
 
-const SUBJECT_ORDER = [
-  'Bürger Pavel – Parkování',
-  'Bürger Pavel – Reklamní plochy',
-  'JIHOTANK',
-  'JIHOTANK CB',
-  'METROPOLE CB – Komerční prostory',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Parkování',
-  'METROPOLE CB – Reklamní plochy',
-  'METROPOLE CB – Ubytovací jednotky',
-]
 
 const CONTRACT_TYPES = [
   { id: 'residential', icon: '🏠', label: 'Bytová jednotka',   sub: 'Obytný prostor',        gradient: 'linear-gradient(135deg, #166534 0%, #16a34a 60%, #22c55e 100%)' },
@@ -30,7 +18,7 @@ function isoToCz(iso) {
 }
 
 export default function ContractForm({ onClose }) {
-  const { tenants, assets, addContract } = useApp()
+  const { tenants, assets, addContract, subjects = [], billingGroups = [], parkingBillingOptions = [], adsBillingOptions = [] } = useApp()
 
   const [contractType, setContractType] = useState(null)
   const [revealed, setRevealed] = useState(false)
@@ -75,7 +63,7 @@ export default function ContractForm({ onClose }) {
   const availableAssets = [...(assets || [])]
     .filter(a => a.status !== 'archived' && (!contractType || a.type === contractType))
     .sort((a, b) => {
-      const iA = SUBJECT_ORDER.indexOf(a.subject), iB = SUBJECT_ORDER.indexOf(b.subject)
+      const iA = subjects.indexOf(a.subject), iB = subjects.indexOf(b.subject)
       const wA = iA === -1 ? 999 : iA, wB = iB === -1 ? 999 : iB
       if (wA !== wB) return wA - wB
       return (a.unit || '').localeCompare(b.unit || '', 'cs', { numeric: true, sensitivity: 'base' })
@@ -125,9 +113,9 @@ export default function ContractForm({ onClose }) {
   const effectiveSubject = formData.billingSubject || selectedAsset?.subject || ''
   const isDphSubject = formData.vatExempt === 2 ? true
     : formData.vatExempt === 1 ? false
-    : !effectiveSubject.startsWith('Bürger Pavel')
-  const isMetropoleParkingAsset = selectedAsset?.subject === 'METROPOLE CB – Parkování'
-  const isMetropoleAdsAsset = selectedAsset?.subject === 'METROPOLE CB – Reklamní plochy'
+    : (billingGroups.find(g => effectiveSubject.startsWith(g.val))?.isVatPayer ?? true)
+  const isMetropoleParkingAsset = (parkingBillingOptions[0]?.label ? selectedAsset?.subject === parkingBillingOptions[0].label : false)
+  const isMetropoleAdsAsset = (adsBillingOptions[0]?.label ? selectedAsset?.subject === adsBillingOptions[0].label : false)
 
   const subtractMonthsFromDate = (czDate, months) => {
     const parts = czDate.split('.').map(p => p.trim())
@@ -703,10 +691,7 @@ export default function ContractForm({ onClose }) {
                 Vyberte, za který subjekt je smlouva uzavírána. Ovlivňuje DPH a zaúčtování příjmů.
               </div>
               {[
-                { val: 'METROPOLE CB', label: 'METROPOLE CB', sub: 'Plátce DPH (21 %)' },
-                { val: 'Bürger Pavel', label: 'Bürger Pavel', sub: 'Neplátce DPH' },
-                { val: 'JIHOTANK',    label: 'JIHOTANK',     sub: 'Plátce DPH (21 %)' },
-                { val: 'JIHOTANK CB', label: 'JIHOTANK CB',  sub: 'Plátce DPH (21 %)' },
+                ...billingGroups,
               ].map(({ val, label, sub }) => {
                 const selected = (formData.billingSubject || '') === val
                 return (
@@ -733,11 +718,10 @@ export default function ContractForm({ onClose }) {
           {isMetropoleParkingAsset && card('🏢', 'Pronajímatel',
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>
-                Stání je evidováno pod METROPOLE CB – Parkování. Pokud je pronajímatelem Bürger Pavel, vyber níže — příjmy a DPH se zaúčtují správně.
+                {`Staní je evidováno pod ${parkingBillingOptions[0]?.label || ''}. Pokud je pronajímatelem ${parkingBillingOptions[1]?.label || ''}, vyber níže — příjmy a DPH se zaúčtují správně.`}
               </div>
               {[
-                { val: '', label: 'METROPOLE CB – Parkování', sub: 'Plátce DPH' },
-                { val: 'Bürger Pavel – Parkování', label: 'Bürger Pavel – Parkování', sub: 'Neplátce DPH' },
+                ...parkingBillingOptions,
               ].map(({ val, label, sub }) => {
                 const selected = (formData.billingSubject || '') === val
                 return (
@@ -764,11 +748,10 @@ export default function ContractForm({ onClose }) {
           {isMetropoleAdsAsset && card('🏢', 'Pronajímatel',
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>
-                Plocha je evidována pod METROPOLE CB – Reklamní plochy. Pokud je pronajímatelem Bürger Pavel, vyber níže — příjmy a DPH se zaúčtují správně.
+                {`Plocha je evidována pod ${adsBillingOptions[0]?.label || ''}. Pokud je pronajímatelem ${adsBillingOptions[1]?.label || ''}, vyber níže — příjmy a DPH se zaúčtují správně.`}
               </div>
               {[
-                { val: '', label: 'METROPOLE CB – Reklamní plochy', sub: 'Plátce DPH' },
-                { val: 'Bürger Pavel – Reklamní plochy', label: 'Bürger Pavel – Reklamní plochy', sub: 'Neplátce DPH' },
+                ...adsBillingOptions,
               ].map(({ val, label, sub }) => {
                 const selected = (formData.billingSubject || '') === val
                 return (

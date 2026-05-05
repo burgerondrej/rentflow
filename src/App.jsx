@@ -17,22 +17,8 @@ import OperationalCosts from './views/OperationalCosts.jsx'
 import SettingsPanel from './SettingsPanel.jsx'
 import UpdateDialog from './UpdateDialog.jsx'
 
-const ALL_SUBJECTS = [
-  'METROPOLE CB – Komerční prostory',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Parkování',
-  'METROPOLE CB – Reklamní plochy',
-  'METROPOLE CB – Ubytovací jednotky',
-  'Bürger Pavel – Parkování',
-  'Bürger Pavel – Reklamní plochy',
-  'JIHOTANK',
-  'JIHOTANK CB',
-  'Ostatní',
-]
-
 function AppInner() {
-  const { unreadCount, urgentContracts, currentUser, setCurrentUser, isReadOnly, theme, setTheme, tenants = [], assets = [], tasks = [], documents = [], contracts = [], getBackupInfo, createBackup } = useApp()
+  const { unreadCount, urgentContracts, currentUser, setCurrentUser, isReadOnly, theme, setTheme, tenants = [], assets = [], tasks = [], documents = [], contracts = [], getBackupInfo, createBackup, subjects = [] } = useApp()
 
   // Sledujeme zda od poslední zálohy došlo ke změnám
   const prevCountRef = useRef(tenants.length + assets.length + contracts.length + tasks.length)
@@ -331,7 +317,7 @@ function AppInner() {
 
             <select value={subject} onChange={e => setSubject(e.target.value)} style={{ appearance: 'none', padding: '8px 14px', border: '1px solid #BBF7D0', borderRadius: 'var(--r)', fontSize: 13, background: '#F0FDF4', color: '#15803D', fontWeight: 600, minWidth: 220, cursor: 'pointer', outline: 'none' }}>
               <option value="all">Všechny pronajímající subjekty</option>
-              {ALL_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+              {subjects.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>

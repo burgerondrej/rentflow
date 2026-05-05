@@ -3,20 +3,6 @@ import { useApp } from '../AppContext.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import { save } from '@tauri-apps/api/dialog'
 
-const SUBJECT_ORDER = [
-  'METROPOLE CB – Komerční prostory',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Parkování',
-  'METROPOLE CB – Reklamní plochy',
-  'METROPOLE CB – Ubytovací jednotky',
-  'Bürger Pavel – Parkování',
-  'Bürger Pavel – Reklamní plochy',
-  'JIHOTANK',
-  'JIHOTANK CB',
-  'Ostatní',
-]
-
 // ── CSS pro tisk (inline do HTML exportu) ──
 const PRINT_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
@@ -84,10 +70,10 @@ function urgencyClass(days) {
 
 // ── GENERÁTORY HTML ──────────────────────────────────────────────────────────
 
-function genPortfolioBySubject(contracts, assets, tenants, subjectFilter) {
+function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjectOrder) {
   const activeContracts = contracts.filter(c => c.status === 'active')
   const subjects = subjectFilter === 'all'
-    ? SUBJECT_ORDER
+    ? subjectOrder
     : [subjectFilter]
 
   let sectionsHtml = ''
@@ -297,7 +283,7 @@ function genExpirationReport(contracts, assets, tenants) {
   </div></body></html>`
 }
 
-function genMonthlyReport(contracts, assets, tenants, subjectFilter) {
+function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrder) {
   const active = contracts.filter(c => c.status === 'active')
   const filtered = subjectFilter === 'all' ? active : active.filter(c => {
     const a = assets.find(x => x.id === c.assetId)
@@ -307,7 +293,7 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter) {
   const sorted = [...filtered].sort((a, b) => {
     const sa = assets.find(x => x.id === a.assetId)?.subject || ''
     const sb = assets.find(x => x.id === b.assetId)?.subject || ''
-    return SUBJECT_ORDER.indexOf(sa) - SUBJECT_ORDER.indexOf(sb)
+    return subjectOrder.indexOf(sa) - subjectOrder.indexOf(sb)
   })
 
   const totalRent = sorted.reduce((s, c) => s + (c.rent||0) + (c.parking||0), 0)
@@ -386,7 +372,7 @@ const EXPORT_TYPES = [
 ]
 
 export default function Export() {
-  const { contracts = [], assets = [], tenants = [] } = useApp() || {}
+  const { contracts = [], assets = [], tenants = [], subjects = [] } = useApp() || {}
   const [activeType, setActiveType] = useState('portfolio')
   const [subjectFilter, setSubjectFilter] = useState('all')
   const [tenantFilter, setTenantFilter] = useState('')
@@ -400,7 +386,7 @@ export default function Export() {
 
   const activeSubjects = [...new Set(
     assets.filter(a => a.status !== 'archived').map(a => a.subject)
-  )].sort((a, b) => SUBJECT_ORDER.indexOf(a) - SUBJECT_ORDER.indexOf(b))
+  )].sort((a, b) => subjects.indexOf(a) - subjects.indexOf(b))
 
   const doExport = async () => {
     setError(null)
@@ -412,7 +398,7 @@ export default function Export() {
 
       switch (activeType) {
         case 'portfolio':
-          html = genPortfolioBySubject(contracts, assets, tenants, subjectFilter)
+          html = genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjects)
           filename = `RentFlow-Portfolio-${subjectFilter === 'all' ? 'Vsechny' : subjectFilter.replace(/[^a-zA-Z0-9]/g, '-')}-${stamp}.html`
           break
         case 'tenant': {
@@ -427,7 +413,7 @@ export default function Export() {
           filename = `RentFlow-Expirace-${stamp}.html`
           break
         case 'monthly':
-          html = genMonthlyReport(contracts, assets, tenants, subjectFilter)
+          html = genMonthlyReport(contracts, assets, tenants, subjectFilter, subjects)
           filename = `RentFlow-Predpis-${stamp}.html`
           break
       }

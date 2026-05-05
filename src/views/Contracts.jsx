@@ -2,22 +2,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 
-const SUBJECT_ORDER = [
-  'METROPOLE CB – Komerční prostory',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Parkování',
-  'METROPOLE CB – Reklamní plochy',
-  'METROPOLE CB – Ubytovací jednotky',
-  'Bürger Pavel – Parkování',
-  'Bürger Pavel – Reklamní plochy',
-  'JIHOTANK',
-  'JIHOTANK CB',
-  'Ostatní',
-]
-
 export default function Contracts({ activeSubject, onOpen }) {
-  const { contracts = [], tenants = [], assets = [] } = useApp()
+  const { contracts = [], tenants = [], assets = [], subjects = [], billingGroups = [], subjectGroups = [] } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [cardOrder, setCardOrder] = useState(() => {
@@ -169,7 +155,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           </div>
 
           {(() => {
-            const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : !c.assetSubject?.startsWith('Bürger Pavel')
+            const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => c.assetSubject?.startsWith(g.val))?.isVatPayer ?? true)
             const showDph = (c.assetType === 'commercial' || c.assetType === 'ads' || c.assetType === 'parking') && isDphSubject
             return (
               <div style={{ display: 'grid', gridTemplateColumns: c.totalDeposit > 0 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 0 }}>
@@ -237,7 +223,7 @@ export default function Contracts({ activeSubject, onOpen }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 40, marginTop: 10 }}>
-        {SUBJECT_ORDER.map(subject => {
+        {subjects.map(subject => {
           if (activeSubject !== 'all' && activeSubject !== subject) return null
 
           const subjectContracts = filtered.filter(c => c.assetSubject === subject)
@@ -249,8 +235,8 @@ export default function Contracts({ activeSubject, onOpen }) {
           let subjectIcon = '🏢'
           if (subject.includes('Novohradská')) subjectIcon = '🏠'
           if (subject.includes('Ubytovací')) subjectIcon = '🛏️'
-          if (subject.includes('Bürger Pavel')) subjectIcon = '👤'
-          if (subject.includes('JIHOTANK')) subjectIcon = '⛽'
+          if (billingGroups.find(g => !g.isVatPayer && subject.startsWith(g.val))) subjectIcon = '👤'
+          if (subjectGroups.filter(g => !subjects.some(s => s.includes(' – ') && s.startsWith(g))).some(g => subject.startsWith(g))) subjectIcon = '⛽'
           if (subject === 'Ostatní') subjectIcon = '📄'
 
           return (

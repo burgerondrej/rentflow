@@ -3,30 +3,6 @@ import { useApp } from '../AppContext.jsx'
 import { save } from '@tauri-apps/api/dialog'
 import { invoke } from '@tauri-apps/api/tauri'
 
-const SUBJECTS = [
-  // Sloupec 1
-  'METROPOLE CB – Komerční prostory',
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Ubytovací jednotky',
-  // Sloupec 2
-  'METROPOLE CB – Reklamní plochy',
-  'METROPOLE CB – Parkování',
-  'Bürger Pavel – Reklamní plochy',
-  'Bürger Pavel – Parkování',
-  // Sloupec 3
-  'Ostatní',
-  'JIHOTANK',
-  'JIHOTANK CB',
-]
-
-// Bytové subjekty – platby se dělí na nájem a zálohy
-const BYTOVE_SUBS = [
-  'METROPOLE CB – Novohradská 57a',
-  'METROPOLE CB – Novohradská 53/55',
-  'METROPOLE CB – Ubytovací jednotky',
-]
-
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
 // ─── Modal pro výběr měsíců u čtvrtletní/pololetní platby ──────────────────
@@ -458,12 +434,12 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
 }
 
 export default function Payments() {
-  const { contracts = [], tenants = [], assets = [], payments = [], addPayment, deletePayment, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly } = useApp() || {}
+  const { contracts = [], tenants = [], assets = [], payments = [], addPayment, deletePayment, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedYear, setSelectedYear]   = useState(new Date().getFullYear())
   const [showPicker, setShowPicker]       = useState(false)
-  const [activeSub, setActiveSub]     = useState(SUBJECTS[0])
-  const activeSubRef = useRef(SUBJECTS[0])
+  const [activeSub, setActiveSub]     = useState(subjects[0] || '')
+  const activeSubRef = useRef(subjects[0] || '')
   const handleSubChange = useCallback((sub) => { activeSubRef.current = sub; setActiveSub(sub) }, [])
   const [detailContract, setDetailContract] = useState(null)
   const [activeTab, setActiveTab]           = useState('overview')
@@ -552,7 +528,7 @@ export default function Payments() {
   const contractsForSub = (subName) =>
     applyOrder(activeContracts.filter(c => getContractSubject(c) === subName))
 
-  const isBytovySub = (subName) => BYTOVE_SUBS.includes(subName)
+  const isBytovySub = (subName) => residentialSubjects.includes(subName)
 
   // ── Effective values s ohledem na amendments ─────────────────────────────
   // Vrátí platné finanční podmínky smlouvy k 1. dni daného měsíce.
@@ -1062,7 +1038,7 @@ export default function Payments() {
       console.log('[Report] selectedYear:', selectedYear, 'selectedMonth:', selectedMonth)
 
       // Sestavení dat per subjekt
-      const subjectData = SUBJECTS.map(subName => {
+      const subjectData = subjects.map(subName => {
         // Všechny aktivní smlouvy pro tento subjekt v daném (vybraném) měsíci
         const subContracts = contractsForSub(subName)
 
@@ -1515,10 +1491,10 @@ export default function Payments() {
       <div style={{ background: 'var(--bg2)', border: '1.5px solid var(--border)', borderRadius: 16, padding: 12, marginBottom: 24 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10, paddingLeft: 4 }}>Vyberte subjekt</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(4, auto)', gridAutoFlow: 'column', gap: 6 }}>
-          {SUBJECTS.map(sub => {
+          {subjects.map(sub => {
             const isActive = activeSub === sub
             const sub2 = sub.includes('–') ? sub.split('–').slice(1).join('–').trim() : sub
-            const group = sub.includes('METROPOLE CB') ? 'METROPOLE CB' : sub.includes('Bürger Pavel') ? 'Bürger Pavel' : ''
+            const group = sub.includes(' – ') ? sub.split(' – ')[0] : ''
             return (
               <button key={sub} onClick={() => handleSubChange(sub)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '8px 12px', borderRadius: 10, border: isActive ? '2px solid var(--accent)' : '1.5px solid var(--border)', background: isActive ? 'linear-gradient(135deg, #0A3D2B 0%, #1A8A62 100%)' : 'var(--bg)', color: isActive ? '#fff' : 'var(--text)', cursor: 'pointer', textAlign: 'left', boxShadow: isActive ? '0 4px 14px rgba(18,101,74,0.30)' : 'none', transition: 'all 0.15s ease' }}>
                 {group && <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? 'rgba(255,255,255,0.7)' : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 2, whiteSpace: 'nowrap' }}>{group}</span>}
@@ -1589,7 +1565,7 @@ export default function Payments() {
                         const isPaid = !!groupPayment
                         const isPartial = groupPayment && Number(groupPayment.amount) < groupTotal - 0.01
                         const effectiveSub = members[0].billingSubject || getAssetForContract(members[0])?.subject || ''
-                        const showDph = getAssetForContract(members[0])?.type !== 'residential' && !effectiveSub.startsWith('Bürger Pavel')
+                        const showDph = getAssetForContract(members[0])?.type !== 'residential' && (billingGroups.find(g => effectiveSub.startsWith(g.val))?.isVatPayer ?? true)
 
                         const handleGroupToggle = (e) => {
                           e.stopPropagation()
@@ -1728,7 +1704,7 @@ export default function Payments() {
                       const rentTotal = ev.rent + ev.parking + ev.flatFee
                       const effectiveSub = c.billingSubject || asset?.subject || ''
                       const showDph = asset?.type !== 'residential' && (
-                        (c.vatExempt === 2) ? true : (c.vatExempt === 1) ? false : !effectiveSub.startsWith('Bürger Pavel')
+                        (c.vatExempt === 2) ? true : (c.vatExempt === 1) ? false : (billingGroups.find(g => effectiveSub.startsWith(g.val))?.isVatPayer ?? true)
                       )
                       const isCommercial = asset?.type === 'commercial'
 
@@ -1986,7 +1962,7 @@ export default function Payments() {
                 <tbody>
                   {debtors.map(({ contract: c, tenant, asset, rs, isGroup, groupLabel, groupTotal }) => (
                     <tr key={isGroup ? `group-${groupLabel}` : c.id} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', transition: '0.15s' }}
-                      onClick={() => { setDetailContract(c); setActiveTab('overview'); setActiveSub(asset?.subject || SUBJECTS[0]) }}
+                      onClick={() => { setDetailContract(c); setActiveTab('overview'); setActiveSub(asset?.subject || subjects[0] || '') }}
                       onMouseOver={e => e.currentTarget.style.background = rs.status === 'partial' ? '#FFFBEB' : '#FEF2F2'}
                       onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                     >

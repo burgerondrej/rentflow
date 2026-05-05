@@ -309,6 +309,17 @@ pub struct TrashItem {
 }
 
 // ─────────────────────────────────────────
+// SUBJECT (Subjekt pronajímatele)
+// ─────────────────────────────────────────
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Subject {
+    pub name: String,
+    pub asset_type: String,  // "residential" | "commercial" | "ads" | "parking" | "other"
+    pub is_vat_payer: bool,
+}
+
+// ─────────────────────────────────────────
 // ERROR TYPE
 // ─────────────────────────────────────────
 #[derive(Debug, thiserror::Error)]

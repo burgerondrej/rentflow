@@ -2,14 +2,6 @@ import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
 
-const OBJECTS = [
-  'METROPOLE CB – U Staré trati',
-  'Novohradská 57a',
-  'Novohradská 53/55',
-  'JIHOTANK',
-  'JIHOTANK CB',
-]
-
 const CATEGORIES = [
   'Pojištění','Účetní firma','Úklid společných prostor','Údržba objektu',
   'Správa objektu','Daň z nemovitosti','Revize Lamilux','Revize hasící přístroje',
@@ -25,19 +17,23 @@ const FREQ_COLOR = {
   'Ročně':      { bg: '#f3e8ff', color: '#6b21a8' },
 }
 
-const EMPTY_FORM = { objectName: OBJECTS[0], category: CATEGORIES[0], amount: '', frequency: 'Ročně', notes: '', vatIncluded: false }
+// EMPTY_FORM is now created inside component using mainObjects[0]
 
 export default function OperationalCosts() {
-  const { operationalCosts = [], addOperationalCost, updateOperationalCost, deleteOperationalCost, isReadOnly } = useApp() || {}
-  const [activeObj, setActiveObj] = useState(OBJECTS[0])
+  const { operationalCosts = [], addOperationalCost, updateOperationalCost, deleteOperationalCost, isReadOnly, mainObjects = [] } = useApp() || {}
+  const [activeObj, setActiveObj] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [form, setForm] = useState({ objectName: '', category: CATEGORIES[0], amount: '', frequency: 'Ročně', notes: '', vatIncluded: false })
   const [confirmDialog, setConfirmDialog] = useState(null)
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+
+  // Nastaví první objekt po načtení mainObjects z DB
+  React.useEffect(() => { if (mainObjects.length > 0 && !activeObj) setActiveObj(mainObjects[0]) }, [mainObjects, activeObj])
+
   const filtered = operationalCosts.filter(c => c.objectName === activeObj)
 
-  const openAdd = () => { setEditId(null); setForm({ ...EMPTY_FORM, objectName: activeObj }); setShowForm(true) }
+  const openAdd = () => { setEditId(null); setForm({ objectName: activeObj, category: CATEGORIES[0], amount: '', frequency: 'Ročně', notes: '', vatIncluded: false }); setShowForm(true) }
   const openEdit = (oc) => {
     setEditId(oc.id)
     setForm({
@@ -114,9 +110,9 @@ export default function OperationalCosts() {
       <div style={{ background: 'var(--bg2)', border: '1.5px solid var(--border)', borderRadius: 16, padding: 12, marginBottom: 24 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10, paddingLeft: 4 }}>Vyberte objekt</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
-          {OBJECTS.map(obj => {
+          {mainObjects.map(obj => {
             const isActive = activeObj === obj
-            const group = obj.includes('METROPOLE CB') ? 'METROPOLE CB' : ''
+            const group = obj.includes(' – ') ? obj.split(' – ')[0] : ''
             const sub2 = obj.includes('–') ? obj.split('–').slice(1).join('–').trim() : obj
             return (
               <button key={obj} onClick={() => setActiveObj(obj)} style={{
@@ -242,7 +238,7 @@ export default function OperationalCosts() {
                 <div>
                   {lbl('Objekt')}
                   <select className="btn" style={{ width: '100%', cursor: 'pointer' }} value={form.objectName} onChange={e => set('objectName', e.target.value)}>
-                    {OBJECTS.map(o => <option key={o}>{o}</option>)}
+                    {mainObjects.map(o => <option key={o}>{o}</option>)}
                   </select>
                 </div>
                 <div>

@@ -323,6 +323,70 @@ impl Database {
         let _ = self.conn.execute("ALTER TABLE operational_costs ADD COLUMN vat_included INTEGER NOT NULL DEFAULT 0", []);
         let _ = self.conn.execute("ALTER TABLE contracts ADD COLUMN calendar_year_billing INTEGER NOT NULL DEFAULT 0", []);
 
+        // v0.57 migrations — subjects + objects tables
+        self.conn.execute_batch("
+            CREATE TABLE IF NOT EXISTS subjects (
+                id           TEXT PRIMARY KEY,
+                name         TEXT NOT NULL UNIQUE,
+                sort_order   INTEGER NOT NULL,
+                asset_type   TEXT NOT NULL DEFAULT 'other',
+                is_vat_payer INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS objects (
+                id           TEXT PRIMARY KEY,
+                name         TEXT NOT NULL UNIQUE,
+                sort_order   INTEGER NOT NULL
+            );
+        ")?;
+
+        // Seed subjects (spustí se pouze jednou — tabulka musí být prázdná)
+        let subj_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM subjects", [], |r| r.get(0)
+        )?;
+        if subj_count == 0 {
+            let rows: &[(&str, &str, i64, i64)] = &[
+                ("METROPOLE CB \u{2013} Komer\u{010d}n\u{00ed} prostory",  "commercial",  1, 1),
+                ("METROPOLE CB \u{2013} Novohradsk\u{00e1} 57a",           "residential", 2, 1),
+                ("METROPOLE CB \u{2013} Novohradsk\u{00e1} 53/55",         "residential", 3, 1),
+                ("METROPOLE CB \u{2013} Ubytovac\u{00ed} jednotky",        "residential", 4, 1),
+                ("METROPOLE CB \u{2013} Reklamn\u{00ed} plochy",           "ads",         5, 1),
+                ("METROPOLE CB \u{2013} Parkov\u{00e1}n\u{00ed}",          "parking",     6, 1),
+                ("B\u{00fc}rger Pavel \u{2013} Reklamn\u{00ed} plochy",    "ads",         7, 0),
+                ("B\u{00fc}rger Pavel \u{2013} Parkov\u{00e1}n\u{00ed}",   "parking",     8, 0),
+                ("Ostatn\u{00ed}",                                           "other",       9, 1),
+                ("JIHOTANK",                                                 "commercial", 10, 1),
+                ("JIHOTANK CB",                                              "commercial", 11, 1),
+            ];
+            for (name, asset_type, sort_order, is_vat) in rows {
+                let id = Self::new_id();
+                self.conn.execute(
+                    "INSERT INTO subjects (id, name, sort_order, asset_type, is_vat_payer) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![id, name, sort_order, asset_type, is_vat],
+                )?;
+            }
+        }
+
+        // Seed objects (fyzické budovy pro provozní náklady a revize)
+        let obj_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM objects", [], |r| r.get(0)
+        )?;
+        if obj_count == 0 {
+            let rows: &[(&str, i64)] = &[
+                ("METROPOLE CB \u{2013} U Star\u{00e9} trati", 1),
+                ("Novohradsk\u{00e1} 57a",                      2),
+                ("Novohradsk\u{00e1} 53/55",                    3),
+                ("JIHOTANK",                                     4),
+                ("JIHOTANK CB",                                  5),
+            ];
+            for (name, sort_order) in rows {
+                let id = Self::new_id();
+                self.conn.execute(
+                    "INSERT INTO objects (id, name, sort_order) VALUES (?1, ?2, ?3)",
+                    params![id, name, sort_order],
+                )?;
+            }
+        }
+
         Ok(())
     }
 
@@ -950,5 +1014,37 @@ impl Database {
     pub fn delete_operational_cost(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM operational_costs WHERE id=?1", params![id])?;
         Ok(())
+    }
+
+    // ─────────────────────────────────────────
+    // SUBJECTS (Subjekty pronajímatelů)
+    // ─────────────────────────────────────────
+
+    pub fn get_subjects(&self) -> Result<Vec<Subject>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT name, asset_type, is_vat_payer FROM subjects ORDER BY sort_order"
+        )?;
+        let items = stmt.query_map([], |row| {
+            Ok(Subject {
+                name: row.get(0)?,
+                asset_type: row.get(1)?,
+                is_vat_payer: row.get::<_, i64>(2)? != 0,
+            })
+        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
+
+    // ─────────────────────────────────────────
+    // OBJECTS (Fyzické budovy — provozní náklady + revize)
+    // ─────────────────────────────────────────
+
+    pub fn get_objects(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT name FROM objects ORDER BY sort_order"
+        )?;
+        let items = stmt.query_map([], |row| {
+            row.get::<_, String>(0)
+        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
     }
 }
