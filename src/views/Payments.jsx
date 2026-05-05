@@ -1711,7 +1711,7 @@ export default function Payments() {
                       const isMultiMonth = freq === 'Čtvrtletně' || freq === 'Pololetně' || freq === 'Ročně'
                       const ev       = getEffectiveValues(c, selectedYear, selectedMonth)
                       const rs       = isMultiMonth
-                        ? { status: isPeriodPaid(c, selectedYear, selectedMonth) ? 'paid' : 'unpaid', payment: null, remaining: effPeriodRent(c) }
+                        ? { status: isPeriodPaid(c, selectedYear, selectedMonth) ? 'paid' : 'unpaid', payment: getPayment(c.id, monthKey) || null, remaining: effPeriodRent(c) }
                         : getRentStatus(c, monthKey)
                       const { status: rentStatus, payment, remaining } = rs
                       const isPaid    = rentStatus === 'paid'

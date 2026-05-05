@@ -623,12 +623,23 @@ impl Database {
             Some(&p.contract_id)
         };
 
-        // Ochrana před duplikáty — pokud platba pro (contract_id, month, payment_type) už existuje, vrátíme ji
-        let existing: Option<String> = self.conn.query_row(
-            "SELECT id FROM payments WHERE contract_id IS ?1 AND month=?2 AND payment_type=?3 LIMIT 1",
-            params![contract_id_db, p.month, p.payment_type],
-            |row| row.get(0),
-        ).ok();
+        // Ochrana před duplikáty — pokud platba pro (contract_id, group_label, month, payment_type) už existuje, vrátíme ji
+        // POZOR: skupinové platby musí matchovat i group_label, jinak se různé skupiny se stejným měsícem kříží
+        let existing: Option<String> = if contract_id_db.is_none() {
+            // Skupinová platba — matchuj přesně podle group_label
+            self.conn.query_row(
+                "SELECT id FROM payments WHERE contract_id IS NULL AND group_label=?1 AND month=?2 AND payment_type=?3 LIMIT 1",
+                params![p.group_label, p.month, p.payment_type],
+                |row| row.get(0),
+            ).ok()
+        } else {
+            // Běžná platba — matchuj podle contract_id
+            self.conn.query_row(
+                "SELECT id FROM payments WHERE contract_id IS ?1 AND month=?2 AND payment_type=?3 LIMIT 1",
+                params![contract_id_db, p.month, p.payment_type],
+                |row| row.get(0),
+            ).ok()
+        };
         if let Some(existing_id) = existing {
             let mut result = p.clone();
             result.id = existing_id;
@@ -653,7 +664,7 @@ impl Database {
         let deleted = self.conn.execute(
             "DELETE FROM payments WHERE id NOT IN (
                 SELECT MIN(id) FROM payments
-                GROUP BY COALESCE(contract_id, ''), month, COALESCE(payment_type, '')
+                GROUP BY COALESCE(contract_id, ''), COALESCE(group_label, ''), month, COALESCE(payment_type, '')
             )",
             [],
         )?;

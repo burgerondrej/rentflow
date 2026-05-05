@@ -515,9 +515,7 @@ pub fn create_backup(app_handle: tauri::AppHandle) -> std::result::Result<String
                     if let Ok(entries) = fs::read_dir(&local_docs) {
                         for entry in entries.filter_map(|e| e.ok()) {
                             let dest = gdrive_docs.join(entry.file_name());
-                            if !dest.exists() {
-                                let _ = fs::copy(entry.path(), dest);
-                            }
+                            let _ = fs::copy(entry.path(), dest);
                         }
                     }
                 }
