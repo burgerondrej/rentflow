@@ -67,10 +67,7 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI1MUE1QjZCQ0Q1MkNGQQpSV1Q2TE5XOHRxVlJDNlhaSnBkbDRTcDBTeWxtQldGd1JKdEY1RWQ2RitHVTZpWi9XRVM0VHVNRgo=",
       "endpoints": [
         "https://burgerondrej.github.io/rentflow-updates/latest.json"
-      ],
-      "headers": {
-        "Authorization": "token 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"
-      }
+      ]
     },
     "windows": [
       {

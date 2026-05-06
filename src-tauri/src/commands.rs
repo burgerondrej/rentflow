@@ -786,7 +786,11 @@ pub async fn check_for_update(app: tauri::AppHandle) -> std::result::Result<Upda
 
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    match app.updater().check().await {
+    let builder = tauri::updater::builder(app.clone())
+        .header("Authorization", "token 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")
+        .map_err(|e| e.to_string())?;
+
+    match builder.check().await {
         Ok(update) => {
             let available = update.is_update_available();
             let version = update.latest_version().to_string();
@@ -815,7 +819,11 @@ pub async fn check_for_update(app: tauri::AppHandle) -> std::result::Result<Upda
 
 #[tauri::command]
 pub async fn install_update(app: tauri::AppHandle) -> std::result::Result<(), String> {
-    match app.updater().check().await {
+    let builder = tauri::updater::builder(app.clone())
+        .header("Authorization", "token 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")
+        .map_err(|e| e.to_string())?;
+
+    match builder.check().await {
         Ok(update) => {
             if update.is_update_available() {
                 update.download_and_install().await.map_err(|e| e.to_string())?;
