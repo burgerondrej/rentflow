@@ -91,28 +91,12 @@ jobs:
         run: |
           $version = "${{ steps.version.outputs.VERSION }}"
           $tag = "${{ github.ref_name }}"
-
-          $headers = @{
-            Authorization = "token $env:RELEASES_TOKEN"
-            Accept = "application/vnd.github.v3+json"
-          }
+          $base = "https://github.com/burgerondrej/rentflow-releases/releases/download/$tag"
 
           $nsisSig = Get-Content "$(Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip.sig | Select-Object -First 1)" -Raw
           $msiSig = Get-Content "$(Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip.sig | Select-Object -First 1)" -Raw
-
-          # Načti asset IDs z API (nutné pro private repo download)
-          $releaseInfo = Invoke-RestMethod `
-            -Uri "https://api.github.com/repos/burgerondrej/rentflow-releases/releases/tags/$tag" `
-            -Headers $headers
-
-          $nsisAsset = $releaseInfo.assets | Where-Object { $_.name -like "*.nsis.zip" } | Select-Object -First 1
-          $msiAsset  = $releaseInfo.assets | Where-Object { $_.name -like "*.msi.zip"  } | Select-Object -First 1
-
-          $nsisUrl = "https://api.github.com/repos/burgerondrej/rentflow-releases/releases/assets/$($nsisAsset.id)"
-          $msiUrl  = "https://api.github.com/repos/burgerondrej/rentflow-releases/releases/assets/$($msiAsset.id)"
-
-          Write-Host "NSIS asset ID: $($nsisAsset.id) -> $nsisUrl"
-          Write-Host "MSI asset ID:  $($msiAsset.id) -> $msiUrl"
+          $nsisFile = (Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip | Select-Object -First 1).Name
+          $msiFile = (Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip | Select-Object -First 1).Name
 
           $manifest = @{
             version = $version
@@ -121,15 +105,15 @@ jobs:
             platforms = @{
               "windows-x86_64" = @{
                 signature = $nsisSig.Trim()
-                url = $nsisUrl
+                url = "$base/$nsisFile"
               }
               "windows-x86_64-nsis" = @{
                 signature = $nsisSig.Trim()
-                url = $nsisUrl
+                url = "$base/$nsisFile"
               }
               "windows-x86_64-msi" = @{
                 signature = $msiSig.Trim()
-                url = $msiUrl
+                url = "$base/$msiFile"
               }
             }
           } | ConvertTo-Json -Depth 5
