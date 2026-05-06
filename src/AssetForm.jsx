@@ -2,19 +2,6 @@ import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
 
 
-const ADS_LOCATIONS = [
-  'Billboard Novohradská',
-  'Billboard u silnice',
-  'Reklama plot U Staré trati',
-  'Střecha CB objektu',
-]
-
-const PARKING_LOCATIONS = [
-  'Parkovací stání Novohradská 57a',
-  'Parkovací stání před a za Novohradskou 53/55',
-  'Parkovací stání pod billboardem – reklamní místo',
-  'Parkovací stání U Staré trati kolem objektu',
-]
 
 const CONFIG = {
   residential: { title: 'Nová bytová jednotka' },
@@ -34,9 +21,9 @@ export default function AssetForm({ type, onClose }) {
     disposition:     '',
     size:            '',
     floor:           '',
-    adsLocation:     ADS_LOCATIONS[0],
+    adsLocation:     '',
     adsDimensions:   '',
-    parkingLocation: PARKING_LOCATIONS[0],
+    parkingLocation: '',
     parkingLabel:    '',
     balcony:         '',
     commerceType:    'Kancelářský prostor',
@@ -202,9 +189,7 @@ export default function AssetForm({ type, onClose }) {
               </div>
               <div>
                 {lbl('Umístění reklamní plochy')}
-                <select className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }} value={formData.adsLocation} onChange={e => set('adsLocation', e.target.value)}>
-                  {ADS_LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                </select>
+                <input type="text" className="btn" style={inp} placeholder="Umístění reklamní plochy" value={formData.adsLocation} onChange={e => set('adsLocation', e.target.value)} />
               </div>
             </>
           )}
@@ -217,9 +202,7 @@ export default function AssetForm({ type, onClose }) {
               </div>
               <div>
                 {lbl('Umístění parkovacího stání')}
-                <select className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }} value={formData.parkingLocation} onChange={e => set('parkingLocation', e.target.value)}>
-                  {PARKING_LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                </select>
+                <input type="text" className="btn" style={inp} placeholder="Umístění parkovacího stání" value={formData.parkingLocation} onChange={e => set('parkingLocation', e.target.value)} />
               </div>
               <div>
                 {lbl('Označení parkovacího stání')}

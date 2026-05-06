@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { save } from '@tauri-apps/api/dialog'
 import { invoke } from '@tauri-apps/api/tauri'
@@ -441,6 +441,23 @@ export default function Payments() {
   const [activeSub, setActiveSub]     = useState(subjects[0] || '')
   const activeSubRef = useRef(subjects[0] || '')
   const handleSubChange = useCallback((sub) => { activeSubRef.current = sub; setActiveSub(sub) }, [])
+
+  // Subjekty s alespoň jednou smlouvou (pro selector)
+  const subjectsWithContracts = subjects.filter(sub =>
+    contracts.some(c => {
+      const asset = assets.find(a => a.id === c.assetId)
+      const effective = c.billingSubject || asset?.subject || ''
+      return effective === sub
+    })
+  )
+
+  // Synchronizuj activeSub na první dostupný subjekt po načtení smluv
+  useEffect(() => {
+    if (subjectsWithContracts.length > 0 && !subjectsWithContracts.includes(activeSub)) {
+      activeSubRef.current = subjectsWithContracts[0]
+      setActiveSub(subjectsWithContracts[0])
+    }
+  }, [subjectsWithContracts.join(',')])
   const [detailContract, setDetailContract] = useState(null)
   const [activeTab, setActiveTab]           = useState('overview')
   const [pendingPayment, setPendingPayment] = useState(null)   // { contract, tenantName, paymentType }
@@ -1038,7 +1055,7 @@ export default function Payments() {
       console.log('[Report] selectedYear:', selectedYear, 'selectedMonth:', selectedMonth)
 
       // Sestavení dat per subjekt
-      const subjectData = subjects.map(subName => {
+      const subjectData = subjectsWithContracts.map(subName => {
         // Všechny aktivní smlouvy pro tento subjekt v daném (vybraném) měsíci
         const subContracts = contractsForSub(subName)
 
@@ -1491,7 +1508,7 @@ export default function Payments() {
       <div style={{ background: 'var(--bg2)', border: '1.5px solid var(--border)', borderRadius: 16, padding: 12, marginBottom: 24 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10, paddingLeft: 4 }}>Vyberte subjekt</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(4, auto)', gridAutoFlow: 'column', gap: 6 }}>
-          {subjects.map(sub => {
+          {subjectsWithContracts.map(sub => {
             const isActive = activeSub === sub
             const sub2 = sub.includes('–') ? sub.split('–').slice(1).join('–').trim() : sub
             const group = sub.includes(' – ') ? sub.split(' – ')[0] : ''

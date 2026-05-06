@@ -225,14 +225,7 @@ export default function Dashboard({ onNav, onOpen }) {
             const effectiveSubject = c.billingSubject || asset?.subject || ''
             return effectiveSubject === subject
           })
-          if (subContracts.length === 0) return (
-            <div key={subject} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-              <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{subject}</span>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Žádné aktivní smlouvy</span>
-              </div>
-            </div>
-          )
+          if (subContracts.length === 0) return null
 
           const subMonths = fiveMonths.map(m => {
             const monthKey = `${m.year}-${m.month}`

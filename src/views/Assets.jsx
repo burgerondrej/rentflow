@@ -5,21 +5,7 @@ import AssetForm from '../AssetForm.jsx'
 
 // Sekce pro bytové jednotky
 
-// Sekce pro parkovací stání (dle umístění = format pole)
-const PARKING_SECTIONS = [
-  'Parkovací stání Novohradská 57a',
-  'Parkovací stání před a za Novohradskou 53/55',
-  'Parkovací stání pod billboardem – reklamní místo',
-  'Parkovací stání U Staré trati kolem objektu',
-]
 
-// Sekce pro reklamní plochy (dle umístění = format pole)
-const ADS_SECTIONS = [
-  'Billboard Novohradská',
-  'Billboard u silnice',
-  'Reklama plot U Staré trati',
-  'Střecha CB objektu',
-]
 
 const CONFIG = {
   residential: { title: 'Bytové jednotky', sub: 'Správa bytů', btnLabel: '+ Nová bytová jednotka', tenantLabel: 'Nájemce', priceLabel: 'Nájemné' },
@@ -216,7 +202,6 @@ export default function Assets({ type, activeSubject, onOpen }) {
       const activeCount = items.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && c.status === 'active')).length
 
       let sectionIcon = '🏠'
-      if (sectionName.includes('Ubytovací')) sectionIcon = '🛏️'
 
       return (
         <div key={sectionName} style={{ marginBottom: 40 }}>
@@ -255,7 +240,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
   // Generická sekční funkce pro parking a ads – dle format pole
   const renderFormatSections = (sectionNames, icon) => {
     const sections = [...sectionNames]
-    const others = filtered.filter(a => !sectionNames.includes(a.format))
+    const others = filtered.filter(a => !a.format || !sectionNames.includes(a.format))
     if (others.length > 0) sections.push('Ostatní')
 
     return sections.map(sectionName => {
@@ -325,9 +310,9 @@ export default function Assets({ type, activeSubject, onOpen }) {
       {type === 'residential'
         ? renderResidentialSections()
         : type === 'parking'
-        ? renderFormatSections(PARKING_SECTIONS, '🅿️')
+        ? renderFormatSections([...new Set(filtered.map(a => a.format).filter(Boolean))], '🅿️')
         : type === 'ads'
-        ? renderFormatSections(ADS_SECTIONS, '🪧')
+        ? renderFormatSections([...new Set(filtered.map(a => a.format).filter(Boolean))], '🪧')
         : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
             {getOrdered(filtered).map(a => renderCard(a))}

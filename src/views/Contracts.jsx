@@ -3,7 +3,7 @@ import { useApp } from '../AppContext.jsx'
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 
 export default function Contracts({ activeSubject, onOpen }) {
-  const { contracts = [], tenants = [], assets = [], subjects = [], billingGroups = [], subjectGroups = [] } = useApp()
+  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [] } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [cardOrder, setCardOrder] = useState(() => {
@@ -227,14 +227,12 @@ export default function Contracts({ activeSubject, onOpen }) {
           if (activeSubject !== 'all' && activeSubject !== subject) return null
 
           const subjectContracts = filtered.filter(c => c.assetSubject === subject)
-          // Ostatní sekci skryj pokud je prázdná
-          if (subject === 'Ostatní' && subjectContracts.length === 0) return null
+          if (subjectContracts.length === 0) return null
           const activeInSubject = getOrdered(subjectContracts.filter(c => c.status === 'active'))
           const archivedInSubject = subjectContracts.filter(c => c.status !== 'active')
 
           let subjectIcon = '🏢'
-          if (subject.includes('Novohradská')) subjectIcon = '🏠'
-          if (subject.includes('Ubytovací')) subjectIcon = '🛏️'
+          if (residentialSubjects.includes(subject)) subjectIcon = '🏠'
           if (billingGroups.find(g => !g.isVatPayer && subject.startsWith(g.val))) subjectIcon = '👤'
           if (subjectGroups.filter(g => !subjects.some(s => s.includes(' – ') && s.startsWith(g))).some(g => subject.startsWith(g))) subjectIcon = '⛽'
           if (subject === 'Ostatní') subjectIcon = '📄'

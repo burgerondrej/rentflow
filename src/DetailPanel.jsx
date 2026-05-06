@@ -32,7 +32,6 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
     ...subjectData.filter(s => (s.assetType === 'ads' || s.assetType === 'parking') && s.isVatPayer).map(s => s.name),
     // Generické tagy
     'Byt', 'Kancelář', 'Obchod', 'Sklad', 'Parkovací staní',
-    'Střecha Billboard', 'Billboard u silnice', 'Reklama plot', 'Reklamní místo pod billboardem (parking)',
   ]
   
   const [isEditing, setIsEditing] = useState(false)
