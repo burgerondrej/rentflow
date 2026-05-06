@@ -2,6 +2,7 @@ use tauri::State;
 use tauri::Manager;
 use crate::models::*;
 use crate::AppState;
+use sha2::{Sha256, Digest};
 
 // Helper macro to lock the DB mutex
 macro_rules! db {
@@ -573,6 +574,42 @@ pub fn get_backup_info(app_handle: tauri::AppHandle) -> std::result::Result<serd
     }))
 }
 
+// ─────────────────────────────────────────
+// AKTIVACE
+// ─────────────────────────────────────────
+const ACTIVATION_HASH: &str = "ab01d9c6d0ed1f362e856f33e76150fd0faaed1624216e9df20c26d57af25258";
+
+#[tauri::command]
+pub fn verify_activation(password: String, app_handle: tauri::AppHandle) -> std::result::Result<bool, String> {
+    let mut hasher = Sha256::new();
+    hasher.update(password.as_bytes());
+    let result = hex::encode(hasher.finalize());
+
+    if result == ACTIVATION_HASH {
+        let app_dir = app_handle.path_resolver().app_data_dir()
+            .ok_or("Cannot get app data dir")?;
+        let mut settings = load_settings(&app_dir);
+        settings["activated"] = serde_json::json!(true);
+        let content = serde_json::to_string_pretty(&settings)
+            .map_err(|e| e.to_string())?;
+        std::fs::write(app_dir.join("settings.json"), content)
+            .map_err(|e| e.to_string())?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+pub fn check_activation(app_handle: tauri::AppHandle) -> bool {
+    let app_dir = match app_handle.path_resolver().app_data_dir() {
+        Some(d) => d,
+        None => return false,
+    };
+    let settings = load_settings(&app_dir);
+    settings.get("activated").and_then(|v| v.as_bool()).unwrap_or(false)
+}
+
 #[tauri::command]
 pub fn save_settings(settings: serde_json::Value, app_handle: tauri::AppHandle) -> std::result::Result<(), AppError> {
     let app_dir = app_handle.path_resolver().app_data_dir()
@@ -787,7 +824,7 @@ pub async fn check_for_update(app: tauri::AppHandle) -> std::result::Result<Upda
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     let builder = tauri::updater::builder(app.clone())
-        .header("Authorization", "token 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")
+        .header("Authorization", concat!("token ", env!("UPDATER_TOKEN")))
         .map_err(|e| e.to_string())?
         .header("Accept", "application/octet-stream")
         .map_err(|e| e.to_string())?;
@@ -822,7 +859,7 @@ pub async fn check_for_update(app: tauri::AppHandle) -> std::result::Result<Upda
 #[tauri::command]
 pub async fn install_update(app: tauri::AppHandle) -> std::result::Result<(), String> {
     let builder = tauri::updater::builder(app.clone())
-        .header("Authorization", "token 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")
+        .header("Authorization", concat!("token ", env!("UPDATER_TOKEN")))
         .map_err(|e| e.to_string())?
         .header("Accept", "application/octet-stream")
         .map_err(|e| e.to_string())?;
