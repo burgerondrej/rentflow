@@ -339,53 +339,8 @@ impl Database {
             );
         ")?;
 
-        // Seed subjects (spustí se pouze jednou — tabulka musí být prázdná)
-        let subj_count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM subjects", [], |r| r.get(0)
-        )?;
-        if subj_count == 0 {
-            let rows: &[(&str, &str, i64, i64)] = &[
-                ("METROPOLE CB \u{2013} Komer\u{010d}n\u{00ed} prostory",  "commercial",  1, 1),
-                ("METROPOLE CB \u{2013} Novohradsk\u{00e1} 57a",           "residential", 2, 1),
-                ("METROPOLE CB \u{2013} Novohradsk\u{00e1} 53/55",         "residential", 3, 1),
-                ("METROPOLE CB \u{2013} Ubytovac\u{00ed} jednotky",        "residential", 4, 1),
-                ("METROPOLE CB \u{2013} Reklamn\u{00ed} plochy",           "ads",         5, 1),
-                ("METROPOLE CB \u{2013} Parkov\u{00e1}n\u{00ed}",          "parking",     6, 1),
-                ("B\u{00fc}rger Pavel \u{2013} Reklamn\u{00ed} plochy",    "ads",         7, 0),
-                ("B\u{00fc}rger Pavel \u{2013} Parkov\u{00e1}n\u{00ed}",   "parking",     8, 0),
-                ("Ostatn\u{00ed}",                                           "other",       9, 1),
-                ("JIHOTANK",                                                 "commercial", 10, 1),
-                ("JIHOTANK CB",                                              "commercial", 11, 1),
-            ];
-            for (name, asset_type, sort_order, is_vat) in rows {
-                let id = Self::new_id();
-                self.conn.execute(
-                    "INSERT INTO subjects (id, name, sort_order, asset_type, is_vat_payer) VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![id, name, sort_order, asset_type, is_vat],
-                )?;
-            }
-        }
-
-        // Seed objects (fyzické budovy pro provozní náklady a revize)
-        let obj_count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM objects", [], |r| r.get(0)
-        )?;
-        if obj_count == 0 {
-            let rows: &[(&str, i64)] = &[
-                ("METROPOLE CB \u{2013} U Star\u{00e9} trati", 1),
-                ("Novohradsk\u{00e1} 57a",                      2),
-                ("Novohradsk\u{00e1} 53/55",                    3),
-                ("JIHOTANK",                                     4),
-                ("JIHOTANK CB",                                  5),
-            ];
-            for (name, sort_order) in rows {
-                let id = Self::new_id();
-                self.conn.execute(
-                    "INSERT INTO objects (id, name, sort_order) VALUES (?1, ?2, ?3)",
-                    params![id, name, sort_order],
-                )?;
-            }
-        }
+        // Subjects a objects jsou spravovány výhradně uživatelem přes Settings.
+        // Seed byl odstraněn — fresh install začíná s prázdnými tabulkami.
 
         Ok(())
     }
