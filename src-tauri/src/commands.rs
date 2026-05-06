@@ -788,6 +788,8 @@ pub async fn check_for_update(app: tauri::AppHandle) -> std::result::Result<Upda
 
     let builder = tauri::updater::builder(app.clone())
         .header("Authorization", "token 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")
+        .map_err(|e| e.to_string())?
+        .header("Accept", "application/octet-stream")
         .map_err(|e| e.to_string())?;
 
     match builder.check().await {
@@ -821,6 +823,8 @@ pub async fn check_for_update(app: tauri::AppHandle) -> std::result::Result<Upda
 pub async fn install_update(app: tauri::AppHandle) -> std::result::Result<(), String> {
     let builder = tauri::updater::builder(app.clone())
         .header("Authorization", "token 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")
+        .map_err(|e| e.to_string())?
+        .header("Accept", "application/octet-stream")
         .map_err(|e| e.to_string())?;
 
     match builder.check().await {
