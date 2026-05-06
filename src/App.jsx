@@ -16,6 +16,20 @@ import History from './views/History.jsx'
 import OperationalCosts from './views/OperationalCosts.jsx'
 import SettingsPanel from './SettingsPanel.jsx'
 import UpdateDialog from './UpdateDialog.jsx'
+import ActivationScreen from './ActivationScreen.jsx'
+import { invoke } from '@tauri-apps/api/tauri'
+
+function AppWithActivation() {
+  const [activated, setActivated] = useState(null) // null = loading
+
+  useEffect(() => {
+    invoke('check_activation').then(ok => setActivated(ok)).catch(() => setActivated(false))
+  }, [])
+
+  if (activated === null) return null // loading — prázdná obrazovka na zlomek sekundy
+  if (!activated) return <ActivationScreen onActivated={() => setActivated(true)} />
+  return <AppProvider><AppInner /></AppProvider>
+}
 
 function AppInner() {
   const { unreadCount, urgentContracts, currentUser, setCurrentUser, isReadOnly, theme, setTheme, tenants = [], assets = [], tasks = [], documents = [], contracts = [], getBackupInfo, createBackup, subjects = [] } = useApp()
@@ -387,4 +401,4 @@ function AppInner() {
   )
 }
 
-export default function App() { return (<AppProvider><AppInner /></AppProvider>) }
+export default function App() { return <AppWithActivation /> }
