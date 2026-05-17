@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
-import ConfirmDialog from '../ConfirmDialog.jsx'const COLUMNS = [
+import ConfirmDialog from '../ConfirmDialog.jsx'
+
+const COLUMNS = [
   { id: 'longterm',  title: 'Dlouhodobé úkoly',            cssKey: 'longterm'  },
   { id: 'todo',      title: 'Je třeba udělat',             cssKey: 'todo'      },
   { id: 'waiting',   title: 'Čeká na něco – viz poznámka', cssKey: 'waiting'   },
