@@ -117,8 +117,8 @@ function AppInner() {
             setUnsavedSinceBackup(false)
             getBackupInfo && getBackupInfo().then(info => {
               if (info) setBackupStatus(prev => ({ ...prev, lastBackup: info.lastBackup }))
-            })
-          })
+            }).catch(() => {})
+          }).catch(err => console.error('Backup failed:', err))
         }
       }
       if (e.key === 'Escape') {
@@ -137,7 +137,7 @@ function AppInner() {
   useEffect(() => {
     getBackupInfo && getBackupInfo().then(info => {
       if (info) setBackupStatus(prev => ({ ...prev, lastBackup: info.lastBackup }))
-    })
+    }).catch(() => {})
   }, [])
 
   const handleResizeStart = useCallback((e) => {
@@ -395,7 +395,7 @@ function AppInner() {
         setUnsavedSinceBackup(false)
         getBackupInfo && getBackupInfo().then(info => {
           if (info) setBackupStatus(prev => ({ ...prev, lastBackup: info.lastBackup }))
-        })
+        }).catch(() => {})
       }} />}
     </div>
   )

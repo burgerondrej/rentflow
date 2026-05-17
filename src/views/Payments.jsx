@@ -2,11 +2,12 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { save } from '@tauri-apps/api/dialog'
 import { invoke } from '@tauri-apps/api/tauri'
+import { parseDate, getEffectiveValues, PERIOD_LEN } from '../utils.js'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
 // ─── Modal pro výběr měsíců u čtvrtletní/pololetní platby ──────────────────
-function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose }) {
+function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose, refYear, refMonth }) {
   const MONTHS_CZ = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
   const freq = contract.paymentFrequency || ''
   const periodLen = freq === 'Čtvrtletně' ? 3 : 6
@@ -34,7 +35,12 @@ function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose 
   const today = new Date()
   const [date, setDate]   = useState(today.toISOString().split('T')[0])
   const [note, setNote]   = useState('')
-  const rentPerMonth = ((Number(contract.rent) || 0) + (Number(contract.parking) || 0) + (Number(contract.flatFee) || 0)) / periodLen
+
+  // Použij getEffectiveValues pro správnou částku (respektuje dodatky/amendments)
+  const yr = refYear  ?? today.getFullYear()
+  const mo = refMonth ?? today.getMonth()
+  const ev = getEffectiveValues(contract, yr, mo)
+  const rentPerMonth = (ev.rent + ev.parking + ev.flatFee) / periodLen
 
   const toggle = (key) => {
     setSelected(prev => {
@@ -457,7 +463,9 @@ export default function Payments() {
       activeSubRef.current = subjectsWithContracts[0]
       setActiveSub(subjectsWithContracts[0])
     }
-  }, [subjectsWithContracts.join(',')])
+  // Separator \0 se nemůže vyskytnout v názvech subjektů — bezpečné pro join
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjectsWithContracts.join('\0')])
   const [detailContract, setDetailContract] = useState(null)
   const [activeTab, setActiveTab]           = useState('overview')
   const [pendingPayment, setPendingPayment] = useState(null)   // { contract, tenantName, paymentType }
@@ -468,16 +476,6 @@ export default function Payments() {
 
   const monthKey   = `${selectedYear}-${selectedMonth}`
   const monthLabel = `${MONTHS[selectedMonth]} ${selectedYear}`
-
-  // Parsuje CZ datum "D. M. RRRR" → Date
-  const parseDate = (dateStr) => {
-    if (!dateStr || typeof dateStr !== 'string') return null
-    try {
-      const parts = dateStr.split('.').map(p => p.trim())
-      if (parts.length === 3) return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]))
-    } catch { return null }
-    return null
-  }
 
   // Začátek a konec vybraného měsíce (pro porovnání s trváním smlouvy)
   const monthStart = new Date(selectedYear, selectedMonth, 1)
@@ -547,39 +545,7 @@ export default function Payments() {
 
   const isBytovySub = (subName) => residentialSubjects.includes(subName)
 
-  // ── Effective values s ohledem na amendments ─────────────────────────────
-  // Vrátí platné finanční podmínky smlouvy k 1. dni daného měsíce.
-  // amendments jsou seřazeny dle effectiveFrom ASC (zajišťuje AppContext/DB).
-  const getEffectiveValues = (c, year, month) => {
-    const base = {
-      rent: Number(c.rent) || 0,
-      deposit: Number(c.deposit) || 0,
-      depositWater: Number(c.depositWater) || 0,
-      flatFee: Number(c.flatFee) || 0,
-      parking: Number(c.parking) || 0,
-    }
-    if (!c.amendments || c.amendments.length === 0) return base
-    // 1. den daného měsíce jako timestamp pro porovnání
-    const monthStart = new Date(year, month, 1).getTime()
-    // Aplikuj všechny amendments, jejichž effectiveFrom <= 1. den měsíce
-    const vals = { ...base }
-    for (const a of c.amendments) {
-      // parse CZ date "D. M. RRRR"
-      const parts = (a.effectiveFrom || '').split('.').map(p => p.trim())
-      if (parts.length !== 3) continue
-      const aDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime()
-      if (aDate > monthStart) break // amendments jsou ASC — zbytek je v budoucnosti
-      if (a.rent        !== null && a.rent        !== undefined) vals.rent        = Number(a.rent)
-      if (a.deposit     !== null && a.deposit     !== undefined) vals.deposit     = Number(a.deposit)
-      if (a.depositWater !== null && a.depositWater !== undefined) vals.depositWater = Number(a.depositWater)
-      if (a.flatFee     !== null && a.flatFee     !== undefined) vals.flatFee     = Number(a.flatFee)
-      if (a.parking     !== null && a.parking     !== undefined) vals.parking     = Number(a.parking)
-    }
-    return vals
-  }
-
   // ── Nájemné helpers (Varianta A: rent v DB = splátka dle frekvence) ────────
-  const PERIOD_LEN = { 'Čtvrtletně': 3, 'Pololetně': 6, 'Ročně': 12 }
   const periodLen = (c) => PERIOD_LEN[c.paymentFrequency] || 1
   // Splátka pro vybraný měsíc (respektuje amendments)
   const effPeriodRent = (c, yr, mo) => {
@@ -603,9 +569,9 @@ export default function Payments() {
           }
         }
       } else {
-        const isMulti = ['Čtvrtletně','Pololetně','Ročně'].includes(c.paymentFrequency)
+        // Skutečně zaplacená částka (pro multi-month = per-month frakcce uložená v payments)
         const p = getPayment(c.id, monthKey)
-        if (p) total += isMulti ? effRent(c) : (Number(p.amount) || 0)
+        if (p && p.paymentType !== 'deposit') total += Number(p.amount) || 0
       }
     }
     return total
@@ -634,7 +600,8 @@ export default function Payments() {
       const refDate = new Date(refYear, refMonth, 1)
       let windowStart = new Date(startYear, startMonth, 1)
       // Posunuj o periodLen dokud refDate je před začátkem okna nebo za koncem
-      while (true) {
+      let maxIter = 1000
+      while (maxIter-- > 0) {
         const windowEnd = new Date(windowStart.getFullYear(), windowStart.getMonth() + periodLen - 1, 1)
         if (refDate >= windowStart && refDate <= windowEnd) break
         if (refDate < windowStart) { windowStart = new Date(windowStart.getFullYear(), windowStart.getMonth() - periodLen, 1); break }
@@ -664,14 +631,11 @@ export default function Payments() {
   const isPeriodPaid = (contract, year, month) =>
     getPeriodMonthKeys(contract, year, month).some(k => !!getPayment(contract.id, k))
   const deletePeriodPayments = (contract, year, month) => {
-    const freq = contract.paymentFrequency || ''
-    if (freq === 'Čtvrtletně' || freq === 'Pololetně') {
-      // Smaž všechny platby nájmu pro tuto smlouvu — uživatel mohl vybrat libovolné měsíce
-      payments.filter(p => p.contractId === contract.id && p.paymentType !== 'deposit')
-              .forEach(p => deletePayment(p.id))
-    } else {
-      getPeriodMonthKeys(contract, year, month).forEach(k => { const p = getPayment(contract.id, k); if (p) deletePayment(p.id) })
-    }
+    // Vždy mazat jen platby v aktuálním platebním okně, nikdy všechny historické platby
+    getPeriodMonthKeys(contract, year, month).forEach(k => {
+      const p = getPayment(contract.id, k)
+      if (p) deletePayment(p.id)
+    })
   }
 
   // Vrátí stav platby nájmu: 'paid' | 'partial' | 'unpaid'
@@ -750,8 +714,9 @@ export default function Payments() {
     const d = new Date(dateStr)
     const dateLabel = d.toLocaleDateString('cs-CZ')
     const perMonth = selectedKeys.length > 0 ? totalAmount / selectedKeys.length : 0
+    let hasError = false
     for (const k of selectedKeys) {
-      await addPayment({
+      const result = await addPayment({
         contractId: contract.id,
         month: k,
         amount: perMonth,
@@ -760,7 +725,9 @@ export default function Payments() {
         paymentType: 'rent',
         note: note || '',
       })
+      if (!result) hasError = true
     }
+    if (hasError) console.error('[Payments] Některé platby se nepodařilo uložit do DB')
     setPeriodPicker(null)
   }
 
@@ -777,20 +744,12 @@ export default function Payments() {
           const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
           if (gp && gp.paymentType !== 'deposit') {
             total += Number(gp.amount) || 0
-          } else {
           }
         }
       } else {
-        const freq = c.paymentFrequency || 'Měsíčně'
-        const isMulti = freq === 'Čtvrtletně' || freq === 'Pololetně' || freq === 'Ročně'
-        if (isMulti) {
-          const paid = isPeriodPaid(c, selectedYear, selectedMonth)
-          total += paid ? effRent(c) : 0
-        } else {
-          const p = getPayment(c.id, monthKey)
-          const added = (p && p.paymentType !== 'deposit') ? (Number(p.amount) || 0) : 0
-          total += added
-        }
+        // Skutečně zaplacená částka (shodné chování pro měsíční i multi-month)
+        const p = getPayment(c.id, monthKey)
+        if (p && p.paymentType !== 'deposit') total += Number(p.amount) || 0
       }
     }
     return total
@@ -814,7 +773,7 @@ export default function Payments() {
       if (freq === 'Čtvrtletně' || freq === 'Pololetně') {
         const preselected = getPeriodMonthKeys(contract, selectedYear, selectedMonth)
         const tenant = tenants.find(t => t.id === contract.tenantId)
-        setPeriodPicker({ contract: { ...contract, tenantName: tenant?.name || '' }, preselectedKeys: preselected })
+        setPeriodPicker({ contract: { ...contract, tenantName: tenant?.name || '' }, preselectedKeys: preselected, refYear: selectedYear, refMonth: selectedMonth })
         return
       }
       // Ročně → původní modal s datem
@@ -945,8 +904,7 @@ export default function Payments() {
       }
       const p = payments.find(pp => pp.contractId === c.id && pp.month === key && pp.paymentType !== 'deposit')
       if (!p) return s
-      const isMulti = ['Čtvrtletně','Pololetně','Ročně'].includes(c.paymentFrequency)
-      return s + (isMulti ? effRent(c, lyr, lmo) : Number(p.amount) || 0)
+      return s + (Number(p.amount) || 0)
     }, 0)
     const pct = exp > 0 ? Math.round((rec / exp) * 100) : 0
     return { key, label: MONTHS[d.getMonth()].slice(0, 3), exp, rec, pct, isCurrent: key === monthKey }
@@ -1361,6 +1319,8 @@ export default function Payments() {
         <PeriodMonthPickerModal
           contract={periodPicker.contract}
           preselectedKeys={periodPicker.preselectedKeys}
+          refYear={periodPicker.refYear}
+          refMonth={periodPicker.refMonth}
           onConfirm={handlePeriodConfirm}
           onClose={() => setPeriodPicker(null)}
         />

@@ -1,9 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
-import ConfirmDialog from '../ConfirmDialog.jsx'
-
-
-const COLUMNS = [
+import ConfirmDialog from '../ConfirmDialog.jsx'const COLUMNS = [
   { id: 'longterm',  title: 'Dlouhodobé úkoly',            cssKey: 'longterm'  },
   { id: 'todo',      title: 'Je třeba udělat',             cssKey: 'todo'      },
   { id: 'waiting',   title: 'Čeká na něco – viz poznámka', cssKey: 'waiting'   },
@@ -22,7 +19,7 @@ const parseTags = (tag) => (tag || '').split(',').map(t => t.trim()).filter(Bool
 const joinTags  = (arr)  => arr.join(', ')
 
 export default function Kanban() {
-  const { tasks = [], addTask, updateTask, deleteTask, isReadOnly, subjectGroups = [] } = useApp()
+  const { tasks = [], addTask, updateTask, deleteTask, isReadOnly, subjectGroups = [], showToast } = useApp()
 
   const [showForm, setShowForm]           = useState(false)
   const [formMode, setFormMode]           = useState('add')
@@ -79,7 +76,7 @@ export default function Kanban() {
   const removeTag = (val) => setSelectedTags(prev => prev.filter(t => t !== val))
 
   const handleSave = () => {
-    if (!formData.title) return alert('Název úkolu je povinný.')
+    if (!formData.title) { showToast('Název úkolu je povinný.', 'warning'); return }
     const tag = joinTags(selectedTags)
     if (formMode === 'add') {
       addTask({ ...formData, tag })

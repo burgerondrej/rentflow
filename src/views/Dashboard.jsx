@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
+import { parseDate, getEffectiveValues, PERIOD_LEN } from '../utils.js'
 
 export default function Dashboard({ onNav, onOpen }) {
   const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [] } = useApp() || {}
@@ -7,15 +8,6 @@ export default function Dashboard({ onNav, onOpen }) {
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-
-  const parseDate = (dateStr) => {
-    if (!dateStr || typeof dateStr !== 'string') return null
-    try {
-      const parts = dateStr.split('.').map(p => p.trim())
-      if (parts.length === 3) return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]))
-    } catch (e) { return null }
-    return null
-  }
 
   const activeContracts = contracts.filter(c => c && c.status === 'active')
 
@@ -88,25 +80,6 @@ export default function Dashboard({ onNav, onOpen }) {
 
   // colorVar a list jsou uloženy v expandedGroup objektu
 
-  // ── getEffectiveValues s amendments ──────────────────────────────────────
-  const getEffectiveValues = (c, year, month) => {
-    const base = { rent: Number(c.rent)||0, parking: Number(c.parking)||0, flatFee: Number(c.flatFee)||0 }
-    if (!c.amendments || c.amendments.length === 0) return base
-    const monthStart = new Date(year, month, 1).getTime()
-    const vals = { ...base }
-    for (const a of c.amendments) {
-      const parts = (a.effectiveFrom || '').split('.').map(p => p.trim())
-      if (parts.length !== 3) continue
-      const aDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime()
-      if (aDate > monthStart) break
-      if (a.rent    != null) vals.rent    = Number(a.rent)
-      if (a.parking != null) vals.parking = Number(a.parking)
-      if (a.flatFee != null) vals.flatFee = Number(a.flatFee)
-    }
-    return vals
-  }
-
-  const PERIOD_LEN = { 'Čtvrtletně': 3, 'Pololetně': 6, 'Ročně': 12 }
   const effRentForMonth = (c, year, month) => {
     const v = getEffectiveValues(c, year, month)
     return (v.rent + v.parking + v.flatFee) / (PERIOD_LEN[c.paymentFrequency] || 1)
@@ -230,15 +203,10 @@ export default function Dashboard({ onNav, onOpen }) {
           const subMonths = fiveMonths.map(m => {
             const monthKey = `${m.year}-${m.month}`
             let total = 0
-            const seenExp = new Set()
             subContracts.forEach(c => {
               const startD = parseDate(c.start) || new Date(2000, 0, 1)
               const endD   = parseDate(c.end)   || new Date(2100, 0, 1)
               if (startD > m.end || endD < m.start) return
-              if (c.groupLabel) {
-                // Skupinové smlouvy: nesumujeme přes seenExp — každý member přispívá svým nájmem
-                // (skupinová platba = součet všech memberů)
-              }
               total += effRentForMonth(c, m.year, m.month)
             })
 

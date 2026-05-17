@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { parseDate } from './utils.js'
 
 const AppContext = createContext()
 
@@ -48,10 +49,19 @@ export function AppProvider({ children }) {
     setThemeState(next)
   }
 
+  // ─── TOAST NOTIFIKACE ───
+  const [toast, setToast] = useState(null)
+  const toastTimerRef = useRef(null)
+  const showToast = useCallback((message, type = 'error') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToast({ message, type })
+    toastTimerRef.current = setTimeout(() => setToast(null), 4500)
+  }, [])
+
   // Guard pro read-only – Pavel nesmí zapisovat
   const guardWrite = () => {
     if (isReadOnly) {
-      alert('Přístup odepřen. Přihlášen v režimu pouze ke čtení (Pavel).')
+      showToast('Přihlášen v režimu pouze ke čtení (Pavel). Žádné změny nelze uložit.', 'warning')
       return true
     }
     return false
@@ -117,15 +127,6 @@ export function AppProvider({ children }) {
   // ─── VÝPOČET UPOZORNĚNÍ (reaguje na živá data) ───
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-
-  const parseDate = (dateStr) => {
-    if (!dateStr || typeof dateStr !== 'string') return null
-    try {
-      const parts = dateStr.split('.').map(p => p.trim())
-      if (parts.length === 3) return new Date(parts[2], parts[1] - 1, parts[0])
-    } catch (e) { return null }
-    return null
-  }
 
   let realAlertsCount = 0
   contracts.filter(c => c.status === 'active').forEach(c => {
@@ -194,7 +195,7 @@ export function AppProvider({ children }) {
       }
     } catch (err) {
       console.error('addTenant error:', err)
-      alert('Nepodařilo se uložit nájemce. Zkontroluj připojení k databázi.')
+      showToast('Nepodařilo se uložit nájemce. Zkontroluj připojení k databázi.')
     }
   }
 
@@ -247,7 +248,7 @@ export function AppProvider({ children }) {
       }
     } catch (err) {
       console.error('addAsset error:', err)
-      alert('Nepodařilo se uložit předmět nájmu. Zkontroluj připojení k databázi.')
+      showToast('Nepodařilo se uložit předmět nájmu. Zkontroluj připojení k databázi.')
     }
   }
 
@@ -300,7 +301,7 @@ export function AppProvider({ children }) {
       }
     } catch (err) {
       console.error('addContract error:', err)
-      alert('Nepodařilo se uložit smlouvu. Zkontroluj připojení k databázi.')
+      showToast('Nepodařilo se uložit smlouvu. Zkontroluj připojení k databázi.')
     }
   }
 
@@ -334,7 +335,11 @@ export function AppProvider({ children }) {
     const item = contracts.find(c => c.id === id)
     if (!item) return
     await updateContract(id, { ...item, status: 'archived' })
-    if (item.assetId) await updateAsset(item.assetId, { status: 'free' })
+    // Asset se uvolní jen pokud na něm neexistuje jiná aktivní smlouva
+    if (item.assetId) {
+      const otherActive = contracts.some(c => c.id !== id && c.assetId === item.assetId && c.status === 'active')
+      if (!otherActive) await updateAsset(item.assetId, { status: 'free' })
+    }
     logAction('Archivace', 'Smlouvy', `Archivována smlouva: ${id}`)
   }
 
@@ -376,8 +381,11 @@ export function AppProvider({ children }) {
     if (guardWrite()) return
     try {
       await invoke('delete_payment', { id })
-    } catch (err) { /* ignore */ }
-    setPayments(prev => prev.filter(p => p.id !== id))
+      setPayments(prev => prev.filter(p => p.id !== id))
+    } catch (err) {
+      console.error('deletePayment error:', err)
+      // State se NEaktualizuje pokud DB operace selhala — platba zůstane viditelná
+    }
   }
 
   // ─────────────────────────────────────────
@@ -496,7 +504,7 @@ export function AppProvider({ children }) {
   // ─────────────────────────────────────────
   const restoreFromTrash = async (trashId) => {
     if (guardWrite()) return
-    const trashedItem = trash.find(t => (t.trashId || t.trashId) === trashId || t.trash_id === trashId)
+    const trashedItem = trash.find(t => t.trashId === trashId || t.trash_id === trashId)
     try {
       await invoke('restore_from_trash', { trashId, user: currentUser })
       setTrash(prev => prev.filter(t => (t.trashId || t.trash_id) !== trashId))
@@ -663,6 +671,8 @@ export function AppProvider({ children }) {
     // State
     loading,
     currentUser, setCurrentUser,
+    // Toast notifikace
+    showToast,
     // Computed
     unreadCount, urgentContracts,
     // CRUD – Nájemníci
@@ -700,55 +710,90 @@ export function AppProvider({ children }) {
     },
   }
 
+  // Toast barvy dle typu
+  const TOAST_STYLES = {
+    error:   { bg: '#FEF2F2', border: '#FECACA', color: '#991B1B', icon: '⚠️' },
+    warning: { bg: '#FFFBEB', border: '#FDE68A', color: '#92400E', icon: '⚠️' },
+    success: { bg: '#F0FDF4', border: '#BBF7D0', color: '#166534', icon: '✓' },
+    info:    { bg: '#EFF6FF', border: '#BFDBFE', color: '#1E40AF', icon: 'ℹ️' },
+  }
+
   return (
     <AppContext.Provider value={value}>
-      {loading && isTauri ? (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'linear-gradient(155deg,#0A3D2B 0%,#12654A 40%,#1A8A62 72%,#0E5540 100%)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          zIndex: 9999, overflow: 'hidden'
-        }}>
-          {/* Pearl overlay – stejný jako sidebar */}
+      <>
+        {loading && isTauri ? (
           <div style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'radial-gradient(ellipse 140% 60% at 35% 15%, rgba(160,255,210,0.11) 0%, rgba(120,220,180,0.06) 40%, transparent 70%)'
-          }} />
-          {/* Logo */}
-          <div style={{ position: 'relative', textAlign: 'center', marginBottom: 40 }}>
+            position: 'fixed', inset: 0,
+            background: 'linear-gradient(155deg,#0A3D2B 0%,#12654A 40%,#1A8A62 72%,#0E5540 100%)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, overflow: 'hidden'
+          }}>
+            {/* Pearl overlay – stejný jako sidebar */}
             <div style={{
-              width: 72, height: 72, borderRadius: 20,
-              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(158,255,212,0.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 32, margin: '0 auto 20px', backdropFilter: 'blur(8px)'
-            }}>🏢</div>
-            <div style={{ fontSize: 36, fontWeight: 800, color: '#fff', letterSpacing: '-1.5px', lineHeight: 1 }}>
-              Rent<span style={{ color: '#9EFFD4' }}>Flow</span>
-            </div>
-            <div style={{ fontSize: 13, color: 'rgba(180,255,220,0.6)', marginTop: 6, fontWeight: 500 }}>
-              Správa nemovitostí
-            </div>
-          </div>
-          {/* Progress bar */}
-          <div style={{ width: 220, height: 3, background: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden', marginBottom: 16 }}>
-            <div style={{
-              height: '100%', background: 'linear-gradient(90deg, #4ade80, #9EFFD4)', borderRadius: 2,
-              animation: 'loadbar 1.4s ease-in-out infinite',
+              position: 'absolute', inset: 0, pointerEvents: 'none',
+              background: 'radial-gradient(ellipse 140% 60% at 35% 15%, rgba(160,255,210,0.11) 0%, rgba(120,220,180,0.06) 40%, transparent 70%)'
             }} />
+            {/* Logo */}
+            <div style={{ position: 'relative', textAlign: 'center', marginBottom: 40 }}>
+              <div style={{
+                width: 72, height: 72, borderRadius: 20,
+                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(158,255,212,0.25)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 32, margin: '0 auto 20px', backdropFilter: 'blur(8px)'
+              }}>🏢</div>
+              <div style={{ fontSize: 36, fontWeight: 800, color: '#fff', letterSpacing: '-1.5px', lineHeight: 1 }}>
+                Rent<span style={{ color: '#9EFFD4' }}>Flow</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(180,255,220,0.6)', marginTop: 6, fontWeight: 500 }}>
+                Správa nemovitostí
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div style={{ width: 220, height: 3, background: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{
+                height: '100%', background: 'linear-gradient(90deg, #4ade80, #9EFFD4)', borderRadius: 2,
+                animation: 'loadbar 1.4s ease-in-out infinite',
+              }} />
+            </div>
+            {/* Stavový text */}
+            <div style={{ fontSize: 12, color: 'rgba(180,255,220,0.65)', fontWeight: 500, letterSpacing: '0.02em' }}>
+              {splashStatus}
+            </div>
+            <style>{`
+              @keyframes loadbar {
+                0% { width: 0%; margin-left: 0; }
+                50% { width: 65%; margin-left: 10%; }
+                100% { width: 0%; margin-left: 100%; }
+              }
+            `}</style>
           </div>
-          {/* Stavový text */}
-          <div style={{ fontSize: 12, color: 'rgba(180,255,220,0.65)', fontWeight: 500, letterSpacing: '0.02em' }}>
-            {splashStatus}
-          </div>
-          <style>{`
-            @keyframes loadbar {
-              0% { width: 0%; margin-left: 0; }
-              50% { width: 65%; margin-left: 10%; }
-              100% { width: 0%; margin-left: 100%; }
-            }
-          `}</style>
-        </div>
-      ) : children}
+        ) : children}
+
+        {/* TOAST NOTIFIKACE — viditelný vždy */}
+        {toast && (() => {
+          const s = TOAST_STYLES[toast.type] || TOAST_STYLES.error
+          return (
+            <div
+              role="alert"
+              onClick={() => setToast(null)}
+              style={{
+                position: 'fixed', bottom: 24, right: 24, zIndex: 99999,
+                background: s.bg, border: `1px solid ${s.border}`, color: s.color,
+                borderRadius: 12, padding: '12px 16px 12px 14px',
+                fontSize: 13, fontWeight: 600, maxWidth: 380, minWidth: 220,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.13)',
+                animation: 'slideIn 0.2s ease',
+                cursor: 'pointer', userSelect: 'none',
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+              }}
+            >
+              <span style={{ flexShrink: 0, fontSize: 15 }}>{s.icon}</span>
+              <span style={{ flex: 1, lineHeight: 1.45 }}>{toast.message}</span>
+              <span style={{ flexShrink: 0, fontSize: 16, opacity: 0.5, marginLeft: 4 }}>×</span>
+            </div>
+          )
+        })()}
+      </>
     </AppContext.Provider>
   )
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import { save } from '@tauri-apps/api/dialog'
+import { getEffectiveValuesToday } from '../utils.js'
 
 // ── CSS pro tisk (inline do HTML exportu) ──
 const PRINT_CSS = `
@@ -23,7 +24,8 @@ const PRINT_CSS = `
   .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
   .badge-green { background: #F0FDF4; color: #166534; }
   .badge-gray { background: #F3F4F6; color: #6B7280; }
-  .badge-red { background: #FFF7ED; color: #92400E; }
+  .badge-red { background: #FEF2F2; color: #DC2626; }
+  .badge-orange { background: #FFF7ED; color: #92400E; }
   .amount { font-weight: 700; text-align: right; white-space: nowrap; }
   .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #E5E5E5; font-size: 10px; color: #999; display: flex; justify-content: space-between; }
   .summary-box { display: inline-block; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 10px 16px; margin-top: 8px; margin-right: 12px; }
@@ -64,7 +66,7 @@ function daysLeft(dateStr) {
 function urgencyClass(days) {
   if (days === null) return ''
   if (days <= 30) return 'badge badge-red'
-  if (days <= 90) return 'badge badge-red" style="background:#FFF7ED;color:#92400E'
+  if (days <= 90) return 'badge badge-orange'
   return 'badge badge-green'
 }
 
@@ -84,24 +86,29 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
     const subjectContracts = activeContracts.filter(c => subjectAssets.some(a => a.id === c.assetId))
     if (subjectContracts.length === 0) return
 
-    const subTotal = subjectContracts.reduce((s, c) => s + (c.rent || 0) + (c.parking || 0), 0)
+    const subTotal = subjectContracts.reduce((s, c) => {
+      const ev = getEffectiveValuesToday(c)
+      return s + ev.rent + ev.parking + ev.flatFee
+    }, 0)
     grandTotal += subTotal
 
     const rows = subjectContracts.map(c => {
       const a = assets.find(x => x.id === c.assetId)
       const t = tenants.find(x => x.id === c.tenantId)
+      const ev = getEffectiveValuesToday(c)
       const days = daysLeft(c.end)
       const daysText = days === null ? '∞' : days <= 0 ? 'Vypršela' : `${days} dní`
       const daysBadge = days !== null && days <= 90 ? 'badge badge-red' : 'badge badge-green'
+      const total = ev.rent + ev.parking + ev.flatFee
       return `<tr>
         <td>${a?.unit || '—'}</td>
         <td>${t?.name || '—'}</td>
         <td>${c.start || '—'}</td>
         <td>${c.end || 'Neurčito'}</td>
         <td><span class="${daysBadge}">${daysText}</span></td>
-        <td class="amount">${fmtCzk(c.rent)}</td>
-        <td class="amount">${c.parking > 0 ? fmtCzk(c.parking) : '—'}</td>
-        <td class="amount" style="color:#12654A;font-weight:800">${fmtCzk((c.rent||0)+(c.parking||0))}</td>
+        <td class="amount">${fmtCzk(ev.rent)}</td>
+        <td class="amount">${ev.parking > 0 ? fmtCzk(ev.parking) : '—'}</td>
+        <td class="amount" style="color:#12654A;font-weight:800">${fmtCzk(total)}</td>
       </tr>`
     }).join('')
 
@@ -153,10 +160,14 @@ function genTenantCard(tenant, contracts, assets) {
   const activeContracts = tenantContracts.filter(c => c.status === 'active')
   const archivedContracts = tenantContracts.filter(c => c.status !== 'active')
 
-  const totalMonthly = activeContracts.reduce((s, c) => s + (c.rent||0) + (c.parking||0), 0)
+  const totalMonthly = activeContracts.reduce((s, c) => {
+    const ev = getEffectiveValuesToday(c)
+    return s + ev.rent + ev.parking + ev.flatFee
+  }, 0)
 
   const contractCard = (c, isActive) => {
     const a = assets.find(x => x.id === c.assetId)
+    const ev = getEffectiveValuesToday(c)
     const days = daysLeft(c.end)
     return `
       <div class="card" style="${isActive ? '' : 'opacity:0.65'}">
@@ -164,10 +175,11 @@ function genTenantCard(tenant, contracts, assets) {
           ${isActive ? '<span class="badge badge-green" style="float:right">Aktivní</span>' : '<span class="badge badge-gray" style="float:right">Ukončena</span>'}
         </div>
         <div class="row"><span class="label">Platnost</span><span class="value">${c.start || '—'} → ${c.end || 'Neurčito'}</span></div>
-        <div class="row"><span class="label">Nájemné</span><span class="value">${fmtCzk(c.rent)}</span></div>
-        ${c.deposit > 0 ? `<div class="row"><span class="label">Zálohy energií a služeb</span><span class="value">${fmtCzk(c.deposit)}</span></div>` : ''}
+        <div class="row"><span class="label">Nájemné</span><span class="value">${fmtCzk(ev.rent)}</span></div>
+        ${ev.deposit > 0 ? `<div class="row"><span class="label">Zálohy energií a služeb</span><span class="value">${fmtCzk(ev.deposit)}</span></div>` : ''}
         ${c.cauce > 0 ? `<div class="row"><span class="label">Složená kauce</span><span class="value">${fmtCzk(c.cauce)}</span></div>` : ''}
-        ${c.parking > 0 ? `<div class="row"><span class="label">Parkovné</span><span class="value">${fmtCzk(c.parking)}</span></div>` : ''}
+        ${ev.parking > 0 ? `<div class="row"><span class="label">Parkovné</span><span class="value">${fmtCzk(ev.parking)}</span></div>` : ''}
+        ${ev.flatFee > 0 ? `<div class="row"><span class="label">Paušální poplatek</span><span class="value">${fmtCzk(ev.flatFee)}</span></div>` : ''}
         ${c.dueDay ? `<div class="row"><span class="label">Splatnost nájemného</span><span class="value">${c.dueDay}</span></div>` : ''}
         ${isActive && days !== null && days <= 90 ? `<div class="alert-box"><div class="alert-title">⚠️ Smlouva končí za ${days} dní (${c.end})</div></div>` : ''}
       </div>`
@@ -243,15 +255,18 @@ function genExpirationReport(contracts, assets, tenants) {
 
   const sectionsHtml = groups.map(g => {
     if (g.items.length === 0) return ''
-    const rows = g.items.map(c => `<tr>
+    const rows = g.items.map(c => {
+      const ev = getEffectiveValuesToday(c)
+      const total = ev.rent + ev.parking + ev.flatFee
+      return `<tr>
       <td>${c.asset?.unit || '—'}</td>
       <td>${c.asset?.subject || '—'}</td>
       <td>${c.tenant?.name || '—'}</td>
       <td>${c.tenant?.phone || '—'}</td>
       <td>${c.end}</td>
       <td><span style="background:${g.bg};color:${g.color};padding:2px 10px;border-radius:20px;font-weight:700;font-size:11px">${c.days} dní</span></td>
-      <td class="amount">${fmtCzk((c.rent||0)+(c.parking||0))}</td>
-    </tr>`).join('')
+      <td class="amount">${fmtCzk(total)}</td>
+    </tr>`}).join('')
     return `<div class="section">
       <div class="section-title" style="border-left-color:${g.color};background:${g.bg}">${g.label} (${g.items.length})</div>
       <table><thead><tr>
@@ -296,9 +311,10 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
     return subjectOrder.indexOf(sa) - subjectOrder.indexOf(sb)
   })
 
-  const totalRent = sorted.reduce((s, c) => s + (c.rent||0) + (c.parking||0), 0)
+  const totalRent = sorted.reduce((s, c) => { const ev = getEffectiveValuesToday(c); return s + ev.rent + ev.parking + ev.flatFee }, 0)
   const totalParking = 0  // zahrnut v totalRent
-  const totalDeposit = sorted.reduce((s, c) => s + (c.deposit||0), 0)
+  const totalDeposit = sorted.reduce((s, c) => { const ev = getEffectiveValuesToday(c); return s + ev.deposit }, 0)
+  const totalFlatFee = sorted.reduce((s, c) => { const ev = getEffectiveValuesToday(c); return s + ev.flatFee }, 0)
   const totalAll = totalRent + totalParking
 
   const month = new Date().toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' })
@@ -306,14 +322,17 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
   const rows = sorted.map(c => {
     const a = assets.find(x => x.id === c.assetId)
     const t = tenants.find(x => x.id === c.tenantId)
+    const ev = getEffectiveValuesToday(c)
+    const total = ev.rent + ev.parking + ev.flatFee
     return `<tr>
       <td>${a?.subject || '—'}</td>
       <td>${a?.unit || '—'}</td>
       <td>${t?.name || '—'}</td>
-      <td class="amount">${fmtCzk(c.rent)}</td>
-      <td class="amount">${c.parking > 0 ? fmtCzk(c.parking) : '—'}</td>
-      <td class="amount">${c.deposit > 0 ? fmtCzk(c.deposit) : '—'}</td>
-      <td class="amount" style="color:#12654A;font-weight:800">${fmtCzk((c.rent||0)+(c.parking||0))}</td>
+      <td class="amount">${fmtCzk(ev.rent)}</td>
+      <td class="amount">${ev.parking > 0 ? fmtCzk(ev.parking) : '—'}</td>
+      <td class="amount">${ev.flatFee > 0 ? fmtCzk(ev.flatFee) : '—'}</td>
+      <td class="amount">${ev.deposit > 0 ? fmtCzk(ev.deposit) : '—'}</td>
+      <td class="amount" style="color:#12654A;font-weight:800">${fmtCzk(total)}</td>
     </tr>`
   }).join('')
 
@@ -344,13 +363,14 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
         <thead><tr>
           <th>Subjekt</th><th>Předmět nájmu</th><th>Nájemce</th>
           <th style="text-align:right">Nájemné</th><th style="text-align:right">Parkovné</th>
-          <th style="text-align:right">Zálohy</th><th style="text-align:right">Celkem</th>
+          <th style="text-align:right">Paušál</th><th style="text-align:right">Zálohy</th><th style="text-align:right">Celkem</th>
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr style="background:#F0FDF4;font-weight:700">
           <td colspan="3" style="padding:10px">SOUČET</td>
-          <td class="amount">${fmtCzk(totalRent)}</td>
+          <td class="amount">${fmtCzk(totalRent - totalFlatFee)}</td>
           <td class="amount">${fmtCzk(totalParking)}</td>
+          <td class="amount">${fmtCzk(totalFlatFee)}</td>
           <td class="amount">${fmtCzk(totalDeposit)}</td>
           <td class="amount" style="color:#12654A;font-size:14px">${fmtCzk(totalAll)}</td>
         </tr></tfoot>

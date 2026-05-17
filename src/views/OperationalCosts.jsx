@@ -20,7 +20,7 @@ const FREQ_COLOR = {
 // EMPTY_FORM is now created inside component using mainObjects[0]
 
 export default function OperationalCosts() {
-  const { operationalCosts = [], addOperationalCost, updateOperationalCost, deleteOperationalCost, isReadOnly, mainObjects = [] } = useApp() || {}
+  const { operationalCosts = [], addOperationalCost, updateOperationalCost, deleteOperationalCost, isReadOnly, mainObjects = [], showToast } = useApp() || {}
   const [activeObj, setActiveObj] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
@@ -62,7 +62,7 @@ export default function OperationalCosts() {
     try {
       if (editId) { await updateOperationalCost(editId, payload) } else { await addOperationalCost(payload) }
       setShowForm(false); setEditId(null)
-    } catch (err) { alert('Chyba při ukládání: ' + err) }
+    } catch (err) { showToast?.('Chyba při ukládání: ' + err) }
   }
 
   const handleDelete = (oc) => {

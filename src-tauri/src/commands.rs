@@ -478,8 +478,8 @@ pub fn create_backup(app_handle: tauri::AppHandle) -> std::result::Result<String
         }
     }
 
-    let today = Local::now().format("%Y-%m-%d").to_string();
-    let backup_name = format!("backup-{}.db", today);
+    let now_str = Local::now().format("%Y-%m-%d_%H%M").to_string();
+    let backup_name = format!("backup-{}.db", now_str);
     let backup_path = backup_dir.join(&backup_name);
 
     fs::copy(&db_path, &backup_path)
@@ -548,14 +548,22 @@ pub fn get_backup_info(app_handle: tauri::AppHandle) -> std::result::Result<serd
         if let Some(last) = backups.last() {
             let name = last.file_name();
             let s = name.to_string_lossy();
-            // backup-2026-04-01.db → "1. 4. 2026"
-            if let Some(date_part) = s.strip_prefix("backup-").and_then(|s| s.strip_suffix(".db")) {
-                let parts: Vec<&str> = date_part.split('-').collect();
-                if parts.len() == 3 {
-                    last_backup = format!("{}. {}. {}", 
-                        parts[2].trim_start_matches('0'), 
-                        parts[1].trim_start_matches('0'), 
-                        parts[0]);
+            // backup-2026-04-01_1430.db → "1. 4. 2026 14:30"
+            // backup-2026-04-01.db (legacy) → "1. 4. 2026"
+            if let Some(full_part) = s.strip_prefix("backup-").and_then(|s| s.strip_suffix(".db")) {
+                let mut parts_split = full_part.splitn(2, '_');
+                let date_str  = parts_split.next().unwrap_or("");
+                let time_str  = parts_split.next().unwrap_or("");
+                let date_parts: Vec<&str> = date_str.split('-').collect();
+                if date_parts.len() == 3 {
+                    let time_display = if time_str.len() == 4 {
+                        format!(" {}:{}", &time_str[..2], &time_str[2..])
+                    } else { String::new() };
+                    last_backup = format!("{}. {}. {}{}",
+                        date_parts[2].trim_start_matches('0'),
+                        date_parts[1].trim_start_matches('0'),
+                        date_parts[0],
+                        time_display);
                 }
             }
         }

@@ -1,8 +1,5 @@
 import React, { useState } from 'react'
-import { useApp } from '../AppContext.jsx'
-
-
-// ── Pomocná komponenta: selector subjektů ────────────────────────────────────
+import { useApp } from '../AppContext.jsx'// ── Pomocná komponenta: selector subjektů ────────────────────────────────────
 function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt' }) {
   const cols = subjects.length <= 5 ? 'repeat(auto-fill, minmax(160px, 1fr))' : 'repeat(3, 1fr)'
   return (
@@ -40,7 +37,7 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
 
 
 export default function Maintenance() {
-  const { revisions = [], assets = [], addRevision, deleteRevision, mainObjects = [] } = useApp()
+  const { revisions = [], assets = [], addRevision, deleteRevision, mainObjects = [], showToast } = useApp()
   const [showForm, setShowForm] = useState(false)
   
   // Zvolená firma pro filtraci zobrazení (výchozí "Vše")
@@ -94,7 +91,7 @@ export default function Maintenance() {
   }
 
   const handleSave = () => {
-    if (!newSubject || !newTitle || !newLastDate) return alert('Vyplňte všechny povinné údaje.')
+    if (!newSubject || !newTitle || !newLastDate) { showToast('Vyplňte všechny povinné údaje.', 'warning'); return }
     addRevision({
       title: newTitle,
       assetId: null,

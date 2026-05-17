@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from './AppContext.jsx'
+import { getEffectiveValuesToday } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
@@ -18,7 +19,7 @@ const TYPE_META = {
 }
 
 export default function DetailPanel({ type, id, onClose, onOpen }) {
-  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], parkingBillingOptions = [], adsBillingOptions = [] } = useApp()
+  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
 
   const SEP = ' – '
   const PREDEFINED_TAGS = [
@@ -52,31 +53,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [amendData, setAmendData] = useState({ effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '' })
 
   // Helper: vrátí platné finanční hodnoty smlouvy k dnešnímu datu (respektuje amendments)
-  const effectiveToday = (c) => {
-    const base = {
-      rent: Number(c.rent) || 0,
-      deposit: Number(c.deposit) || 0,
-      depositWater: Number(c.depositWater) || 0,
-      flatFee: Number(c.flatFee) || 0,
-      parking: Number(c.parking) || 0,
-    }
-    if (!c.amendments || c.amendments.length === 0) return base
-    const now = new Date()
-    const todayTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-    const vals = { ...base }
-    for (const a of c.amendments) {
-      const parts = (a.effectiveFrom || '').split('.').map(p => p.trim())
-      if (parts.length !== 3) continue
-      const aDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime()
-      if (aDate > todayTs) break
-      if (a.rent        !== null && a.rent        !== undefined) vals.rent        = Number(a.rent)
-      if (a.deposit     !== null && a.deposit     !== undefined) vals.deposit     = Number(a.deposit)
-      if (a.depositWater !== null && a.depositWater !== undefined) vals.depositWater = Number(a.depositWater)
-      if (a.flatFee     !== null && a.flatFee     !== undefined) vals.flatFee     = Number(a.flatFee)
-      if (a.parking     !== null && a.parking     !== undefined) vals.parking     = Number(a.parking)
-    }
-    return vals
-  }
+  // Přesunuto do src/utils.js jako getEffectiveValuesToday — používáme aliasem pro zpětnou kompatibilitu
+  const effectiveToday = (c) => getEffectiveValuesToday(c)
 
   // Esc to close
   useEffect(() => {
@@ -183,7 +161,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
       setDocForm(false)
     } catch (e) {
       console.error(e)
-      alert('Chyba při nahrávání souboru: ' + e)
+      showToast('Chyba při nahrávání souboru: ' + e)
     } finally {
       setUploading(false)
     }
@@ -277,7 +255,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                             const base = await _appDataDir()
                             const fullPath = await _join(base, 'rentflow', 'documents', d.relatedId)
                             await shellOpen(fullPath)
-                          } catch(e) { alert('Nelze otevřít: ' + e) }
+                          } catch(e) { showToast('Nelze otevřít: ' + e) }
                         }}>
                         📂 Otevřít
                       </button>

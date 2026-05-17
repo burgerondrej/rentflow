@@ -46,7 +46,7 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
 // 1. MODUL DOKUMENTŮ
 // ------------------------------------------------------------------
 export function Docs() {
-  const { documents = [], contracts = [], tenants = [], assets = [], addDocument, deleteDocument, getSettings, subjects = [] } = useApp() || {}
+  const { documents = [], contracts = [], tenants = [], assets = [], addDocument, deleteDocument, getSettings, subjects = [], showToast } = useApp() || {}
   const [activeSub, setActiveSub] = useState(subjects[0] || '')
   const [showForm, setShowForm]   = useState(false)
   const [newName, setNewName]     = useState('')
@@ -169,8 +169,8 @@ export function Docs() {
   }
 
   const handleAdd = async () => {
-    if (!newName) return alert('Zadejte název dokumentu.')
-    if (!pickedFile) return alert('Vyberte soubor kliknutím nebo přetažením.')
+    if (!newName) { showToast?.('Zadejte název dokumentu.', 'warning'); return }
+    if (!pickedFile) { showToast?.('Vyberte soubor kliknutím nebo přetažením.', 'warning'); return }
     setUploading(true)
     try {
       const appData  = await appDataDir()
@@ -213,7 +213,7 @@ export function Docs() {
       setNewName(''); setNewNotes(''); setPickedFile(null)
     } catch (err) {
       console.error('Chyba při nahrávání:', err)
-      alert('Nepodařilo se soubor uložit: ' + err)
+      showToast?.('Nepodařilo se soubor uložit: ' + err)
     } finally {
       setUploading(false)
     }
@@ -229,12 +229,12 @@ export function Docs() {
   }
 
   const handleOpen = async (d) => {
-    if (!d.relatedId) return alert('Soubor není fyzicky uložen.')
+    if (!d.relatedId) { showToast?.('Soubor není fyzicky uložen.', 'warning'); return }
     const filePath = await resolveFilePath(d.relatedId)
     if (!filePath) return
     const ext = (d.ext || '').toLowerCase()
     if (!PREVIEWABLE.includes(ext)) {
-      try { await shellOpen(filePath) } catch (err) { alert('Nelze otevřít soubor: ' + err) }
+      try { await shellOpen(filePath) } catch (err) { showToast?.('Nelze otevřít soubor: ' + err) }
       return
     }
     try {
@@ -245,7 +245,7 @@ export function Docs() {
           const result = await mammoth.convertToHtml({ arrayBuffer: bytes.buffer })
           setPreview({ ext, name: d.name, htmlContent: result.value, filePath })
         } catch (mErr) {
-          try { await shellOpen(filePath) } catch (e) { alert('Nelze otevřít: ' + e) }
+          try { await shellOpen(filePath) } catch (e) { showToast?.('Nelze otevřít: ' + e) }
         }
         return
       }
@@ -258,7 +258,7 @@ export function Docs() {
       const blobUrl = URL.createObjectURL(blob)
       const textContent = (ext === 'txt' || ext === 'csv') ? new TextDecoder('utf-8').decode(bytes) : null
       setPreview({ blobUrl, ext, name: d.name, textContent, filePath })
-    } catch (err) { alert('Nepodařilo se načíst náhled: ' + err) }
+    } catch (err) { showToast?.('Nepodařilo se načíst náhled: ' + err) }
   }
 
   const closePreview = () => {

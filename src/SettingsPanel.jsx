@@ -22,11 +22,11 @@ export default function SettingsPanel({ onClose, onBackupDone }) {
         setBackupInfo(info)
         setGdrivePath(info.gdrivePath || '')
       }
-    })
+    }).catch(() => {})
     getVersion().then(v => setAppVersion(v)).catch(() => setAppVersion('?'))
     getSettings().then(s => {
       if (s) setDbPath(s.dbPath || '')
-    })
+    }).catch(() => {})
   }, [])
 
   const handleManualBackup = async () => {
