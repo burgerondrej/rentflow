@@ -27,107 +27,98 @@ jobs:
         run: npm ci
 
       - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0.5
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          UPDATER_TOKEN: ${{ secrets.UPDATER_TOKEN }}
-        run: npm run tauri:build
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'RentFlow ${{ github.ref_name }}'
+          releaseBody: 'Viz changelog v aplikaci.'
+          releaseDraft: false
+          prerelease: false
+          tauriScript: npm run tauri
 
-      - name: Get version
-        id: version
-        run: |
-          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).package.version
-          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-
-      - name: Create release in rentflow-releases
+      - name: Upload to rentflow-releases and push latest.json
+        shell: pwsh
         env:
           RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+          TAG: ${{ github.ref_name }}
         run: |
-          $tag = "${{ github.ref_name }}"
-          $version = "${{ steps.version.outputs.VERSION }}"
+          $nsisDir = "src-tauri/target/release/bundle/nsis"
+          $zipFile = Get-ChildItem $nsisDir -Filter "*.nsis.zip" | Select-Object -First 1
+          $sigFile = Get-ChildItem $nsisDir -Filter "*.nsis.zip.sig" | Select-Object -First 1
 
-          # Vytvoř release přes GitHub API
-          $body = @{
-            tag_name = $tag
-            name = "RentFlow v$version"
-            body = "## Co je nového v této verzi`nViz changelog v aplikaci."
-            draft = $false
+          if (-not $zipFile) { throw "NSIS zip not found in $nsisDir" }
+          if (-not $sigFile) { throw "Signature file not found in $nsisDir" }
+
+          $zipName    = $zipFile.Name
+          $signature  = (Get-Content $sigFile.FullName -Raw).Trim()
+          $version    = $env:TAG
+          $pubDate    = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+          $downloadUrl = "https://github.com/burgerondrej/rentflow-releases/releases/download/$version/$zipName"
+
+          $headers = @{
+            Authorization = "token $($env:RELEASES_TOKEN)"
+            "User-Agent"  = "GitHub-Actions"
+            Accept        = "application/vnd.github.v3+json"
+          }
+
+          # --- Create release in rentflow-releases (public repo) ---
+          $releasePayload = @{
+            tag_name   = $version
+            name       = "RentFlow $version"
+            body       = "RentFlow $version"
+            draft      = $false
             prerelease = $false
           } | ConvertTo-Json
 
-          $headers = @{
-            Authorization = "token $env:RELEASES_TOKEN"
-            Accept = "application/vnd.github.v3+json"
-          }
+          $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/burgerondrej/rentflow-releases/releases" `
+            -Method Post -Headers $headers -Body $releasePayload -ContentType "application/json"
 
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/burgerondrej/rentflow-releases/releases" -Method Post -Headers $headers -Body $body -ContentType "application/json"
-          $uploadUrl = $release.upload_url -replace '\{.*\}', ''
+          # --- Upload .nsis.zip to the release ---
+          $uploadUrl = ($release.upload_url -replace '\{.*\}', '') + "?name=$zipName"
+          $bytes = [IO.File]::ReadAllBytes($zipFile.FullName)
+          Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $headers `
+            -Body $bytes -ContentType "application/octet-stream"
 
-          # Upload souborů
-          $files = @(
-            (Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1),
-            (Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip | Select-Object -First 1),
-            (Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip.sig | Select-Object -First 1),
-            (Get-ChildItem src-tauri/target/release/bundle/msi/*.msi | Select-Object -First 1),
-            (Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip | Select-Object -First 1),
-            (Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip.sig | Select-Object -First 1)
-          )
+          Write-Host "Uploaded: $zipName -> $downloadUrl"
 
-          foreach ($file in $files) {
-            $uploadUri = "$uploadUrl`?name=$($file.Name)"
-            Invoke-RestMethod -Uri $uploadUri -Method Post -Headers $headers -InFile $file.FullName -ContentType "application/octet-stream"
-            Write-Host "Uploaded: $($file.Name)"
-          }
-
-          # Ulož upload URL pro další krok
-          echo "RELEASE_ID=$($release.id)" >> $env:GITHUB_OUTPUT
-          echo "UPLOAD_URL=$uploadUrl" >> $env:GITHUB_OUTPUT
-        id: create_release
-
-      - name: Generate and upload update manifest
-        env:
-          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
-          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-        run: |
-          $version = "${{ steps.version.outputs.VERSION }}"
-          $tag = "${{ github.ref_name }}"
-          $base = "https://github.com/burgerondrej/rentflow-releases/releases/download/$tag"
-
-          $nsisSig = Get-Content "$(Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip.sig | Select-Object -First 1)" -Raw
-          $msiSig = Get-Content "$(Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip.sig | Select-Object -First 1)" -Raw
-          $nsisFile = (Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip | Select-Object -First 1).Name
-          $msiFile = (Get-ChildItem src-tauri/target/release/bundle/msi/*.msi.zip | Select-Object -First 1).Name
-
-          $manifest = @{
-            version = $version
-            notes = "Co je nového v této verzi: viz changelog v aplikaci."
-            pub_date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ")
-            platforms = @{
-              "windows-x86_64" = @{
-                signature = $nsisSig.Trim()
-                url = "$base/$nsisFile"
-              }
-              "windows-x86_64-nsis" = @{
-                signature = $nsisSig.Trim()
-                url = "$base/$nsisFile"
-              }
-              "windows-x86_64-msi" = @{
-                signature = $msiSig.Trim()
-                url = "$base/$msiFile"
+          # --- Build latest.json ---
+          $latestJson = [ordered]@{
+            version  = $version
+            notes    = "RentFlow $version"
+            pub_date = $pubDate
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                signature = $signature
+                url       = $downloadUrl
               }
             }
           } | ConvertTo-Json -Depth 5
 
-          $manifest | Out-File -FilePath "latest.json" -Encoding utf8NoBOM
-          Write-Host "Generated latest.json:"
-          Get-Content latest.json
+          Write-Host "latest.json content:"
+          Write-Host $latestJson
 
-          # Push do rentflow-updates GitHub Pages
-          git config --global user.email "github-actions@github.com"
+          # --- Push latest.json to rentflow-updates ---
+          git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-          git clone https://burgerondrej:$env:PAGES_TOKEN@github.com/burgerondrej/rentflow-updates.git pages-repo
-          Copy-Item latest.json pages-repo/latest.json -Force
-          cd pages-repo
+
+          git clone "https://x-access-token:$($env:PAGES_TOKEN)@github.com/burgerondrej/rentflow-updates.git" updates-repo
+
+          [IO.File]::WriteAllText(
+            "$PWD\updates-repo\latest.json",
+            $latestJson,
+            [Text.Encoding]::UTF8
+          )
+
+          Push-Location updates-repo
           git add latest.json
-          git commit -m "Update manifest to $tag"
+          git commit -m "Update to $version"
           git push
+          Pop-Location
+
+          Write-Host "latest.json pushed to rentflow-updates"
