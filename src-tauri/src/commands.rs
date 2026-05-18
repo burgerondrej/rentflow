@@ -642,6 +642,10 @@ pub fn load_settings(app_dir: &std::path::Path) -> serde_json::Value {
     let settings_path = app_dir.join("settings.json");
     std::fs::read_to_string(&settings_path)
         .ok()
+        .map(|s| {
+            // Odstraň UTF-8 BOM (EF BB BF) pokud Notepad soubor uložil s BOM
+            if s.starts_with('\u{FEFF}') { s[3..].to_string() } else { s }
+        })
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_else(|| serde_json::json!({}))
 }

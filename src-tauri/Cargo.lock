@@ -2594,9 +2594,11 @@ name = "rentflow"
 version = "1.0.0"
 dependencies = [
  "chrono",
+ "hex",
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "thiserror",
