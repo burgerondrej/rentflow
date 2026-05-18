@@ -27,22 +27,15 @@ jobs:
         run: npm ci
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0.5
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'RentFlow ${{ github.ref_name }}'
-          releaseBody: 'Viz changelog v aplikaci.'
-          releaseDraft: false
-          prerelease: false
-          tauriScript: npm run tauri
+        run: npm run tauri:build
 
-      - name: Upload to rentflow-releases and push latest.json
+      - name: Create releases and push latest.json
         shell: pwsh
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
           TAG: ${{ github.ref_name }}
@@ -50,24 +43,52 @@ jobs:
           $nsisDir = "src-tauri/target/release/bundle/nsis"
           $zipFile = Get-ChildItem $nsisDir -Filter "*.nsis.zip" | Select-Object -First 1
           $sigFile = Get-ChildItem $nsisDir -Filter "*.nsis.zip.sig" | Select-Object -First 1
+          $exeFile = Get-ChildItem $nsisDir -Filter "*-setup.exe" | Select-Object -First 1
 
           if (-not $zipFile) { throw "NSIS zip not found in $nsisDir" }
-          if (-not $sigFile) { throw "Signature file not found in $nsisDir" }
+          if (-not $sigFile) { throw "Signature .sig not found in $nsisDir" }
 
-          $zipName    = $zipFile.Name
-          $signature  = (Get-Content $sigFile.FullName -Raw).Trim()
-          $version    = $env:TAG
-          $pubDate    = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+          $zipName     = $zipFile.Name
+          $signature   = (Get-Content $sigFile.FullName -Raw).Trim()
+          $version     = $env:TAG
+          $pubDate     = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
           $downloadUrl = "https://github.com/burgerondrej/rentflow-releases/releases/download/$version/$zipName"
 
-          $headers = @{
+          $ghHeaders = @{
+            Authorization = "token $($env:GITHUB_TOKEN)"
+            "User-Agent"  = "GitHub-Actions"
+            Accept        = "application/vnd.github.v3+json"
+          }
+          $relHeaders = @{
             Authorization = "token $($env:RELEASES_TOKEN)"
             "User-Agent"  = "GitHub-Actions"
             Accept        = "application/vnd.github.v3+json"
           }
 
-          # --- Create release in rentflow-releases (public repo) ---
-          $releasePayload = @{
+          # --- Release v privatnim repo (zdrojovy kod) ---
+          $privatePayload = @{
+            tag_name   = $version
+            name       = "RentFlow $version"
+            body       = "Viz changelog v aplikaci."
+            draft      = $false
+            prerelease = $false
+          } | ConvertTo-Json
+
+          $privateRelease = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/burgerondrej/rentflow/releases" `
+            -Method Post -Headers $ghHeaders -Body $privatePayload -ContentType "application/json"
+
+          # Upload .exe instalatoru do privatniho release
+          if ($exeFile) {
+            $exeUrl   = ($privateRelease.upload_url -replace '\{.*\}', '') + "?name=$($exeFile.Name)"
+            $exeBytes = [IO.File]::ReadAllBytes($exeFile.FullName)
+            Invoke-RestMethod -Uri $exeUrl -Method Post -Headers $ghHeaders `
+              -Body $exeBytes -ContentType "application/octet-stream"
+            Write-Host "Private release: $($exeFile.Name) uploaded"
+          }
+
+          # --- Release ve verejnem repo (rentflow-releases) ---
+          $publicPayload = @{
             tag_name   = $version
             name       = "RentFlow $version"
             body       = "RentFlow $version"
@@ -75,23 +96,23 @@ jobs:
             prerelease = $false
           } | ConvertTo-Json
 
-          $release = Invoke-RestMethod `
+          $publicRelease = Invoke-RestMethod `
             -Uri "https://api.github.com/repos/burgerondrej/rentflow-releases/releases" `
-            -Method Post -Headers $headers -Body $releasePayload -ContentType "application/json"
+            -Method Post -Headers $relHeaders -Body $publicPayload -ContentType "application/json"
 
-          # --- Upload .nsis.zip to the release ---
-          $uploadUrl = ($release.upload_url -replace '\{.*\}', '') + "?name=$zipName"
-          $bytes = [IO.File]::ReadAllBytes($zipFile.FullName)
-          Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $headers `
-            -Body $bytes -ContentType "application/octet-stream"
+          # Upload .nsis.zip do verejneho release (updater ho stahuje)
+          $zipUrl   = ($publicRelease.upload_url -replace '\{.*\}', '') + "?name=$zipName"
+          $zipBytes = [IO.File]::ReadAllBytes($zipFile.FullName)
+          Invoke-RestMethod -Uri $zipUrl -Method Post -Headers $relHeaders `
+            -Body $zipBytes -ContentType "application/octet-stream"
 
-          Write-Host "Uploaded: $zipName -> $downloadUrl"
+          Write-Host "Public release: $zipName -> $downloadUrl"
 
-          # --- Build latest.json ---
+          # --- Sestav a pushnout latest.json ---
           $latestJson = [ordered]@{
-            version  = $version
-            notes    = "RentFlow $version"
-            pub_date = $pubDate
+            version   = $version
+            notes     = "RentFlow $version"
+            pub_date  = $pubDate
             platforms = [ordered]@{
               "windows-x86_64" = [ordered]@{
                 signature = $signature
@@ -100,20 +121,14 @@ jobs:
             }
           } | ConvertTo-Json -Depth 5
 
-          Write-Host "latest.json content:"
+          Write-Host "latest.json obsah:"
           Write-Host $latestJson
 
-          # --- Push latest.json to rentflow-updates ---
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
 
           git clone "https://x-access-token:$($env:PAGES_TOKEN)@github.com/burgerondrej/rentflow-updates.git" updates-repo
-
-          [IO.File]::WriteAllText(
-            "$PWD\updates-repo\latest.json",
-            $latestJson,
-            [Text.Encoding]::UTF8
-          )
+          [IO.File]::WriteAllText("$PWD\updates-repo\latest.json", $latestJson, [Text.Encoding]::UTF8)
 
           Push-Location updates-repo
           git add latest.json
@@ -121,4 +136,4 @@ jobs:
           git push
           Pop-Location
 
-          Write-Host "latest.json pushed to rentflow-updates"
+          Write-Host "Hotovo. latest.json: https://burgerondrej.github.io/rentflow-updates/latest.json"
