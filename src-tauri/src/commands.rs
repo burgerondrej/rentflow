@@ -622,8 +622,17 @@ pub fn check_activation(app_handle: tauri::AppHandle) -> bool {
 pub fn save_settings(settings: serde_json::Value, app_handle: tauri::AppHandle) -> std::result::Result<(), AppError> {
     let app_dir = app_handle.path_resolver().app_data_dir()
         .ok_or_else(|| AppError::Other("Cannot get app data dir".into()))?;
+    // Načti existující settings a merge — zachová pole jako "activated" která JS neposílá
+    let mut existing = load_settings(&app_dir);
+    if let (Some(obj), Some(new_obj)) = (existing.as_object_mut(), settings.as_object()) {
+        for (k, v) in new_obj {
+            obj.insert(k.clone(), v.clone());
+        }
+    } else {
+        existing = settings;
+    }
     let settings_path = app_dir.join("settings.json");
-    let content = serde_json::to_string_pretty(&settings)
+    let content = serde_json::to_string_pretty(&existing)
         .map_err(|e| AppError::Other(e.to_string()))?;
     std::fs::write(&settings_path, content)
         .map_err(|e| AppError::Other(e.to_string()))?;

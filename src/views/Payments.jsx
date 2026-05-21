@@ -569,7 +569,7 @@ export default function Payments() {
           }
         }
       } else {
-        // Skutečně zaplacená částka (pro multi-month = per-month frakcce uložená v payments)
+        // Skutečně zaplacená částka (pro multi-month = per-month frakce uložená v payments)
         const p = getPayment(c.id, monthKey)
         if (p && p.paymentType !== 'deposit') total += Number(p.amount) || 0
       }
@@ -747,9 +747,18 @@ export default function Payments() {
           }
         }
       } else {
-        // Skutečně zaplacená částka (shodné chování pro měsíční i multi-month)
-        const p = getPayment(c.id, monthKey)
-        if (p && p.paymentType !== 'deposit') total += Number(p.amount) || 0
+        const freq = c.paymentFrequency || 'Měsíčně'
+        const isMulti = freq === 'Čtvrtletně' || freq === 'Pololetně' || freq === 'Ročně'
+        if (isMulti) {
+          // Pro multi-period: buď celý měsíční ekvivalent (pokud je období uhrazeno) nebo 0.
+          // Raw payment.amount z monthKey je nespolehlivý — záleží na tom, ve kterém měsíci
+          // uživatel platbu potvrdil a jak ji systém uložil. isPeriodPaid je authoritative.
+          if (isPeriodPaid(c, selectedYear, selectedMonth)) total += effRent(c)
+        } else {
+          // Měsíční: skutečně zaplacená částka (zachycuje i částečné platby)
+          const p = getPayment(c.id, monthKey)
+          if (p && p.paymentType !== 'deposit') total += Number(p.amount) || 0
+        }
       }
     }
     return total

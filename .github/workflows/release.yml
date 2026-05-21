@@ -128,7 +128,7 @@ jobs:
           git config --global user.name "GitHub Actions"
 
           git clone "https://x-access-token:$($env:PAGES_TOKEN)@github.com/burgerondrej/rentflow-updates.git" updates-repo
-          [IO.File]::WriteAllText("$PWD\updates-repo\latest.json", $latestJson, [Text.Encoding]::UTF8)
+          [IO.File]::WriteAllText("$PWD\updates-repo\latest.json", $latestJson, [Text.UTF8Encoding]::new($false))
 
           Push-Location updates-repo
           git add latest.json
