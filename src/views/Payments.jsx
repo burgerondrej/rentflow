@@ -363,13 +363,30 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
 
 // ─── Modal pro editaci uhrazené částky ──────────────────────────────────────
 function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }) {
+  // Czech "D. M. RRRR" → ISO "YYYY-MM-DD" pro type="date" input
+  const czechToISO = (s) => {
+    if (!s) return ''
+    const parts = s.split('.').map(p => p.trim())
+    if (parts.length !== 3 || !parts[2]) return ''
+    return `${parts[2]}-${String(parts[1]).padStart(2, '0')}-${String(parts[0]).padStart(2, '0')}`
+  }
+  // ISO "YYYY-MM-DD" → Czech "D. M. RRRR" pro uložení
+  const isoToCzech = (s) => {
+    if (!s) return ''
+    const d = new Date(s + 'T00:00:00')
+    return isNaN(d) ? '' : d.toLocaleDateString('cs-CZ')
+  }
+
   const [amount, setAmount] = useState(String(payment.amount || ''))
   const [agreed, setAgreed] = useState(payment.agreed || false)
-  const [step, setStep] = useState('edit') // 'edit' | 'confirm'
-  const parsed = parseFloat(amount.replace(',', '.'))
+  const [date, setDate]     = useState(czechToISO(payment.date))
+  const [step, setStep]     = useState('edit') // 'edit' | 'confirm'
+  const parsed  = parseFloat(amount.replace(',', '.'))
   const isValid = !isNaN(parsed) && parsed >= 0
 
   if (step === 'confirm') {
+    const newDateCzech = isoToCzech(date)
+    const dateChanged  = newDateCzech !== (payment.date || '')
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
         onClick={onClose}>
@@ -377,14 +394,15 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
           onClick={e => e.stopPropagation()}>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>Potvrdit úpravu platby</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20, lineHeight: 1.6 }}>
-            Změnit uhrazenou částku za <strong>{monthLabel}</strong>{tenantName ? ` (${tenantName})` : ''} na{' '}
-            <strong>{parsed.toLocaleString('cs-CZ')} Kč</strong>?
+            Změnit platbu za <strong>{monthLabel}</strong>{tenantName ? ` (${tenantName})` : ''} na{' '}
+            <strong>{parsed.toLocaleString('cs-CZ')} Kč</strong>
+            {dateChanged && newDateCzech && <>{' '}· datum <strong>{newDateCzech}</strong></>}?
             {agreed && <div style={{ marginTop: 8, color: '#16A34A', fontWeight: 700, fontSize: 12 }}>✓ Bude označeno jako odsouhlasená plná úhrada</div>}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn" style={{ flex: 1 }} onClick={() => setStep('edit')}>← Zpět</button>
             <button className="btn" style={{ flex: 2, background: '#D97706', color: '#fff', border: 'none', fontWeight: 700 }}
-              onClick={() => onConfirm(parsed, agreed)}>
+              onClick={() => onConfirm(parsed, agreed, newDateCzech || null)}>
               ✓ Uložit změnu
             </button>
           </div>
@@ -398,10 +416,13 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
       onClick={onClose}>
       <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}
         onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Upravit uhrazenou částku</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Upravit platbu</div>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 18 }}>
           {monthLabel}{tenantName ? ` · ${tenantName}` : ''}
         </div>
+        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+          Uhrazená částka (Kč)
+        </label>
         <input
           className="btn"
           type="number"
@@ -411,6 +432,16 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
           autoFocus
           onKeyDown={e => { if (e.key === 'Enter' && isValid) setStep('confirm') }}
           placeholder="Částka v Kč"
+        />
+        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+          Datum přijetí platby
+        </label>
+        <input
+          type="date"
+          className="btn"
+          style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'var(--bg2)', marginBottom: 12, boxSizing: 'border-box' }}
+          value={date}
+          onChange={e => setDate(e.target.value)}
         />
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, cursor: 'pointer', padding: '10px 14px', background: agreed ? '#F0FDF4' : 'var(--bg2)', border: `1.5px solid ${agreed ? '#16A34A' : 'var(--border)'}`, borderRadius: 10, transition: '0.15s' }}>
           <input
@@ -569,7 +600,7 @@ export default function Payments() {
           }
         }
       } else {
-        // Skutečně zaplacená částka (pro multi-month = per-month frakce uložená v payments)
+        // Skutečně zaplacená částka (pro multi-month = per-month frakcce uložená v payments)
         const p = getPayment(c.id, monthKey)
         if (p && p.paymentType !== 'deposit') total += Number(p.amount) || 0
       }
@@ -747,18 +778,9 @@ export default function Payments() {
           }
         }
       } else {
-        const freq = c.paymentFrequency || 'Měsíčně'
-        const isMulti = freq === 'Čtvrtletně' || freq === 'Pololetně' || freq === 'Ročně'
-        if (isMulti) {
-          // Pro multi-period: buď celý měsíční ekvivalent (pokud je období uhrazeno) nebo 0.
-          // Raw payment.amount z monthKey je nespolehlivý — záleží na tom, ve kterém měsíci
-          // uživatel platbu potvrdil a jak ji systém uložil. isPeriodPaid je authoritative.
-          if (isPeriodPaid(c, selectedYear, selectedMonth)) total += effRent(c)
-        } else {
-          // Měsíční: skutečně zaplacená částka (zachycuje i částečné platby)
-          const p = getPayment(c.id, monthKey)
-          if (p && p.paymentType !== 'deposit') total += Number(p.amount) || 0
-        }
+        // Skutečně zaplacená částka (shodné chování pro měsíční i multi-month)
+        const p = getPayment(c.id, monthKey)
+        if (p && p.paymentType !== 'deposit') total += Number(p.amount) || 0
       }
     }
     return total
@@ -1317,8 +1339,8 @@ export default function Payments() {
           payment={editAmountModal.payment}
           monthLabel={editAmountModal.monthLabel}
           tenantName={editAmountModal.tenantName}
-          onConfirm={async (newAmount, newAgreed) => {
-            await updatePaymentAmount(editAmountModal.payment.id, newAmount, newAgreed)
+          onConfirm={async (newAmount, newAgreed, newDate) => {
+            await updatePaymentAmount(editAmountModal.payment.id, newAmount, newAgreed, newDate)
             setEditAmountModal(null)
           }}
           onClose={() => setEditAmountModal(null)}

@@ -46,7 +46,7 @@ export default function Sidebar({ active, onNav, width, onResizeStart, urgentCon
             <div key={item.id} onClick={() => onNav(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 9, cursor: 'pointer', fontSize: 13.5, color: '#ffffff', background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent', fontWeight: isActive ? 700 : 500, marginBottom: 1, border: isActive ? '1px solid rgba(180,255,220,0.22)' : '1px solid transparent', opacity: isActive ? 1 : 0.88, textShadow: isActive ? '0 0 12px rgba(158,255,212,0.4)' : 'none' }}>
               <span style={{ flexShrink: 0, width: 17, height: 17 }}>{item.icon}</span>
               <span style={{ flex: 1 }}>{item.label}</span>
-              {item.badge && item.badge !== '0' && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: item.badgeType === 'red' ? 'rgba(230,40,40,0.80)' : 'rgba(40,120,230,0.80)', color: '#fff' }}>{item.badge}</span>}
+              {item.badge && item.badge !== '0' && <span title={item.badgeType === 'red' ? `${item.badge} smlouv${item.badge === '1' ? 'a' : item.badge <= '4' ? 'y' : ''} končí do 30 dnů` : `${item.badge} nepřečtených upozornění`} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: item.badgeType === 'red' ? 'rgba(230,40,40,0.80)' : 'rgba(40,120,230,0.80)', color: '#fff', cursor: 'help' }}>{item.badge}</span>}
             </div>
           )
         })}

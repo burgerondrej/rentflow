@@ -690,11 +690,17 @@ impl Database {
         Ok(deleted)
     }
 
-    pub fn update_payment_amount(&self, id: &str, amount: f64, agreed: bool) -> Result<()> {
-        self.conn.execute(
-            "UPDATE payments SET amount=?1, agreed=?2 WHERE id=?3",
-            params![amount, agreed as i64, id],
-        )?;
+    pub fn update_payment_amount(&self, id: &str, amount: f64, agreed: bool, date: Option<String>) -> Result<()> {
+        match date {
+            Some(d) => self.conn.execute(
+                "UPDATE payments SET amount=?1, agreed=?2, date=?3 WHERE id=?4",
+                params![amount, agreed as i64, d, id],
+            )?,
+            None => self.conn.execute(
+                "UPDATE payments SET amount=?1, agreed=?2 WHERE id=?3",
+                params![amount, agreed as i64, id],
+            )?,
+        };
         Ok(())
     }
 

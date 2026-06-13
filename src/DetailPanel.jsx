@@ -579,7 +579,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 const rent = ((effectiveToday(c).rent) + (isResidential && c.parking > 0 ? (effectiveToday(c).parking) : 0) + (effectiveToday(c).flatFee)) / pLen
                 if (isBurger) acc.burger += rent
                 else if (isResidential) acc.metroNoDph += rent
-                else acc.metroDph += rent
+                else {
+                  // Respektuj vatExempt: 2=vždy DPH, 1=vždy bez DPH, 0=dle subjektu
+                  const hasDph = c.vatExempt === 2 ? true
+                    : c.vatExempt === 1 ? false
+                    : (billingGroups.find(g => effSub.startsWith(g.val))?.isVatPayer ?? true)
+                  if (hasDph) acc.metroDph += rent
+                  else acc.metroNoDph += rent
+                }
                 return acc
               }, { metroDph: 0, metroNoDph: 0, burger: 0 })
               calcRents.metro = calcRents.metroDph + calcRents.metroNoDph

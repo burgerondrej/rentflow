@@ -361,12 +361,12 @@ export function AppProvider({ children }) {
 
   const updatePayment = (id, updates) => setPayments(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
 
-  const updatePaymentAmount = async (id, amount, agreed) => {
+  const updatePaymentAmount = async (id, amount, agreed, date) => {
     if (guardWrite()) return
     // Optimistic update ihned
-    setPayments(prev => prev.map(p => p.id === id ? { ...p, amount, agreed: !!agreed } : p))
+    setPayments(prev => prev.map(p => p.id === id ? { ...p, amount, agreed: !!agreed, ...(date != null ? { date } : {}) } : p))
     try {
-      await invoke('update_payment_amount', { id, amount, agreed: !!agreed, user: currentUser })
+      await invoke('update_payment_amount', { id, amount, agreed: !!agreed, date: date || null, user: currentUser })
     } catch (err) {
       console.error('updatePaymentAmount error:', err)
       // Rollback při chybě

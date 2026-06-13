@@ -155,7 +155,7 @@ export default function Contracts({ activeSubject, onOpen }) {
                 <div style={{ padding: '8px 14px', textAlign: 'center', borderRight: c.totalDeposit > 0 ? `1px solid ${innerBorderColor}` : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, justifyContent: 'center' }}>
                     <span style={{ fontSize: 11 }}>💰</span>
-                    <div style={{ fontSize: 10.5, color: 'var(--text2)' }}>Měsíční nájem</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text2)' }}>{{ 'Čtvrtletně': 'Čtvrtletní nájem', 'Pololetně': 'Pololetní nájem', 'Ročně': 'Roční nájem' }[c.paymentFrequency] || 'Měsíční nájem'}</div>
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: showDph ? 'var(--price-netto)' : 'var(--text)' }}>{((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč</div>
                   {showDph && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>bez DPH</div>}

@@ -225,10 +225,11 @@ pub fn cleanup_duplicate_payments(state: State<AppState>) -> std::result::Result
 }
 
 #[tauri::command]
-pub fn update_payment_amount(id: String, amount: f64, agreed: bool, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+pub fn update_payment_amount(id: String, amount: f64, agreed: bool, date: Option<String>, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
     let db = db!(state);
-    db.update_payment_amount(&id, amount, agreed)?;
-    db.add_log(&user, "Úprava", "Platby", &format!("Upravena výše platby ID {}: {} Kč{}", id, amount, if agreed { " (odsouhlaseno)" } else { "" }))?;
+    db.update_payment_amount(&id, amount, agreed, date.clone())?;
+    let date_info = date.as_deref().map(|d| format!(", datum: {}", d)).unwrap_or_default();
+    db.add_log(&user, "Úprava", "Platby", &format!("Upravena platba ID {}: {} Kč{}{}", id, amount, if agreed { " (odsouhlaseno)" } else { "" }, date_info))?;
     Ok(())
 }
 
@@ -622,17 +623,8 @@ pub fn check_activation(app_handle: tauri::AppHandle) -> bool {
 pub fn save_settings(settings: serde_json::Value, app_handle: tauri::AppHandle) -> std::result::Result<(), AppError> {
     let app_dir = app_handle.path_resolver().app_data_dir()
         .ok_or_else(|| AppError::Other("Cannot get app data dir".into()))?;
-    // Načti existující settings a merge — zachová pole jako "activated" která JS neposílá
-    let mut existing = load_settings(&app_dir);
-    if let (Some(obj), Some(new_obj)) = (existing.as_object_mut(), settings.as_object()) {
-        for (k, v) in new_obj {
-            obj.insert(k.clone(), v.clone());
-        }
-    } else {
-        existing = settings;
-    }
     let settings_path = app_dir.join("settings.json");
-    let content = serde_json::to_string_pretty(&existing)
+    let content = serde_json::to_string_pretty(&settings)
         .map_err(|e| AppError::Other(e.to_string()))?;
     std::fs::write(&settings_path, content)
         .map_err(|e| AppError::Other(e.to_string()))?;

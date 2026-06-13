@@ -557,7 +557,7 @@ export function Docs() {
 // 2. MODUL UPOZORNĚNÍ (Zcela nový notifikační feed)
 // ------------------------------------------------------------------
 export function Alerts() {
-  const { contracts = [], revisions = [], tasks = [], assets = [] } = useApp() || {}
+  const { contracts = [], revisions = [], tasks = [], assets = [], tenants = [] } = useApp() || {}
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -580,12 +580,15 @@ export function Alerts() {
     if (d) {
       const diff = Math.round((d - today) / (1000 * 60 * 60 * 24))
       const asset = assets.find(a => a.id === c.assetId)
+      const tenant = tenants.find(t => t.id === c.tenantId)
       const unitName = asset ? asset.unit : 'Neznámý předmět'
+      const tenantName = tenant ? tenant.name : null
+      const label = tenantName ? `${unitName} — ${tenantName}` : unitName
 
       if (diff < 0) {
-        alertsList.push({ id: `c-${c.id}`, category: 'Smlouvy', urgency: 'critical', title: 'Propadlá smlouva', desc: `${unitName} (Vypršela před ${Math.abs(diff)} dny)` })
+        alertsList.push({ id: `c-${c.id}`, category: 'Smlouvy', urgency: 'critical', title: 'Propadlá smlouva', desc: `${label} (Vypršela před ${Math.abs(diff)} dny)` })
       } else if (diff <= 60) {
-        alertsList.push({ id: `c-${c.id}`, category: 'Smlouvy', urgency: diff <= 30 ? 'high' : 'medium', title: 'Končící smlouva', desc: `${unitName} (Končí za ${diff} dnů)` })
+        alertsList.push({ id: `c-${c.id}`, category: 'Smlouvy', urgency: diff <= 30 ? 'high' : 'medium', title: 'Končící smlouva', desc: `${label} (Končí za ${diff} dnů)` })
       }
     }
   })
