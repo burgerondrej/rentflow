@@ -579,14 +579,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 const rent = ((effectiveToday(c).rent) + (isResidential && c.parking > 0 ? (effectiveToday(c).parking) : 0) + (effectiveToday(c).flatFee)) / pLen
                 if (isBurger) acc.burger += rent
                 else if (isResidential) acc.metroNoDph += rent
-                else {
-                  // Respektuj vatExempt: 2=vždy DPH, 1=vždy bez DPH, 0=dle subjektu
-                  const hasDph = c.vatExempt === 2 ? true
-                    : c.vatExempt === 1 ? false
-                    : (billingGroups.find(g => effSub.startsWith(g.val))?.isVatPayer ?? true)
-                  if (hasDph) acc.metroDph += rent
-                  else acc.metroNoDph += rent
-                }
+                else acc.metroDph += rent
                 return acc
               }, { metroDph: 0, metroNoDph: 0, burger: 0 })
               calcRents.metro = calcRents.metroDph + calcRents.metroNoDph
@@ -1744,6 +1737,41 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 value={formData.groupLabel || ''}
                 onChange={e => setFormData({...formData, groupLabel: e.target.value})} />
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Stejný název = souhrnná platba v sekci Platby</div>
+            </div>
+          )}
+
+          {/* Verze smlouvy + obsazenost — jen pro bytové jednotky */}
+          {a?.type === 'residential' && (
+            <div style={{ padding: '14px 16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 12, letterSpacing: '0.5px' }}>Typ smlouvy a obsazenost</div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Verze smlouvy</label>
+                <select className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }}
+                  value={formData.contractVersion || ''}
+                  onChange={e => setFormData({...formData, contractVersion: e.target.value})}>
+                  <option value="">— Nevyplněno —</option>
+                  <option value="Nová verze smlouvy">🆕 Nová verze smlouvy</option>
+                  <option value="Stará verze smlouvy">📜 Stará verze smlouvy</option>
+                </select>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Počet osob v bytě</label>
+                  <input type="number" min="0" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }}
+                    value={formData.occupants || ''} onChange={e => setFormData({...formData, occupants: e.target.value})} placeholder="0" />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Z toho s trvalým bydlištěm</label>
+                  <input type="number" min="0" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }}
+                    value={formData.permanentResidents || ''} onChange={e => setFormData({...formData, permanentResidents: e.target.value})} placeholder="0" />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Spolubydlící (jména)</label>
+                <textarea className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left', height: 60, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, fontSize: 13 }}
+                  placeholder="Jména dalších osob v bytě…"
+                  value={formData.coResidents || ''} onChange={e => setFormData({...formData, coResidents: e.target.value})} />
+              </div>
             </div>
           )}
 
