@@ -576,7 +576,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 const isBurger = billingGroups.find(g => !g.isVatPayer && effSub.startsWith(g.val)) !== undefined
                 const isResidential = asset?.type === 'residential'
                 const pLen = { 'Čtvrtletně': 3, 'Pololetně': 6, 'Ročně': 12 }[c.paymentFrequency] || 1
-                const rent = ((effectiveToday(c).rent) + (isResidential && c.parking > 0 ? (effectiveToday(c).parking) : 0) + (effectiveToday(c).flatFee)) / pLen
+                const rent = ((effectiveToday(c).rent) + (isResidential ? (effectiveToday(c).parking) : 0) + (effectiveToday(c).flatFee)) / pLen
                 if (isBurger) acc.burger += rent
                 else if (isResidential) acc.metroNoDph += rent
                 else acc.metroDph += rent
@@ -690,7 +690,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                   const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => effectiveSub.startsWith(g.val))?.isVatPayer ?? true)
                   const showDph = (aType === 'commercial' || aType === 'ads' || aType === 'parking' || aType === 'ostatni') && isDphSubject
                   const _eff = effectiveToday(c)
-                  const rent = _eff.rent + (aType === 'residential' && c.includedParkingSpots > 0 ? _eff.parking : 0)
+                  const rent = _eff.rent + (aType === 'residential' ? _eff.parking : 0)
                   const deposit = _eff.deposit
                   const depositWater = _eff.depositWater
                   return (
@@ -1940,7 +1940,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             )}
 
             {/* Rozpad nájem + parking – hned pod Nájemné */}
-            {a?.type === 'residential' && c.includedParkingSpots > 0 && (
+            {a?.type === 'residential' && (c.includedParkingSpots > 0 || effParking > 0) && (
               <div style={{ padding: '6px 16px 9px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                   <span style={{ fontSize: 12, color: 'var(--text3)' }}>z toho holé nájemné</span>
@@ -2200,7 +2200,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             {amendForm && !isReadOnly && (() => {
               const isRes = a?.type === 'residential'
               const isComm = a?.type === 'commercial'
-              const hasFlatFee = isComm && !!(c.flatFee && c.flatFee > 0)
+              const effNow = effectiveToday(c)
               const isoToCz = (iso) => {
                 if (!iso) return ''
                 const [yr, mo, day] = iso.split('-')
@@ -2243,12 +2243,12 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                       <input type="date" className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left', background: 'var(--bg2)', boxSizing: 'border-box', borderColor: amendData.effectiveFrom ? 'var(--border)' : '#F59E0B' }}
                         value={amendData.effectiveFrom} onChange={e => setAmendData(p => ({ ...p, effectiveFrom: e.target.value }))} />
                     </div>
-                    {inp('Nájemné (Kč)', 'rent', `Aktuálně: ${Number(c.rent).toLocaleString('cs-CZ')}`)}
-                    {isRes && inp('Zálohy energie (Kč)', 'deposit', `Aktuálně: ${Number(c.deposit).toLocaleString('cs-CZ')}`)}
-                    {isRes && Number(c.depositWater) > 0 && inp('Zálohy voda (Kč)', 'depositWater', `Aktuálně: ${Number(c.depositWater).toLocaleString('cs-CZ')}`)}
-                    {isComm && inp('Zálohy (Kč)', 'deposit', `Aktuálně: ${Number(c.deposit).toLocaleString('cs-CZ')}`)}
-                    {hasFlatFee && inp('Paušál (Kč)', 'flatFee', `Aktuálně: ${Number(c.flatFee).toLocaleString('cs-CZ')}`)}
-                    {Number(c.parking) > 0 && inp('Parkování (Kč)', 'parking', `Aktuálně: ${Number(c.parking).toLocaleString('cs-CZ')}`)}
+                    {inp('Nájemné (Kč)', 'rent', `Aktuálně: ${Number(effNow.rent).toLocaleString('cs-CZ')}`)}
+                    {isRes && inp('Zálohy energie (Kč)', 'deposit', `Aktuálně: ${Number(effNow.deposit).toLocaleString('cs-CZ')}`)}
+                    {isComm && inp('Zálohy (Kč)', 'deposit', `Aktuálně: ${Number(effNow.deposit).toLocaleString('cs-CZ')}`)}
+                    {((isComm && isDphSubject) || (isRes && Number(c.depositWater) > 0)) && inp('Zálohy voda (Kč)', 'depositWater', `Aktuálně: ${Number(effNow.depositWater).toLocaleString('cs-CZ')}`)}
+                    {isComm && inp('Paušál (Kč)', 'flatFee', `Aktuálně: ${Number(effNow.flatFee).toLocaleString('cs-CZ')}`)}
+                    {(isRes || isComm) && inp('Parkování (Kč)', 'parking', `Aktuálně: ${Number(effNow.parking).toLocaleString('cs-CZ')}`)}
                   </div>
                   <div style={{ marginBottom: 12 }}>
                     <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Poznámka (nepovinné)</label>

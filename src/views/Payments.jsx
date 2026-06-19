@@ -2066,7 +2066,7 @@ export default function Payments() {
                     {/* Nájem + parkování */}
                     <div style={{ background: rentIsPartial ? '#FFFBEB' : rentPayment ? '#F0FDF4' : 'var(--bg2)', border: `1px solid ${rentIsPartial ? '#FCD34D' : rentPayment ? '#BBF7D0' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
                       <div style={{ fontSize: 9, fontWeight: 800, color: rentIsPartial ? '#D97706' : rentPayment ? '#166534' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>
-                        Nájem{Number(c.parking) > 0 ? ' + parkování' : ''}
+                        Nájem{ev.parking > 0 ? ' + parkování' : ''}
                       </div>
                       <div style={{ fontSize: 20, fontWeight: 900, color: rentIsPartial ? '#D97706' : rentPayment ? '#166534' : 'var(--text)', marginBottom: 10 }}>
                         {rentTotal.toLocaleString('cs-CZ')} Kč
@@ -2157,7 +2157,7 @@ export default function Payments() {
                         {/* Nájem */}
                         <div style={{ background: commIsPartial ? '#FFFBEB' : commPayment ? '#F0FDF4' : 'var(--bg2)', border: `1px solid ${commIsPartial ? '#FCD34D' : commPayment ? '#BBF7D0' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
                           <div style={{ fontSize: 9, fontWeight: 800, color: commIsPartial ? '#D97706' : commPayment ? '#166534' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>
-                            Nájem{Number(c.parking) > 0 ? ' + parkování' : ''}
+                            Nájem{ev.parking > 0 ? ' + parkování' : ''}
                           </div>
                           <div style={{ fontSize: 20, fontWeight: 900, color: commIsPartial ? '#D97706' : commPayment ? '#166534' : 'var(--text)', marginBottom: 10 }}>
                             {commPayment?.agreed ? Number(commPayment.amount).toLocaleString('cs-CZ') : rentTotal.toLocaleString('cs-CZ')} Kč
