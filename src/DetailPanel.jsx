@@ -2311,8 +2311,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                     </div>
                     {!isReadOnly && (
                       <button onClick={() => setConfirmDialog({
-                        message: `Smazat změnu od ${am.effectiveFrom}? Platby evidované za minulé měsíce zůstanou zachovány.`,
-                        onConfirm: () => { deleteAmendment(am.id, c.id); setConfirmDialog(null) }
+                        title: 'Smazat změnu?',
+                        text: `Změna od ${am.effectiveFrom} bude odstraněna. Platby evidované za minulé měsíce zůstanou zachovány.`,
+                        danger: true, okLabel: 'Smazat změnu',
+                        onOk: () => { deleteAmendment(am.id, c.id) }
                       })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 16, padding: '2px 4px', flexShrink: 0 }} title="Smazat">✕</button>
                     )}
                   </div>
