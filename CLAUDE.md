@@ -25,7 +25,7 @@ Komunikace: česky, přímo, stručně, bez vaty. Šetři tokeny.
 - Do repa nikdy neukládej hesla, klíče, tokeny. Podpisový klíč je mimo repo: `C:\Users\ondra\Documents\rentflow-updater.key` – nikdy ho nečti ani nekopíruj.
 
 Release workflow (plně automatický):
-1. Zvýšit `version` v `src-tauri/tauri.conf.json` (vždy ručně, povinné).
+1. Zvýšit verzi (povinné): ručně `version` v `src-tauri/tauri.conf.json` A ZÁROVEŇ `npm version X.X.X --no-git-tag-version` (package.json + package-lock.json). Všechny tři musí sedět.
 2. `git add .` → `git commit -m "vX.X.X: popis"` → `git tag vX.X.X` → `git push origin main` → `git push origin vX.X.X`
 3. Tag musí ukazovat na správný HEAD commit – ověřit před pushem (`git log -1 --oneline`, `git show vX.X.X --stat`).
 4. GitHub Actions (~15 min): build + podpis → `.nsis.zip` do `burgerondrej/rentflow-releases` → `latest.json` do `burgerondrej/rentflow-updates`.
