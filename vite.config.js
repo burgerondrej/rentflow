@@ -6,9 +6,13 @@ export default defineConfig(async () => ({
   plugins: [react()],
 
   // Tauri expects a fixed port, don't open browser
-  server: {
+    server: {
     port: 5173,
     strictPort: true,
+    watch: {
+      // Vite nesmí sledovat Rust build (target) – na Windows padá na EBUSY
+      ignored: ["**/src-tauri/**"],
+    },
   },
 
   // Env variables in Tauri

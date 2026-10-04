@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git tag:*)",
+      "Bash(git commit:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch -D:*)",
+      "Bash(npm install:*)",
+      "Bash(cargo update:*)"
+    ],
+    "deny": [
+      "Edit(.github/workflows/**)",
+      "Write(.github/workflows/**)"
+    ]
+  }
+}
