@@ -17,19 +17,22 @@ Komunikace: česky, přímo, stručně, bez vaty. Šetři tokeny.
 
 ## 2. Git a release — TVRDÁ PRAVIDLA
 
-- NIKDY sám nespouštěj `git push`, `git tag`, `git reset --hard`, `git rebase`, `git push --force`, ani nemaž větve. Tyhle příkazy jen vypiš, spouští je Ondra.
-- `git add` / `git commit` jen na výslovný pokyn.
+- Release (zvýšení verze, commit, push do main, tag, push tagu) dělá Claude SÁM, celý až do konce – ale VÝHRADNĚ po Ondrově výslovném schválení releasu po otestování v `npm run tauri:dev`. Bez schválení nikdy nepushovat ani netagovat.
+- NIKDY: `git push --force` / `-f`, `git reset --hard`, `git rebase`, mazání větví, mazání či přepis existujícího tagu. Když push neprojde (není fast-forward), zastavit a ohlásit.
+- `git add` / `git commit` mimo release jen na výslovný pokyn.
 - Na začátku práce zkontroluj `git status` – pokud není čisto, upozorni.
 - NIKDY neměň `.github/workflows/release.yml` bez výslovného souhlasu.
 - NIKDY nepoužívat `tauri-action@v0.5` (spouští `tauri init --ci`, rozbije build).
 - Do repa nikdy neukládej hesla, klíče, tokeny. Podpisový klíč je mimo repo: `C:\Users\ondra\Documents\rentflow-updater.key` – nikdy ho nečti ani nekopíruj.
 
-Release workflow (plně automatický):
+Release workflow (po schválení provede Claude sám, bez Ondrova zásahu):
 1. Zvýšit verzi (povinné): ručně `version` v `src-tauri/tauri.conf.json` A ZÁROVEŇ `npm version X.X.X --no-git-tag-version` (package.json + package-lock.json). Všechny tři musí sedět.
-2. `git add .` → `git commit -m "vX.X.X: popis"` → `git tag vX.X.X` → `git push origin main` → `git push origin vX.X.X`
-3. Tag musí ukazovat na správný HEAD commit – ověřit před pushem (`git log -1 --oneline`, `git show vX.X.X --stat`).
-4. GitHub Actions (~15 min): build + podpis → `.nsis.zip` do `burgerondrej/rentflow-releases` → `latest.json` do `burgerondrej/rentflow-updates`.
-5. Ověření: `Invoke-RestMethod https://burgerondrej.github.io/rentflow-updates/latest.json` (verze musí sedět).
+2. Ověřit `npm run build` (+ `cargo check` při změně Rustu). `git add` jen záměrné soubory → `git commit -m "vX.X.X: popis"`.
+3. Push do main: z main checkoutu `git push origin main`, z worktree `git push origin HEAD:main` (jen fast-forward).
+4. `git tag vX.X.X` → ověřit, že tag ukazuje na pushnutý HEAD (`git log -1 --oneline`, `git show vX.X.X --stat`) → `git push origin vX.X.X`.
+5. GitHub Actions (~15 min): build + podpis → `.nsis.zip` do `burgerondrej/rentflow-releases` → `latest.json` do `burgerondrej/rentflow-updates`.
+6. Ověření: `Invoke-RestMethod https://burgerondrej.github.io/rentflow-updates/latest.json` (verze musí sedět) – Claude hlídá sám a ohlásí výsledek.
+7. Pracoval-li Claude ve worktree: srovnat lokální main (`git -C C:\Users\ondra\rentflow fetch origin` + `git -C C:\Users\ondra\rentflow merge --ff-only origin/main`).
 Release se spouští JEN pushnutím tagu. Push do main bez tagu release nedělá.
 
 Repa: `burgerondrej/rentflow` (private, zdroj), `burgerondrej/rentflow-releases` (public, binárky), `burgerondrej/rentflow-updates` (GitHub Pages, latest.json).

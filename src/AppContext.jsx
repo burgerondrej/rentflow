@@ -330,17 +330,18 @@ export function AppProvider({ children }) {
     }
   }
 
-  const archiveContract = async (id) => {
+  // endDate (D. M. RRRR) = poslední den nájmu → smlouva zůstává v Platbách/historii do tohoto data
+  const archiveContract = async (id, endDate) => {
     if (guardWrite()) return
     const item = contracts.find(c => c.id === id)
     if (!item) return
-    await updateContract(id, { ...item, status: 'archived' })
+    await updateContract(id, { ...item, status: 'archived', ...(endDate ? { end: endDate } : {}) })
     // Asset se uvolní jen pokud na něm neexistuje jiná aktivní smlouva
     if (item.assetId) {
       const otherActive = contracts.some(c => c.id !== id && c.assetId === item.assetId && c.status === 'active')
       if (!otherActive) await updateAsset(item.assetId, { status: 'free' })
     }
-    logAction('Archivace', 'Smlouvy', `Archivována smlouva: ${id}`)
+    logAction('Archivace', 'Smlouvy', `Archivována smlouva: ${id}${endDate ? ` (poslední den nájmu ${endDate})` : ''}`)
   }
 
   // ─────────────────────────────────────────

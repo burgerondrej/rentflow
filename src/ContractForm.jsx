@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
+import { parseDate, getCurrentAssetContract, isEndingArchived } from './utils.js'
 
 
 const CONTRACT_TYPES = [
@@ -18,7 +19,7 @@ function isoToCz(iso) {
 }
 
 export default function ContractForm({ onClose }) {
-  const { tenants, assets, addContract, subjects = [], billingGroups = [], parkingBillingOptions = [], adsBillingOptions = [] } = useApp()
+  const { tenants, assets, contracts = [], addContract, subjects = [], billingGroups = [], parkingBillingOptions = [], adsBillingOptions = [] } = useApp()
 
   const [contractType, setContractType] = useState(null)
   const [revealed, setRevealed] = useState(false)
@@ -69,6 +70,13 @@ export default function ContractForm({ onClose }) {
       return (a.unit || '').localeCompare(b.unit || '', 'cs', { numeric: true, sensitivity: 'base' })
     })
 
+  // Obsazenost předmětu dle dat smluv (ukončená smlouva drží předmět do posledního dne nájmu)
+  const assetBusyLabel = (a) => {
+    const cur = getCurrentAssetContract(contracts, a.id)
+    if (!cur) return a.status === 'occupied' ? ' (obsazeno)' : ''
+    return isEndingArchived(cur) ? ` (obsazeno do ${cur.end})` : ' (obsazeno)'
+  }
+
   const renderAssetOptions = () => {
     const groupedAssets = {}
     availableAssets.forEach(a => {
@@ -89,7 +97,7 @@ export default function ContractForm({ onClose }) {
           <optgroup key={`${subject}|${loc}`} label={`${subject} · ${loc}`}>
             {locAssets.map(a => (
               <option key={a.id} value={a.id}>
-                {typeIcon[a.type] || '📄'} {a.unit}{a.status !== 'free' ? ' (obsazeno)' : ''}
+                {typeIcon[a.type] || '📄'} {a.unit}{assetBusyLabel(a)}
               </option>
             ))}
           </optgroup>
@@ -99,13 +107,28 @@ export default function ContractForm({ onClose }) {
         <optgroup key={subject} label={subject}>
           {assetsInGroup.map(a => (
             <option key={a.id} value={a.id}>
-              {typeIcon[a.type] || '📄'} {a.unit}{a.status !== 'free' ? ' (obsazeno)' : ''}
+              {typeIcon[a.type] || '📄'} {a.unit}{assetBusyLabel(a)}
             </option>
           ))}
         </optgroup>
       )
     })
   }
+
+  // Jiná smlouva na stejném předmětu, která se časově překrývá s novou (jen upozornění)
+  const isoToDate = (iso) => { if (!iso) return null; const [y, m, d] = iso.split('-').map(Number); return (y && m && d) ? new Date(y, m - 1, d) : null }
+  const overlapContract = (() => {
+    if (!formData.assetId) return null
+    const ns = isoToDate(formData.start), ne = isoToDate(formData.end)
+    return contracts.find(c => {
+      if (c.assetId !== formData.assetId) return false
+      if (c.status !== 'active' && c.status !== 'archived') return false
+      const cs = parseDate(c.start), ce = parseDate(c.end)
+      if (c.status === 'archived' && !ce) return false
+      return (!ce || !ns || ns <= ce) && (!ne || !cs || cs <= ne)
+    }) || null
+  })()
+  const overlapTenant = overlapContract ? (tenants || []).find(t => t.id === overlapContract.tenantId) : null
 
   const selectedConf = CONTRACT_TYPES.find(t => t.id === contractType)
   const totalRent = (Number(formData.rent) || 0) + (Number(formData.parking) || 0)
@@ -214,6 +237,11 @@ export default function ContractForm({ onClose }) {
           {renderAssetOptions()}
         </select>
         {availableAssets.length === 0 && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>Žádné volné předměty nájmu tohoto typu.</div>}
+        {overlapContract && (
+          <div style={{ fontSize: 11, color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 6, padding: '6px 8px', marginTop: 6 }}>
+            ⚠️ Překryv s jinou smlouvou na tomto předmětu: {overlapTenant?.name || 'neznámý nájemce'} ({overlapContract.start || '?'} – {overlapContract.end || 'neurčito'}). Zkontrolujte data začátku a konce.
+          </div>
+        )}
       </div>
     </div>
   )

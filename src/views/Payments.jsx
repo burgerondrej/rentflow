@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { save } from '@tauri-apps/api/dialog'
 import { invoke } from '@tauri-apps/api/tauri'
-import { parseDate, getEffectiveValues, PERIOD_LEN } from '../utils.js'
+import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys } from '../utils.js'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
@@ -522,8 +522,9 @@ export default function Payments() {
     return true
   }
 
+  // Aktivní i ukončené smlouvy – podle data platnosti (ukončená zůstává v historii)
   const activeContracts = contracts.filter(c =>
-    c.status === 'active' &&
+    isContractBillable(c) &&
     c.paymentFrequency !== 'Zahrnuto v nájemném' &&
     isContractActiveInMonth(c)
   )
@@ -581,8 +582,7 @@ export default function Payments() {
   // Splátka pro vybraný měsíc (respektuje amendments)
   const effPeriodRent = (c, yr, mo) => {
     const yr_ = yr ?? selectedYear; const mo_ = mo ?? selectedMonth
-    const v = getEffectiveValues(c, yr_, mo_)
-    return v.rent + v.parking + v.flatFee
+    return getMonthRent(c, yr_, mo_)
   }
   // Měsíční ekvivalent (pro subExpected, dashboard, grafy)
   const effRent = (c, yr, mo) => effPeriodRent(c, yr, mo) / periodLen(c)
@@ -609,56 +609,7 @@ export default function Payments() {
   })()
   const globalPercent   = globalExpected > 0 ? Math.round((globalReceived / globalExpected) * 100) : 0
 
-  // ── Výpočet periodického okna měsíců ─────────────────────────────────────
-  const getPeriodMonthKeys = (contract, refYear, refMonth) => {
-    const freq = contract.paymentFrequency || 'Měsíčně'
-    if (freq === 'Měsíčně' || freq === 'Zahrnuto v nájemném') {
-      return [`${refYear}-${refMonth}`]
-    }
-
-    // Parsuj datum začátku smlouvy
-    let startMonth = 0, startYear = refYear
-    if (contract.start) {
-      const parts = contract.start.split('.').map(p => p.trim())
-      if (parts.length === 3) { startMonth = parseInt(parts[1]) - 1; startYear = parseInt(parts[2]) }
-    }
-
-    const periodLen = freq === 'Čtvrtletně' ? 3 : freq === 'Pololetně' ? 6 : 12
-
-    if (freq === 'Čtvrtletně' || freq === 'Pololetně') {
-      // Najdi okno od data začátku smlouvy: startMonth, startMonth+periodLen, startMonth+2*periodLen, ...
-      // Najdeme okno, do kterého refMonth/refYear patří
-      const refDate = new Date(refYear, refMonth, 1)
-      let windowStart = new Date(startYear, startMonth, 1)
-      // Posunuj o periodLen dokud refDate je před začátkem okna nebo za koncem
-      let maxIter = 1000
-      while (maxIter-- > 0) {
-        const windowEnd = new Date(windowStart.getFullYear(), windowStart.getMonth() + periodLen - 1, 1)
-        if (refDate >= windowStart && refDate <= windowEnd) break
-        if (refDate < windowStart) { windowStart = new Date(windowStart.getFullYear(), windowStart.getMonth() - periodLen, 1); break }
-        windowStart = new Date(windowStart.getFullYear(), windowStart.getMonth() + periodLen, 1)
-      }
-      return Array.from({ length: periodLen }, (_, i) => {
-        const d = new Date(windowStart.getFullYear(), windowStart.getMonth() + i, 1)
-        return `${d.getFullYear()}-${d.getMonth()}`
-      })
-    }
-
-    if (freq === 'Ročně') {
-      // Pokud je zaškrtnuto "Platby dle kalendářního roku" → okno Jan–Dec refYear
-      if (contract.calendarYearBilling) {
-        return Array.from({ length: 12 }, (_, i) => `${refYear}-${i}`)
-      }
-      const refDate = new Date(refYear, refMonth, 1)
-      let windowStart = new Date(startYear, startMonth, 1)
-      while (new Date(windowStart.getFullYear() + 1, windowStart.getMonth(), 1) <= refDate) {
-        windowStart = new Date(windowStart.getFullYear() + 1, windowStart.getMonth(), 1)
-      }
-      return Array.from({ length: 12 }, (_, i) => { const d = new Date(windowStart.getFullYear(), windowStart.getMonth() + i, 1); return `${d.getFullYear()}-${d.getMonth()}` })
-    }
-
-    return [`${refYear}-${refMonth}`]
-  }
+  // ── Výpočet periodického okna měsíců → utils.js getPeriodMonthKeys ──────
   const isPeriodPaid = (contract, year, month) =>
     getPeriodMonthKeys(contract, year, month).some(k => !!getPayment(contract.id, k))
   const deletePeriodPayments = (contract, year, month) => {
@@ -687,8 +638,7 @@ export default function Payments() {
     // Odsouhlasená platba = vždy paid bez ohledu na výši
     if (payment?.agreed) return { status: 'paid', payment, remaining: 0 }
     const [yr, mo] = key.split('-').map(Number)
-    const ev = getEffectiveValues(c, yr, mo)
-    const expected = ev.rent + ev.parking + ev.flatFee
+    const expected = getMonthRent(c, yr, mo)
     if (!payment) return { status: 'unpaid', payment: null, remaining: expected }
     if (Number(payment.amount) < expected - 0.01) return { status: 'partial', payment, remaining: expected - Number(payment.amount) }
     return { status: 'paid', payment, remaining: 0 }
@@ -705,7 +655,7 @@ export default function Payments() {
         if (!gp) continue
         if (gp.agreed) { count++; continue }
         const members = activeContracts.filter(x => x.groupLabel === c.groupLabel)
-        const groupTotal = members.reduce((s, mc) => { const ev = getEffectiveValues(mc, selectedYear, selectedMonth); return s + ev.rent + ev.parking + ev.flatFee }, 0)
+        const groupTotal = members.reduce((s, mc) => s + getMonthRent(mc, selectedYear, selectedMonth), 0)
         if (Number(gp.amount) >= groupTotal - 0.01) count++
       } else {
         if (getRentStatus(c, monthKey).status === 'paid') count++
@@ -729,7 +679,7 @@ export default function Payments() {
         if (!gp) { unpaid++; return }
         if (gp.agreed) return // paid
         const members = sub.filter(x => x.groupLabel === c.groupLabel)
-        const groupTotal = members.reduce((s, mc) => { const ev = getEffectiveValues(mc, selectedYear, selectedMonth); return s + ev.rent + ev.parking + ev.flatFee }, 0)
+        const groupTotal = members.reduce((s, mc) => s + getMonthRent(mc, selectedYear, selectedMonth), 0)
         if (Number(gp.amount) < groupTotal - 0.01) unpaid++ // partial
       } else {
         if (getRentStatus(c, monthKey).status !== 'paid') unpaid++
@@ -820,7 +770,7 @@ export default function Payments() {
       if (isBytovySub(activeSub)) {
         const tenant = tenants.find(t => t.id === contract.tenantId)
         const ev = getEffectiveValues(contract, selectedYear, selectedMonth)
-        const rentTotal = ev.rent + ev.parking
+        const rentTotal = getMonthRentParking(contract, selectedYear, selectedMonth)
         const depositAmt = ev.deposit
         const existingRent = getPayment(contract.id, monthKey, 'rent')
         const existingDep  = getDepositPayment(contract.id, monthKey)
@@ -910,7 +860,7 @@ export default function Payments() {
     // Smlouvy aktivní v daném měsíci pro vybraný subjekt
     const con = applyOrder(
       contracts.filter(c =>
-        c.status === 'active' &&
+        isContractBillable(c) &&
         c.paymentFrequency !== 'Zahrnuto v nájemném' &&
         getContractSubject(c) === activeSub &&
         (() => {
@@ -956,10 +906,7 @@ export default function Payments() {
         if (gp?.agreed) continue
         // Spočítej celkový expected skupiny
         const members = activeContracts.filter(x => x.groupLabel === c.groupLabel)
-        const groupTotal = members.reduce((s, mc) => {
-          const ev = getEffectiveValues(mc, selectedYear, selectedMonth)
-          return s + ev.rent + ev.parking + ev.flatFee
-        }, 0)
+        const groupTotal = members.reduce((s, mc) => s + getMonthRent(mc, selectedYear, selectedMonth), 0)
         if (!gp) {
           result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c), rs: { status: 'unpaid', payment: null, remaining: groupTotal }, isGroup: true, groupLabel: c.groupLabel, groupTotal })
         } else if (Number(gp.amount) < groupTotal - 0.01) {
@@ -1009,10 +956,7 @@ export default function Payments() {
   const getGroupStatus = (label, members, y, m) => {
     const key = `${y}-${m}`
     const groupPayment = payments.find(p => p.groupLabel === label && p.month === key)
-    const groupTotal = members.reduce((s, c) => {
-      const ev = getEffectiveValues(c, y, m)
-      return s + ev.rent + ev.parking + ev.flatFee
-    }, 0)
+    const groupTotal = members.reduce((s, c) => s + getMonthRent(c, y, m), 0)
     if (!groupPayment) return { status: 'unpaid', payment: null, remaining: groupTotal, expected: groupTotal }
     // Odsouhlasená platba = vždy paid
     if (groupPayment.agreed) return { status: 'paid', payment: groupPayment, remaining: 0, expected: groupTotal }
@@ -1124,8 +1068,7 @@ export default function Payments() {
               if (y < oy || (y === oy && m < om)) return
               const st = getRentStatus(c, k)
               if (st.status !== 'paid') {
-                const ev = getEffectiveValues(c, y, m)
-                const expected = ev.rent + ev.parking + ev.flatFee
+                const expected = getMonthRent(c, y, m)
                 const paid = st.payment ? Number(st.payment.amount) : 0
                 pastDebts.push({
                   monthLabel: formatMonthKey(k),
@@ -1190,8 +1133,7 @@ export default function Payments() {
           // Skupiny: expected je v currentStatus.expected
           expected = Math.round(currentStatus.expected || 0)
         } else {
-          const ev = getEffectiveValues(row.contract, selectedYear, selectedMonth)
-          expected = Math.round(ev.rent + ev.parking + ev.flatFee)
+          expected = Math.round(getMonthRent(row.contract, selectedYear, selectedMonth))
         }
         paid = currentStatus.payment ? Math.round(Number(currentStatus.payment.amount)) : 0
         remaining = Math.round(expected - paid)
@@ -1566,7 +1508,7 @@ export default function Payments() {
                     return groups.map((g, gi) => {
                       if (g.type === 'group') {
                         const { label, members } = g
-                        const groupTotal = members.reduce((s, c) => { const ev = getEffectiveValues(c, selectedYear, selectedMonth); return s + ev.rent + ev.parking + ev.flatFee }, 0)
+                        const groupTotal = members.reduce((s, c) => s + getMonthRent(c, selectedYear, selectedMonth), 0)
                         const tenant = getTenantForContract(members[0])
                         // Skupina je uhrazena pokud existuje platba se stejným group_label v daném měsíci
                         const groupPayment = payments.find(p => p.groupLabel === label && p.month === monthKey)
@@ -1709,7 +1651,7 @@ export default function Payments() {
                       const rowSomePaid   = !rowAllPaid && (isPaid || isPartial || depPaidRow)
                       const rowBg  = rowAllPaid ? 'rgba(187,247,208,0.55)' : rowSomePaid ? 'rgba(254,215,170,0.55)' : 'rgba(239,68,68,0.18)'
                       const rowBgH = rowAllPaid ? 'rgba(187,247,208,0.85)'   : rowSomePaid ? 'rgba(254,215,170,0.85)'   : 'rgba(239,68,68,0.30)'
-                      const rentTotal = ev.rent + ev.parking + ev.flatFee
+                      const rentTotal = getMonthRent(c, selectedYear, selectedMonth)
                       const effectiveSub = c.billingSubject || asset?.subject || ''
                       const showDph = asset?.type !== 'residential' && (
                         (c.vatExempt === 2) ? true : (c.vatExempt === 1) ? false : (billingGroups.find(g => effectiveSub.startsWith(g.val))?.isVatPayer ?? true)
@@ -2023,7 +1965,7 @@ export default function Payments() {
         const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️' }
         const isResidential = asset?.type === 'residential'
         const ev            = getEffectiveValues(c, selectedYear, selectedMonth)
-        const rentTotal     = ev.rent + ev.parking
+        const rentTotal     = getMonthRentParking(c, selectedYear, selectedMonth)
         const depositAmt    = ev.deposit
         const rentPayment    = getPayment(c.id, monthKey, 'rent') || (!isResidential && getPayment(c.id, monthKey))
         const depositPayment = isResidential ? getDepositPayment(c.id, monthKey) : null

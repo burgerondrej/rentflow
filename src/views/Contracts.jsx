@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { getEffectiveValuesToday } from '../utils.js'
+import { getEffectiveValuesToday, isEndingArchived } from '../utils.js'
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 
 export default function Contracts({ activeSubject, onOpen }) {
@@ -72,6 +72,8 @@ export default function Contracts({ activeSubject, onOpen }) {
   const renderCard = (c, isArchived = false) => {
     const isEndingSoon = c.daysLeft !== null && c.daysLeft <= 60 && c.daysLeft >= 0
     const isExpired = c.daysLeft !== null && c.daysLeft < 0
+    // Ukončená smlouva, jejíž poslední den nájmu teprve přijde
+    const isEndingLater = isArchived && isEndingArchived(c)
 
     let cardBg = 'var(--bg2)' 
     let headerBg = 'rgba(0,0,0,0.03)'
@@ -126,8 +128,8 @@ export default function Contracts({ activeSubject, onOpen }) {
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
-            <div className={`badge ${isArchived ? 'badge-gray' : isEndingSoon ? 'badge-amber' : isExpired ? 'badge-red' : 'badge-green'}`} style={{ marginBottom: 0, fontSize: 10.5 }}>
-              {isArchived ? 'Ukončeno' : isEndingSoon ? `Končí za ${c.daysLeft} dní` : isExpired ? 'Propadlá' : 'Aktivní'}
+            <div className={`badge ${isEndingLater ? 'badge-amber' : isArchived ? 'badge-gray' : isEndingSoon ? 'badge-amber' : isExpired ? 'badge-red' : 'badge-green'}`} style={{ marginBottom: 0, fontSize: 10.5 }}>
+              {isEndingLater ? `Končí ${c.end}` : isArchived ? 'Ukončeno' : isEndingSoon ? `Končí za ${c.daysLeft} dní` : isExpired ? 'Propadlá' : 'Aktivní'}
             </div>
           </div>
         </div>

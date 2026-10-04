@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
@@ -39,6 +39,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [formData, setFormData] = useState({})
   const [customTagInput, setCustomTagInput] = useState('')
   const [confirmDialog, setConfirmDialog] = useState(null)
+  const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
   const [closing, setClosing] = useState(false)
 
   const [docForm, setDocForm] = useState(false)
@@ -277,19 +278,23 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const renderPaymentsSection = (contract) => {
     const contractPayments = payments.filter(p => p.contractId === contract.id)
     
-    const handleAddPaymentClick = () => {
+    const handleAddPaymentClick = async () => {
       if (!payAmount || !payDate) return
       
       const d = new Date(payDate)
-      // Tento klíč je zásadní pro to, aby platbu zachytil tvůj Dashboard!
-      const monthKey = `${d.getFullYear()}-${d.getMonth()}`
-      
-      addPayment({
-        contractId: contract.id,
-        amount: Number(payAmount),
-        date: d.toLocaleDateString('cs-CZ'),
-        month: monthKey
-      })
+      // Měsíčně → měsíc data úhrady; čtvrtletně/pololetně/ročně → částka rozdělená do měsíců
+      // platebního okna (stejně jako v Platbách), jinak by se celá splátka propsala do jednoho měsíce
+      const keys = getPeriodMonthKeys(contract, d.getFullYear(), d.getMonth())
+      const perMonth = Number(payAmount) / keys.length
+      for (const k of keys) {
+        await addPayment({
+          contractId: contract.id,
+          amount: perMonth,
+          date: d.toLocaleDateString('cs-CZ'),
+          month: k,
+          paymentType: 'rent',
+        })
+      }
       
       setPayForm(false)
       setPayAmount('')
@@ -301,7 +306,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>💳 Historie plateb</span>
           <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: 11, padding: '3px 10px' }} onClick={() => {
             setPayForm(!payForm)
-            if (!payForm) setPayAmount(contract.rent || 0)
+            if (!payForm) { const t = new Date(); setPayAmount(getMonthRent(contract, t.getFullYear(), t.getMonth())) }
           }}>
             {payForm ? 'Zrušit' : '+ Přidat platbu'}
           </button>
@@ -840,7 +845,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const renderAsset = () => {
     const a = assets.find(x => x.id === id)
     if (!a) return <div style={{ padding: '24px 32px' }}>Předmět nenalezen.</div>
-    const activeContract = contracts.find(c => c.assetId === id && c.status === 'active')
+    const activeContract = getCurrentAssetContract(contracts, id)
     const currentTenant = activeContract ? tenants.find(t => t.id === activeContract.tenantId) : null
 
     const handleEditClick = () => {
@@ -1028,7 +1033,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: 4 }}>{a.subject}</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{a.unit}</div>
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            <span className={`badge ${a.status === 'free' ? 'badge-green' : 'badge-gray'}`}>{a.status === 'free' ? 'Volné k pronájmu' : 'Pronajato'}</span>
+            <span className={`badge ${!activeContract && a.status === 'free' ? 'badge-green' : 'badge-gray'}`}>{!activeContract && a.status === 'free' ? 'Volné k pronájmu' : 'Pronajato'}</span>
           </div>
         </div>
 
@@ -2334,7 +2339,33 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           <button
             className="btn btn-sm"
             style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
-            onClick={() => { archiveContract(id); onClose() }}
+            onClick={() => {
+              // Výchozí poslední den nájmu: dnes, nebo dřívější sjednaný konec smlouvy
+              const todayIso = new Date().toLocaleDateString('sv-SE')
+              const endIso = czToIso(c.end)
+              terminateDateRef.current = endIso && endIso < todayIso ? endIso : todayIso
+              setConfirmDialog({
+                title: 'Ukončit smlouvu',
+                text: (
+                  <div>
+                    <div style={{ marginBottom: 12 }}>Smlouva zůstane v Platbách a historii až do posledního dne nájmu včetně. Předmět nájmu se od následujícího dne uvolní.</div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Poslední den nájmu</label>
+                    <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', boxSizing: 'border-box' }}
+                      defaultValue={terminateDateRef.current}
+                      onChange={e => { terminateDateRef.current = e.target.value }} />
+                  </div>
+                ),
+                okLabel: 'Ukončit smlouvu',
+                onOk: () => {
+                  const iso = terminateDateRef.current
+                  if (!iso) { showToast('Zadejte poslední den nájmu.', 'warning'); return }
+                  const startIso = czToIso(c.start)
+                  if (startIso && iso < startIso) { showToast('Poslední den nájmu je před začátkem smlouvy.', 'warning'); return }
+                  archiveContract(id, isoToCz(iso))
+                  onClose()
+                },
+              })
+            }}
           >
             📦 Ukončit smlouvu
           </button>

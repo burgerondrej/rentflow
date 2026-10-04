@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import AssetForm from '../AssetForm.jsx'
+import { getCurrentAssetContract, isContractOccupying } from '../utils.js'
 
 
 // Sekce pro bytové jednotky
@@ -79,7 +80,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
   const archivedAssets = allFiltered.filter(a => a.status === 'archived').sort(naturalSort)
 
   const renderCard = (asset, isDragging = false) => {
-    const activeContract = contracts.find(c => c.assetId === asset.id && c.status === 'active')
+    const activeContract = getCurrentAssetContract(contracts, asset.id)
     const currentTenant = activeContract ? tenants.find(t => t.id === activeContract.tenantId) : null
     const isFree = !activeContract && asset.status !== 'occupied'
 
@@ -199,7 +200,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
 
       const isCollapsed = collapsedSections[sectionName]
       const shortName = sectionName.includes(' – ') ? sectionName.split(' – ').slice(1).join(' – ') : sectionName
-      const activeCount = items.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && c.status === 'active')).length
+      const activeCount = items.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && isContractOccupying(c))).length
 
       let sectionIcon = '🏠'
 
@@ -250,7 +251,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
       if (items.length === 0) return null
 
       const isCollapsed = collapsedSections[sectionName]
-      const activeCount = items.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && c.status === 'active')).length
+      const activeCount = items.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && isContractOccupying(c))).length
 
       return (
         <div key={sectionName} style={{ marginBottom: 40 }}>

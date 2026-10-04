@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { parseDate, getEffectiveValues, PERIOD_LEN } from '../utils.js'
+import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable } from '../utils.js'
 
 export default function Dashboard({ onNav, onOpen }) {
   const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [] } = useApp() || {}
@@ -80,10 +80,8 @@ export default function Dashboard({ onNav, onOpen }) {
 
   // colorVar a list jsou uloženy v expandedGroup objektu
 
-  const effRentForMonth = (c, year, month) => {
-    const v = getEffectiveValues(c, year, month)
-    return (v.rent + v.parking + v.flatFee) / (PERIOD_LEN[c.paymentFrequency] || 1)
-  }
+  const effRentForMonth = (c, year, month) =>
+    getMonthRent(c, year, month) / (PERIOD_LEN[c.paymentFrequency] || 1)
 
   const fiveMonths = [-2, -1, 0, 1, 2].map(offset => {
     const d = new Date(today.getFullYear(), today.getMonth() + offset, 1)
@@ -192,7 +190,9 @@ export default function Dashboard({ onNav, onOpen }) {
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Přehled nájemného po subjektech</div>
 
         {subjects.map(subject => {
-          const subContracts = activeContracts.filter(c => {
+          // Aktivní i ukončené smlouvy – měsíce se filtrují podle data platnosti níže
+          const subContracts = contracts.filter(c => {
+            if (!isContractBillable(c)) return false
             if (c.paymentFrequency === 'Zahrnuto v nájemném') return false
             const asset = assets.find(a => a.id === c.assetId)
             const effectiveSubject = c.billingSubject || asset?.subject || ''
