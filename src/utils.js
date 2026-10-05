@@ -6,6 +6,13 @@
 export const PERIOD_LEN = { 'Čtvrtletně': 3, 'Pololetně': 6, 'Ročně': 12 }
 
 /**
+ * Date → CZ datum "D. M. RRRR".
+ */
+export function toCzDate(d) {
+  return `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`
+}
+
+/**
  * Parsuje CZ datum "D. M. RRRR" → Date nebo null.
  */
 export function parseDate(dateStr) {
@@ -21,7 +28,7 @@ export function parseDate(dateStr) {
 
 /**
  * Vrátí platné finanční hodnoty smlouvy k referenčnímu timestampu.
- * Amendments musí být seřazeny ASC dle effectiveFrom (zajišťuje AppContext/DB).
+ * Amendments se řadí chronologicky zde – DB je vrací řazené jako text ("15. 10." < "5. 9.").
  * @private
  */
 function _getEffVals(c, refTs) {
@@ -34,11 +41,13 @@ function _getEffVals(c, refTs) {
   }
   if (!c.amendments || c.amendments.length === 0) return base
   const vals = { ...base }
-  for (const a of c.amendments) {
-    const parts = (a.effectiveFrom || '').split('.').map(p => p.trim())
-    if (parts.length !== 3) continue
-    const aTs = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime()
-    if (aTs > refTs) break // amendments jsou ASC – zbytek je v budoucnosti
+  const dated = c.amendments
+    .map(a => ({ a, d: parseDate(a.effectiveFrom) }))
+    .filter(x => x.d)
+    .sort((x, y) => x.d - y.d)
+  for (const { a, d } of dated) {
+    const aTs = d.getTime()
+    if (aTs > refTs) break // seřazeno ASC – zbytek je v budoucnosti
     if (a.rent         != null) vals.rent         = Number(a.rent)
     if (a.deposit      != null) vals.deposit      = Number(a.deposit)
     if (a.depositWater != null) vals.depositWater = Number(a.depositWater)

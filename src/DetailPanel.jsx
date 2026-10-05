@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
 import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
+import RenewContractsDialog from './RenewContractsDialog.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
@@ -40,6 +41,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [customTagInput, setCustomTagInput] = useState('')
   const [confirmDialog, setConfirmDialog] = useState(null)
   const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
+  const [renewFor, setRenewFor] = useState(null) // smlouva, ze které se zakládají navazující smlouvy
   const [closing, setClosing] = useState(false)
 
   const [docForm, setDocForm] = useState(false)
@@ -2385,6 +2387,15 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {renderDocsSection(a?.subject)}
 
         {!isReadOnly && <div style={{ display: 'flex', gap: 8, marginTop: 24, padding: '16px 0 4px', borderTop: '1px solid var(--border)' }}>
+          {c.status === 'active' && (
+            <button
+              className="btn btn-sm"
+              style={{ flex: 1, background: '#ECFDF5', color: '#166534', border: '1px solid #BBF7D0' }}
+              onClick={() => setRenewFor(c)}
+            >
+              🔁 Navazující smlouva
+            </button>
+          )}
           <button
             className="btn btn-sm"
             style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
@@ -2540,6 +2551,9 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
       {confirmDialog && (
         <ConfirmDialog {...confirmDialog} onClose={() => setConfirmDialog(null)} />
+      )}
+      {renewFor && (
+        <RenewContractsDialog contract={renewFor} onClose={() => setRenewFor(null)} onDone={() => { setRenewFor(null); onClose() }} />
       )}
     </>
   )

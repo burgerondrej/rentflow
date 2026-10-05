@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { parseDate } from './utils.js'
+import { parseDate, toCzDate, getEffectiveValuesToday } from './utils.js'
 
 const AppContext = createContext()
 
@@ -344,6 +344,59 @@ export function AppProvider({ children }) {
     logAction('Archivace', 'Smlouvy', `Archivována smlouva: ${id}${endDate ? ` (poslední den nájmu ${endDate})` : ''}`)
   }
 
+  // Navazující smlouvy: items = [{ contract, rent }], newStart/newEnd = Date (newEnd null = neurčito).
+  // Pořadí: záloha → ukončení staré (konec = den před novým začátkem, pokud stará končí později
+  // nebo nemá konec) → založení nové se stejným nastavením a skupinou → znovunačtení z DB.
+  // Zálohy/paušál/parking se převezmou v aktuálně platné výši (dodatky se nekopírují).
+  const renewContracts = async (items, newStart, newEnd) => {
+    if (guardWrite()) return false
+    try {
+      await invoke('create_backup')
+      const dayBefore = new Date(newStart.getFullYear(), newStart.getMonth(), newStart.getDate() - 1)
+      const oldEndCz = toCzDate(dayBefore)
+      const newStartCz = toCzDate(newStart)
+      const newEndCz = newEnd ? toCzDate(newEnd) : ''
+      for (const { contract: old, rent } of items) {
+        const oldEnd = parseDate(old.end)
+        const endCz = (!oldEnd || oldEnd > dayBefore) ? oldEndCz : old.end
+        await invoke('update_contract', { id: old.id, contract: { ...old, status: 'archived', end: endCz }, user: currentUser })
+        const ev = getEffectiveValuesToday(old)
+        const isIncluded = old.paymentFrequency === 'Zahrnuto v nájemném'
+        await invoke('add_contract', {
+          contract: {
+            ...old,
+            id: '',
+            status: 'active',
+            start: newStartCz,
+            end: newEndCz,
+            rent: isIncluded ? 0 : (Number(rent) || 0),
+            deposit: ev.deposit,
+            depositWater: ev.depositWater,
+            flatFee: ev.flatFee,
+            parking: ev.parking,
+            rentTotal: 0, // informativní součet za dobu smlouvy – u nové smlouvy neplatí
+            amendments: [],
+            addenda: [],
+            energySettlements: [],
+          },
+          user: currentUser,
+        })
+      }
+      const [freshContracts, freshAssets, freshLogs] = await Promise.all([invoke('get_contracts'), invoke('get_assets'), invoke('get_logs')])
+      if (freshContracts) setContracts(freshContracts)
+      if (freshAssets) setAssets(freshAssets)
+      if (freshLogs) setLogs(freshLogs)
+      logAction('Přidání', 'Smlouvy', `Navazující smlouvy (${items.length}) od ${newStartCz}${newEndCz ? ` do ${newEndCz}` : ''}`)
+      return true
+    } catch (err) {
+      console.error('renewContracts error:', err)
+      showToast('Navazující smlouvy se nepodařilo vytvořit. Zkontroluj Smlouvy, případně obnov zálohu.')
+      // Načti skutečný stav z DB (část operací mohla proběhnout)
+      try { const fresh = await invoke('get_contracts'); if (fresh) setContracts(fresh) } catch { /* ignore */ }
+      return false
+    }
+  }
+
   // ─────────────────────────────────────────
   // PLATBY
   // ─────────────────────────────────────────
@@ -681,7 +734,7 @@ export function AppProvider({ children }) {
     // CRUD – Předměty
     addAsset, updateAsset, deleteAsset, archiveAsset,
     // CRUD – Smlouvy
-    addContract, updateContract, deleteContract, archiveContract,
+    addContract, updateContract, deleteContract, archiveContract, renewContracts,
     // CRUD – Platby
     addPayment, updatePayment, updatePaymentAmount, deletePayment,
     // CRUD – Kanban
