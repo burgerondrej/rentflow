@@ -277,7 +277,24 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   // --- NOVÉ: VYKRESLENÍ HISTORIE PLATEB (Jen pro Smlouvy) ---
   const renderPaymentsSection = (contract) => {
     const contractPayments = payments.filter(p => p.contractId === contract.id)
-    
+
+    // Čtvrtletní/pololetní/roční smlouvy: měsíční řádky jedné úhrady (stejné platební okno,
+    // datum a typ) se zobrazí jako jedna položka. Data v DB zůstávají po měsících.
+    const freqPaymentLabel = { 'Čtvrtletně': 'Čtvrtletní platba', 'Pololetně': 'Pololetní platba', 'Ročně': 'Roční platba' }[contract.paymentFrequency]
+    const MONTHS_CZ = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
+    const fmtMonthKey = (k) => { const [y, m] = (k || '').split('-').map(Number); return MONTHS_CZ[m] ? `${MONTHS_CZ[m]} ${y}` : k }
+    const monthIdx = (k) => { const [y, m] = (k || '').split('-').map(Number); return (y || 0) * 12 + (m || 0) }
+    const paymentItems = []
+    const groupsByKey = {}
+    for (const p of contractPayments.slice().reverse()) {
+      const [py, pm] = (p.month || '').split('-').map(Number)
+      if (!freqPaymentLabel || isNaN(py) || isNaN(pm)) { paymentItems.push({ key: p.id, group: false, rows: [p] }); continue }
+      const gk = `${getPeriodMonthKeys(contract, py, pm)[0]}|${p.date}|${p.paymentType}`
+      if (!groupsByKey[gk]) { groupsByKey[gk] = { key: gk, group: true, rows: [] }; paymentItems.push(groupsByKey[gk]) }
+      groupsByKey[gk].rows.push(p)
+    }
+    paymentItems.forEach(it => { if (it.group) it.rows.sort((a, b) => monthIdx(a.month) - monthIdx(b.month)) })
+
     const handleAddPaymentClick = async () => {
       if (!payAmount || !payDate) return
       
@@ -329,15 +346,47 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           )}
           {contractPayments.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {contractPayments.slice().reverse().map(p => (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#16A34A' }}>+ {Number(p.amount).toLocaleString('cs-CZ')} Kč</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>Přijato: {p.date}</div>
+              {paymentItems.map(item => {
+                // Měsíční smlouva → původní řádek
+                if (!item.group) {
+                  const p = item.rows[0]
+                  return (
+                    <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#16A34A' }}>+ {Number(p.amount).toLocaleString('cs-CZ')} Kč</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>Přijato: {p.date}</div>
+                      </div>
+                      <button className="btn btn-sm btn-ghost" style={{ color: '#DC2626', padding: '4px 8px' }} onClick={() => deletePayment(p.id)}>✕</button>
+                    </div>
+                  )
+                }
+                // Víceměsíční smlouva → jedna položka za úhradu celého období
+                const rows = item.rows
+                const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+                const sameAmount = rows.every(r => Math.abs(Number(r.amount) - Number(rows[0].amount)) < 0.01)
+                const range = rows.length > 1
+                  ? `${fmtMonthKey(rows[0].month)} – ${fmtMonthKey(rows[rows.length - 1].month)}`
+                  : fmtMonthKey(rows[0].month)
+                const fmtKc = (v) => v.toLocaleString('cs-CZ', { maximumFractionDigits: 2 })
+                return (
+                  <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#16A34A' }}>+ {fmtKc(total)} Kč</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', marginTop: 1 }}>{freqPaymentLabel} · {range}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                        Přijato: {rows[0].date} · {sameAmount ? `${rows.length} × ${fmtKc(Number(rows[0].amount))} Kč` : `${rows.length} měs.`}
+                      </div>
+                    </div>
+                    <button className="btn btn-sm btn-ghost" style={{ color: '#DC2626', padding: '4px 8px' }} onClick={() => setConfirmDialog({
+                      title: `Smazat ${freqPaymentLabel.toLowerCase()}?`,
+                      text: `Smaže se úhrada za ${range} (${rows.length} měs., celkem ${fmtKc(total)} Kč).`,
+                      danger: true,
+                      okLabel: 'Smazat',
+                      onOk: async () => { for (const r of rows) await deletePayment(r.id) },
+                    })}>✕</button>
                   </div>
-                  <button className="btn btn-sm btn-ghost" style={{ color: '#DC2626', padding: '4px 8px' }} onClick={() => deletePayment(p.id)}>✕</button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Zatím neevidujeme žádné platby k této smlouvě.</div>
