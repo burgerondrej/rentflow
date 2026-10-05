@@ -75,19 +75,24 @@ Subjekty (11) jsou VÝHRADNĚ v tabulce `subjects` (asset_type: commercial / res
 - Parking/voda/paušál vždy z EFEKTIVNÍ hodnoty, nikdy z c.parking / includedParkingSpots.
 - Formulář dodatku: pole gatovat podle TYPU smlouvy (isRes/isComm), NIKDY podle základní hodnoty > 0.
 - Export PDF: vždy getEffectiveValuesToday(c).
+- Obsazenost předmětu nájmu přes getCurrentAssetContract / isContractOccupying (utils.js), NIKDY jen podle asset.status nebo c.status === 'active'.
 - `reqwest::blocking` uvnitř async Tauri commandu = deadlock.
 - Payments.jsx: pořadí const arrow funkcí je kritické (temporal dead zone).
 
 ## 5. Platby a dodatky – logika
 
-- effPeriodRent(c, yr, mo) = getEffectiveValues(c, yr, mo).rent + parking + flatFee
+- Předpis za měsíc vždy přes getMonthRent(c, yr, mo) (= nájem + parking + paušál) / getMonthRentParking (bytové, bez paušálu). NIKDY ručně ev.rent + ev.parking + ev.flatFee.
+- Měsíční smlouvy: nájem + parking POMĚRNĚ podle dní (začátek/konec smlouvy uprostřed měsíce, dodatek uprostřed měsíce = dny před ním stará sazba, od něj nová), zaokrouhleno na celé Kč. Paušál a zálohy se NEkrátí (hodnota k 1. dni měsíce). Čtvrtletní/pololetní/roční bez krácení.
+- effPeriodRent(c, yr, mo) = getMonthRent(c, yr, mo)
 - effRent(c, yr, mo) = effPeriodRent / periodLen(c) – měsíční ekvivalent
 - globalReceived / subReceived / last6Months = vždy Number(p.amount) (skutečně zaplaceno).
 - deletePeriodPayments maže POUZE aktuální platební okno, nikdy historii.
 - calendar_year_billing: Ročně + true → platební okno = leden–prosinec refYear.
 - agreed=1 → platba vždy "paid" bez ohledu na výši.
 - add_payment(): duplicate guard před každým INSERT.
-- getEffectiveValues aplikuje jen dodatky s effectiveFrom <= 1. den dotazovaného měsíce.
+- getEffectiveValues aplikuje jen dodatky s effectiveFrom <= 1. den dotazovaného měsíce (používat pro zálohy/paušál; nájem + parking přes getMonthRent).
+- Výběr smluv pro Platby a Dashboard: isContractBillable(c) + datum platnosti v měsíci, NIKDY jen status === 'active'. Ukončená smlouva = status 'archived' + datum konce (poslední den nájmu) → zůstává v historii plateb do tohoto data. Archived bez data konce se nezobrazuje.
+- Platební okno víceměsíčních smluv: getPeriodMonthKeys (utils.js) – jediná implementace pro Payments i DetailPanel. Víceměsíční platba se vždy ukládá rozdělená do měsíců okna (částka / počet měsíců).
 - Uložené platby se nikdy zpětně nemění. Základní pole smlouvy platí pro celou historii, dodatky jen od data účinnosti.
 
 ## 6. Design
@@ -125,11 +130,11 @@ Pravidla:
 
 ## 10. Otevřené / roadmap
 
-- Bug batch (říjen 2026): (1) roční platba se v detailu nájemníka ukazuje 12× plnou částkou; (2) dodatek od jiného než 1. dne v měsíci se projeví až další měsíc; (3) Bürger reklamní plochy – nesmyslný měsíční poměr a % plnění; (4) poměrné krácení nájmu při začátku/konci uprostřed měsíce; (5) po předčasném ukončení smlouvy zůstává předmět nájmu blokovaný pro novou smlouvu.
+- Bug batch (říjen 2026) – VYŘEŠENO ve v1.2.2: ukončení smlouvy k datu (platby nemizí), poměrné krácení nájmu, fix ročních plateb v detailu smlouvy, víceměsíční platby v detailu jako jedna položka. Bug 3 (385 %) = stará data z doby před v1.0.0 (AutoWallis, STRADE) – opraveno ručně v appce.
 - localStorage pro currentUser; správa subjektů v Settings UI.
 - Odložené: sdružování parkovacích stání (group_label) – částečně implementováno.
 
 ## 11. Údržba tohoto souboru
 
 Na konci každé větší session navrhni úpravu CLAUDE.md (nová pravidla, poučení, verze). Zapisuj jen po odsouhlasení.
-Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 10/2026: v1.2.1).
+Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 5. 10. 2026: v1.2.2).
