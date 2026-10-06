@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { getEffectiveValuesToday, isEndingArchived, applyContractOrder } from '../utils.js'
+import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDate } from '../utils.js'
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 
 export default function Contracts({ activeSubject, onOpen }) {
   const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [] } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [tab, setTab] = useState('valid') // 'valid' = platné (vč. ukončených s budoucím koncem) | 'ended' = ukončené
   const [cardOrder, setCardOrder] = useState(() => {
     try { const s = localStorage.getItem('rf_contract_order'); return s ? JSON.parse(s) : null } catch { return null }
   })
@@ -62,6 +63,12 @@ export default function Contracts({ activeSubject, onOpen }) {
       (c.assetUnit && c.assetUnit.toLowerCase().includes(term))
     )
   }
+
+  // Platná = aktivní, nebo ukončená, jejíž poslední den nájmu teprve přijde
+  const isValid = (c) => c.status === 'active' || isEndingArchived(c)
+  const validCount = filtered.filter(c => isValid(c) && (activeSubject === 'all' || c.assetSubject === activeSubject)).length
+  const endedCount = filtered.filter(c => !isValid(c) && (activeSubject === 'all' || c.assetSubject === activeSubject)).length
+  const endTs = (c) => parseDate(c.end)?.getTime() || 0
 
   const renderCard = (c, isArchived = false) => {
     const isEndingSoon = c.daysLeft !== null && c.daysLeft <= 60 && c.daysLeft >= 0
@@ -184,6 +191,13 @@ export default function Contracts({ activeSubject, onOpen }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[{ id: 'valid', label: `Platné (${validCount})` }, { id: 'ended', label: `Ukončené (${endedCount})` }].map(t => (
+              <button key={t.id} className={`btn btn-sm ${tab === t.id ? 'btn-primary' : ''}`} style={{ whiteSpace: 'nowrap' }} onClick={() => setTab(t.id)}>
+                {t.label}
+              </button>
+            ))}
+          </div>
           <div style={{ position: 'relative' }}>
             <input 
               type="text" 
@@ -206,10 +220,13 @@ export default function Contracts({ activeSubject, onOpen }) {
         {subjects.map(subject => {
           if (activeSubject !== 'all' && activeSubject !== subject) return null
 
-          const subjectContracts = filtered.filter(c => c.assetSubject === subject)
+          const allInSubject = filtered.filter(c => c.assetSubject === subject)
+          // Záložka Platné: aktivní (řazení tažením) + ukončené s budoucím koncem; Ukončené: od nejnovějšího konce
+          const subjectContracts = allInSubject.filter(c => tab === 'valid' ? isValid(c) : !isValid(c))
           if (subjectContracts.length === 0) return null
-          const activeInSubject = getOrdered(subjectContracts.filter(c => c.status === 'active'))
+          const activeInSubject = tab === 'valid' ? getOrdered(subjectContracts.filter(c => c.status === 'active')) : []
           const archivedInSubject = subjectContracts.filter(c => c.status !== 'active')
+            .sort((a, b) => tab === 'ended' ? endTs(b) - endTs(a) : 0)
 
           let subjectIcon = '🏢'
           if (residentialSubjects.includes(subject)) subjectIcon = '🏠'
@@ -222,7 +239,7 @@ export default function Contracts({ activeSubject, onOpen }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '2.5px solid var(--border)', paddingBottom: 11, marginBottom: 18 }}>
                 <span style={{ fontSize: 17 }}>{subjectIcon}</span>
                 <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '1.2px' }}>{subject}</div>
-                <div className="badge" style={{ background: 'var(--bg2)', color: 'var(--text2)', fontSize: 12, fontWeight: 600 }}>{activeInSubject.length} aktivních</div>
+                <div className="badge" style={{ background: 'var(--bg2)', color: 'var(--text2)', fontSize: 12, fontWeight: 600 }}>{tab === 'valid' ? `${activeInSubject.length} aktivních` : `${subjectContracts.length} ukončených`}</div>
               </div>
 
               {subjectContracts.length === 0 ? (

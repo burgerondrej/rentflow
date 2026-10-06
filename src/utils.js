@@ -130,6 +130,27 @@ export function getMonthRent(c, year, month) {
 }
 
 /**
+ * Zálohy (energie, voda) za měsíc – nekrátí se, hodnota k 1. dni měsíce.
+ * Navazující smlouva začínající uprostřed měsíce na předmětu, který 1. den měsíce držela
+ * jiná smlouva, účtuje zálohy až od dalšího měsíce (jinak by se v měsíci předávky
+ * započítaly dvakrát). Nový nájemce na volném předmětu platí zálohy celé.
+ */
+export function getMonthDeposits(c, year, month, allContracts = []) {
+  const v = getEffectiveValues(c, year, month)
+  const first = new Date(year, month, 1)
+  const startD = parseDate(c.start)
+  if (startD && startD > first && startD.getFullYear() === year && startD.getMonth() === month) {
+    const heldOnFirst = allContracts.some(o => {
+      if (o.id === c.id || o.assetId !== c.assetId || !isContractBillable(o)) return false
+      const os = parseDate(o.start), oe = parseDate(o.end)
+      return (!os || os <= first) && (!oe || oe >= first)
+    })
+    if (heldOnFirst) return { deposit: 0, depositWater: 0 }
+  }
+  return { deposit: v.deposit, depositWater: v.depositWater }
+}
+
+/**
  * Smlouva se účtuje / zobrazuje v historii plateb.
  * Aktivní vždy; ukončená (archived) jen s datem konce – platí do něj.
  */

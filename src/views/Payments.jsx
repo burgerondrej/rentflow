@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { save } from '@tauri-apps/api/dialog'
 import { invoke } from '@tauri-apps/api/tauri'
-import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder } from '../utils.js'
+import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits } from '../utils.js'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
@@ -546,7 +546,7 @@ export default function Payments() {
   const getDepositStatus = (c, key) => {
     const [yr, mo] = key.split('-').map(Number)
     const payment = getDepositPayment(c.id, key)
-    const expected = getEffectiveValues(c, yr, mo).deposit
+    const expected = getMonthDeposits(c, yr, mo, contracts).deposit
     if (!payment) return { status: 'unpaid', payment: null, remaining: expected }
     if (Number(payment.amount) < expected - 0.01) return { status: 'partial', payment, remaining: expected - Number(payment.amount) }
     return { status: 'paid', payment, remaining: 0 }
@@ -762,7 +762,7 @@ export default function Payments() {
     } else {
       if (isBytovySub(activeSub)) {
         const tenant = tenants.find(t => t.id === contract.tenantId)
-        const ev = getEffectiveValues(contract, selectedYear, selectedMonth)
+        const ev = { ...getEffectiveValues(contract, selectedYear, selectedMonth), ...getMonthDeposits(contract, selectedYear, selectedMonth, contracts) }
         const rentTotal = getMonthRentParking(contract, selectedYear, selectedMonth)
         const depositAmt = ev.deposit
         const existingRent = getPayment(contract.id, monthKey, 'rent')
@@ -1561,8 +1561,8 @@ export default function Payments() {
                             <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: isPaid ? '#16A34A' : '#DC2626' }}>
                               {(() => {
                                 const isComm = getAssetForContract(members[0])?.type === 'commercial'
-                                const dep  = members.reduce((s,c) => { const ev = getEffectiveValues(c, selectedYear, selectedMonth); return s + ev.deposit }, 0)
-                                const depW = members.reduce((s,c) => { const ev = getEffectiveValues(c, selectedYear, selectedMonth); return s + ev.depositWater }, 0)
+                                const dep  = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth, contracts).deposit, 0)
+                                const depW = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth, contracts).depositWater, 0)
                                 if (!isComm || (dep === 0 && depW === 0)) return <span style={{ color: 'var(--text3)', fontWeight: 400 }}>—</span>
                                 return (
                                   <>
@@ -1629,7 +1629,7 @@ export default function Payments() {
                       const asset    = getAssetForContract(c)
                       const freq     = c.paymentFrequency || 'Měsíčně'
                       const isMultiMonth = freq === 'Čtvrtletně' || freq === 'Pololetně' || freq === 'Ročně'
-                      const ev       = getEffectiveValues(c, selectedYear, selectedMonth)
+                      const ev       = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth, contracts) }
                       const rs       = isMultiMonth
                         ? { status: isPeriodPaid(c, selectedYear, selectedMonth) ? 'paid' : 'unpaid', payment: getPayment(c.id, monthKey) || null, remaining: effPeriodRent(c) }
                         : getRentStatus(c, monthKey)
@@ -1958,7 +1958,7 @@ export default function Payments() {
         const history = contractHistory(c.id)
         const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️' }
         const isResidential = asset?.type === 'residential'
-        const ev            = getEffectiveValues(c, selectedYear, selectedMonth)
+        const ev            = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth, contracts) }
         const rentTotal     = getMonthRentParking(c, selectedYear, selectedMonth)
         const depositAmt    = ev.deposit
         const rentPayment    = getPayment(c.id, monthKey, 'rent') || (!isResidential && getPayment(c.id, monthKey))
