@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { save } from '@tauri-apps/api/dialog'
 import { invoke } from '@tauri-apps/api/tauri'
-import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys } from '../utils.js'
+import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder } from '../utils.js'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
@@ -562,15 +562,8 @@ export default function Payments() {
   const getSavedOrder = () => {
     try { const s = localStorage.getItem('rf_contract_order'); return s ? JSON.parse(s) : null } catch { return null }
   }
-  const applyOrder = (items) => {
-    const order = getSavedOrder()
-    if (!order) return items
-    const map = {}
-    items.forEach(i => { map[i.id] = i })
-    const result = order.filter(id => map[id]).map(id => map[id])
-    items.forEach(i => { if (!order.includes(i.id)) result.push(i) })
-    return result
-  }
+  const applyOrder = (items) => applyContractOrder(items, getSavedOrder(), contracts)
+
 
   const contractsForSub = (subName) =>
     applyOrder(activeContracts.filter(c => getContractSubject(c) === subName))

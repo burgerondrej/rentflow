@@ -177,6 +177,25 @@ export function getCurrentAssetContract(contracts, assetId) {
 }
 
 /**
+ * Seřadí smlouvy dle uloženého ručního pořadí (rf_contract_order).
+ * Smlouva bez vlastní pozice (např. navazující) převezme pozici předchozí smlouvy
+ * na stejném předmětu nájmu; ostatní bez pozice zůstanou na konci v původním pořadí.
+ */
+export function applyContractOrder(items, order, allContracts = []) {
+  if (!order) return items
+  const pos = new Map(order.map((id, i) => [id, i]))
+  const assetPos = new Map()
+  for (const c of allContracts) {
+    if (pos.has(c.id) && !assetPos.has(c.assetId)) assetPos.set(c.assetId, pos.get(c.id))
+  }
+  const key = (c) => pos.has(c.id) ? pos.get(c.id) : assetPos.has(c.assetId) ? assetPos.get(c.assetId) + 0.5 : Infinity
+  return items
+    .map((c, idx) => ({ c, idx, k: key(c) }))
+    .sort((a, b) => (a.k === b.k ? a.idx - b.idx : a.k - b.k))
+    .map(x => x.c)
+}
+
+/**
  * Ukončená smlouva, jejíž poslední den nájmu teprve přijde.
  */
 export function isEndingArchived(c) {

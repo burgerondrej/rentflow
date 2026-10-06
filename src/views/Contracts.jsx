@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { getEffectiveValuesToday, isEndingArchived } from '../utils.js'
+import { getEffectiveValuesToday, isEndingArchived, applyContractOrder } from '../utils.js'
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 
 export default function Contracts({ activeSubject, onOpen }) {
@@ -13,14 +13,8 @@ export default function Contracts({ activeSubject, onOpen }) {
   const dragId = useRef(null)
   const dragOverId = useRef(null)
 
-  const getOrdered = (items) => {
-    if (!cardOrder) return items
-    const map = {}
-    items.forEach(i => { map[i.id] = i })
-    const result = cardOrder.filter(id => map[id]).map(id => map[id])
-    items.forEach(i => { if (!cardOrder.includes(i.id)) result.push(i) })
-    return result
-  }
+  const getOrdered = (items) => applyContractOrder(items, cardOrder, contracts)
+
 
   const handleDrop = (items) => {
     if (!dragId.current || dragId.current === dragOverId.current) return
