@@ -998,7 +998,7 @@ export default function Payments() {
             const tenant  = getTenantForContract(members[0])
             const asset   = getAssetForContract(members[0])
             const tName   = tenant?.name || '—'
-            const aUnit   = `${c.groupLabel} (${members.length} ${asset?.type === 'commercial' ? 'prostory' : 'stání'})`
+            const aUnit   = `${c.groupLabel} (${new Set(members.map(x => x.assetId)).size} ${asset?.type === 'commercial' ? 'prostory' : 'stání'})`
 
             // Stav aktuálního měsíce
             const currentStatus = getGroupStatus(c.groupLabel, members, selectedYear, selectedMonth)
@@ -1529,7 +1529,8 @@ export default function Payments() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                                 <span style={{ fontSize: 10, background: '#EDE9FE', color: '#6D28D9', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>🔗 {label}</span>
                                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-                                  {members.length} {(() => {
+                                  {/* počet předmětů – v měsíci předávky jsou ve skupině stará i navazující smlouva téhož místa */}
+                                  {new Set(members.map(x => x.assetId)).size} {(() => {
                                     const t = getAssetForContract(members[0])?.type
                                     return t === 'commercial' ? 'prostor' : t === 'ads' ? 'ploch' : 'stání'
                                   })()}
