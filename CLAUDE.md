@@ -76,6 +76,8 @@ Subjekty (11) jsou VÝHRADNĚ v tabulce `subjects` (asset_type: commercial / res
 - Formulář dodatku: pole gatovat podle TYPU smlouvy (isRes/isComm), NIKDY podle základní hodnoty > 0.
 - Export PDF: vždy getEffectiveValuesToday(c).
 - Obsazenost předmětu nájmu přes getCurrentAssetContract / isContractOccupying (utils.js), NIKDY jen podle asset.status nebo c.status === 'active'.
+- Pořadí smluv (Platby, Smlouvy) vždy přes applyContractOrder (utils.js) – navazující smlouva převezme pozici předchozí smlouvy na stejném předmětu.
+- Dodatky řadí chronologicky _getEffVals v utils.js. DB je vrací řazené jako TEXT ("15. 10." < "5. 9.") – na pořadí z DB nikdy nespoléhat.
 - `reqwest::blocking` uvnitř async Tauri commandu = deadlock.
 - Payments.jsx: pořadí const arrow funkcí je kritické (temporal dead zone).
 
@@ -93,6 +95,9 @@ Subjekty (11) jsou VÝHRADNĚ v tabulce `subjects` (asset_type: commercial / res
 - getEffectiveValues aplikuje jen dodatky s effectiveFrom <= 1. den dotazovaného měsíce (používat pro zálohy/paušál; nájem + parking přes getMonthRent).
 - Výběr smluv pro Platby a Dashboard: isContractBillable(c) + datum platnosti v měsíci, NIKDY jen status === 'active'. Ukončená smlouva = status 'archived' + datum konce (poslední den nájmu) → zůstává v historii plateb do tohoto data. Archived bez data konce se nezobrazuje.
 - Platební okno víceměsíčních smluv: getPeriodMonthKeys (utils.js) – jediná implementace pro Payments i DetailPanel. Víceměsíční platba se vždy ukládá rozdělená do měsíců okna (částka / počet měsíců).
+- Zálohy za měsíc přes getMonthDeposits(c, yr, mo, contracts). Smlouva začínající uprostřed měsíce na předmětu, který 1. den měsíce držela jiná smlouva, účtuje zálohy až od dalšího měsíce (jinak dvojí zálohy v měsíci předávky).
+- Navazující smlouvy: renewContracts (AppContext) + RenewContractsDialog. Pořadí: záloha → stará smlouva archived s koncem = den před novým začátkem → nová smlouva se stejným předmětem, skupinou a nastavením; zálohy/paušál/parking v aktuálně platné výši, dodatky se nekopírují, rentTotal = 0. Skupinové platby navazují přes group_label.
+- Smlouvy: záložky Platné (aktivní + ukončené s budoucím koncem) / Ukončené.
 - Uložené platby se nikdy zpětně nemění. Základní pole smlouvy platí pro celou historii, dodatky jen od data účinnosti.
 
 ## 6. Design
@@ -131,10 +136,11 @@ Pravidla:
 ## 10. Otevřené / roadmap
 
 - Bug batch (říjen 2026) – VYŘEŠENO ve v1.2.2: ukončení smlouvy k datu (platby nemizí), poměrné krácení nájmu, fix ročních plateb v detailu smlouvy, víceměsíční platby v detailu jako jedna položka. Bug 3 (385 %) = stará data z doby před v1.0.0 (AutoWallis, STRADE) – opraveno ručně v appce.
+- v1.2.3: navazující smlouvy (hromadné prodloužení), záložky Platné/Ukončené ve Smlouvách, zálohy při předávce uprostřed měsíce, zachování pořadí smluv po prodloužení.
 - localStorage pro currentUser; správa subjektů v Settings UI.
 - Odložené: sdružování parkovacích stání (group_label) – částečně implementováno.
 
 ## 11. Údržba tohoto souboru
 
 Na konci každé větší session navrhni úpravu CLAUDE.md (nová pravidla, poučení, verze). Zapisuj jen po odsouhlasení.
-Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 5. 10. 2026: v1.2.2).
+Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 7. 10. 2026: v1.2.3).
