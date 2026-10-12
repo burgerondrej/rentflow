@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { parseDate, toCzDate, getEffectiveValuesToday } from './utils.js'
+import { parseDate, toCzDate, getEffectiveValuesToday, firmOf, contractSubject } from './utils.js'
 
 const AppContext = createContext()
 
@@ -301,7 +301,7 @@ export function AppProvider({ children }) {
       }
     } catch (err) {
       console.error('addContract error:', err)
-      showToast('Nepodařilo se uložit smlouvu. Zkontroluj připojení k databázi.')
+      showToast(typeof err === 'string' && err ? err : 'Nepodařilo se uložit smlouvu. Zkontroluj připojení k databázi.')
     }
   }
 
@@ -314,6 +314,7 @@ export function AppProvider({ children }) {
       setContracts(prev => prev.map(x => x.id === id ? updated : x))
     } catch (err) {
       console.error('updateContract error:', err)
+      showToast(typeof err === 'string' && err ? err : 'Nepodařilo se uložit smlouvu.')
     }
   }
 
@@ -672,17 +673,33 @@ export function AppProvider({ children }) {
   // ─────────────────────────────────────────
   // SUBJECTS — odvozené hodnoty
   // ─────────────────────────────────────────
-  const SEP = ' \u2013 ' // EN DASH oddělovač skupiny a sekce
   const subjects = subjectData.map(s => s.name)
   const residentialSubjects = subjectData.filter(s => s.assetType === 'residential').map(s => s.name)
-  const subjectGroups = [...new Set(
-    subjectData
-      .filter(s => s.name !== 'Ostatn\u00ed')
-      .map(s => s.name.includes(SEP) ? s.name.split(SEP)[0] : s.name)
-  )]
-  // Skupiny pronajímatelů pro selector billing_subject
+  // Firmy (pronajímatelé) v pořadí z DB: { name, short, color, sections: [názvy subjektů] }
+  const firms = []
+  subjectData.forEach(s => {
+    const name = firmOf(s.name)
+    let f = firms.find(x => x.name === name)
+    if (!f) {
+      f = { name, short: s.shortName || name.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase(), color: s.color || 'slate', isVatPayer: s.isVatPayer, sections: [] }
+      firms.push(f)
+    }
+    f.sections.push(s.name)
+  })
+  const getFirm = (subjectName) => firms.find(f => f.name === firmOf(subjectName)) || null
+  // Název skupiny smluv nesmí být sdílený mezi firmami (skupinové platby se párují jen podle názvu).
+  // Vrací název cizí firmy, která skupinu už používá, jinak null. (Stejnou kontrolu dělá i Rust.)
+  const groupLabelConflict = (groupLabel, assetId, billingSubject, selfId) => {
+    const label = (groupLabel || '').trim()
+    if (!label) return null
+    const myFirm = firmOf(contractSubject({ assetId, billingSubject }, assets))
+    const other = contracts.find(c => c.id !== selfId && (c.groupLabel || '').trim() === label && firmOf(contractSubject(c, assets)) !== myFirm)
+    return other ? firmOf(contractSubject(other, assets)) : null
+  }
+  const subjectGroups = firms.map(f => f.name).filter(n => n !== 'Ostatní')
+  // Skupiny pronajímatelů pro selector billing_subject (párovat VŽDY přes firmOf(x) === val)
   const billingGroups = subjectGroups.map(g => {
-    const rep = subjectData.find(s => (s.name.includes(SEP) ? s.name.split(SEP)[0] : s.name) === g)
+    const rep = subjectData.find(s => firmOf(s.name) === g)
     return { val: g, label: g, sub: rep?.isVatPayer ? 'Plátce DPH (21\u00a0%)' : 'Neplátce DPH', isVatPayer: rep?.isVatPayer ?? true }
   })
   // Parkovací billing options (pro selector u parking assetů)
@@ -718,6 +735,9 @@ export function AppProvider({ children }) {
     residentialSubjects,
     subjectGroups,
     subjectData,
+    firms,
+    getFirm,
+    groupLabelConflict,
     billingGroups,
     parkingBillingOptions,
     adsBillingOptions,

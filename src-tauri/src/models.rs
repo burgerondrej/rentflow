@@ -317,6 +317,10 @@ pub struct Subject {
     pub name: String,
     pub asset_type: String,  // "residential" | "commercial" | "ads" | "parking" | "other"
     pub is_vat_payer: bool,
+    #[serde(default)]
+    pub short_name: String,  // zkratka firmy (MCB, BP…) – stejná pro všechny sekce firmy
+    #[serde(default)]
+    pub color: String,       // barevný klíč firmy (wine, orange, violet, blue, emerald, slate)
 }
 
 // ─────────────────────────────────────────

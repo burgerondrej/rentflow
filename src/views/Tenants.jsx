@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import TenantForm from '../TenantForm.jsx'
+import { firmOf, tenantRentsByFirm } from '../utils.js'
+import { FirmRentSummary } from '../FirmUI.jsx'
 
 // 26 výrazných tmavých barev — každé písmeno abecedy dostane svou vlastní
 const LETTER_COLORS = [
@@ -56,7 +58,7 @@ const czSort = (a, b) => a.localeCompare(b, 'cs', { sensitivity: 'base' })
 const CONTRACT_TYPE_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️' }
 
 export default function Tenants({ onOpen }) {
-  const { tenants = [], contracts = [], assets = [], isReadOnly, billingGroups = [], subjects = [] } = useApp()
+  const { tenants = [], contracts = [], assets = [], isReadOnly, billingGroups = [], subjects = [], firms = [] } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
@@ -101,20 +103,8 @@ export default function Tenants({ onOpen }) {
     const initials = t.initials || (t.name || '??').substring(0, 2).toUpperCase()
     const activeContracts = contracts.filter(c => c.tenantId === t.id && c.status === 'active')
     const hasActive = activeContracts.length > 0
-    // Součty po pronajímateli — residential nikdy nezobrazuje DPH
-    const calcRents = activeContracts.reduce((acc, c) => {
-      const asset = assets.find(a => a.id === c.assetId)
-      const effSub = c.billingSubject || asset?.subject || ''
-      const isBurger = billingGroups.find(g => !g.isVatPayer && effSub.startsWith(g.val)) !== undefined
-      const isResidential = asset?.type === 'residential'
-      const rent = (Number(c.rent) || 0) + (isResidential && c.parking > 0 ? Number(c.parking || 0) : 0) + (Number(c.flatFee) || 0)
-      if (isBurger) acc.burger += rent
-      else if (isResidential) acc.metroNoDph += rent
-      else acc.metroDph += rent
-      return acc
-    }, { metroDph: 0, metroNoDph: 0, burger: 0 })
-    calcRents.metro = calcRents.metroDph + calcRents.metroNoDph
-    const totalRent = calcRents.metro + calcRents.burger
+    // Měsíční nájem STRIKTNĚ po firmách (pronajímatelích)
+    const firmRents = tenantRentsByFirm(activeContracts, assets, firms)
 
     return (
       <div
@@ -173,34 +163,10 @@ export default function Tenants({ onOpen }) {
           </div>
         </div>
 
-        {/* Souhrnné částky po pronajímateli */}
-        {hasActive && (calcRents.metro > 0 || calcRents.burger > 0) && (
-          <div style={{ display: 'flex', gap: 8, padding: '0 14px 12px', flexWrap: 'wrap' }}>
-            {calcRents.metro > 0 && (
-              <div style={{ flex: 1, minWidth: 130, background: 'rgba(255,255,255,0.5)', border: `1px solid ${accent}30`, borderRadius: 10, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: '0.4px', flexShrink: 0 }}>{billingGroups.find(g => g.isVatPayer && subjects.some(s => s.startsWith(g.val + ' –')))?.label || ''}</div>
-                <div style={{ textAlign: 'right' }}>
-                  {calcRents.metroDph > 0 && (
-                    <>
-                      <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--price-netto)' }}>{calcRents.metroDph.toLocaleString('cs-CZ')} <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text3)' }}>Kč bez DPH</span></div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--price-brutto)' }}>{(calcRents.metroDph * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč s DPH</div>
-                    </>
-                  )}
-                  {calcRents.metroNoDph > 0 && (
-                    <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--price-netto)', marginTop: calcRents.metroDph > 0 ? 3 : 0 }}>{calcRents.metroNoDph.toLocaleString('cs-CZ')} <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text3)' }}>Kč</span></div>
-                  )}
-                </div>
-              </div>
-            )}
-            {calcRents.burger > 0 && (
-              <div style={{ flex: 1, minWidth: 130, background: 'rgba(255,255,255,0.5)', border: `1px solid ${accent}30`, borderRadius: 10, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: '0.4px', flexShrink: 0 }}>{billingGroups.find(g => !g.isVatPayer)?.label || ''}</div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: accent }}>{calcRents.burger.toLocaleString('cs-CZ')} <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text3)' }}>Kč</span></div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 500 }}>neplátce DPH</div>
-                </div>
-              </div>
-            )}
+        {/* Souhrnné částky po pronajímateli – každá firma zvlášť */}
+        {hasActive && firmRents.length > 0 && (
+          <div style={{ padding: '0 14px 12px' }}>
+            <FirmRentSummary rows={firmRents} />
           </div>
         )}
 
@@ -248,7 +214,7 @@ export default function Tenants({ onOpen }) {
                   const firstC = item.contracts[0]
                   const firstAsset = assets.find(a => a.id === firstC?.assetId)
                   const effSub = firstC?.billingSubject || firstAsset?.subject || ''
-                  const groupDph = firstC?.vatExempt === 2 ? true : firstC?.vatExempt === 1 ? false : (billingGroups.find(g => effSub.startsWith(g.val))?.isVatPayer ?? true)
+                  const groupDph = firstC?.vatExempt === 2 ? true : firstC?.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(effSub) === g.val)?.isVatPayer ?? true)
                   const gType = firstAsset?.type || 'parking'
                   const gIcon = gType === 'ads' ? '📢' : gType === 'commercial' ? '🏢' : '🅿️'
                   const gSubLabel = gType === 'ads' ? `${item.contracts.length} reklamních ploch` : gType === 'commercial' ? `${item.contracts.length} komerčních prostor` : `${item.contracts.length} parkovacích stání`
@@ -291,7 +257,7 @@ export default function Tenants({ onOpen }) {
                 const effectiveSubject = c.billingSubject || asset?.subject || ''
                 const isDphSubject = c.vatExempt === 2 ? true
                   : c.vatExempt === 1 ? false
-                  : (billingGroups.find(g => effectiveSubject.startsWith(g.val))?.isVatPayer ?? true)
+                  : (billingGroups.find(g => firmOf(effectiveSubject) === g.val)?.isVatPayer ?? true)
                 const showDph = (asset?.type === 'commercial' || asset?.type === 'ads' || asset?.type === 'parking') && isDphSubject
                 const rent = Number(c.rent || 0) + (asset?.type === 'residential' && c.parking > 0 ? Number(c.parking || 0) : 0)
                 const deposit = Number(c.deposit || 0)

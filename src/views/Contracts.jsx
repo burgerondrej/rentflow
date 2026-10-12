@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDate } from '../utils.js'
+import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDate, firmOf, firmColors, selectionMatches } from '../utils.js'
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
+import { FirmBadge } from '../FirmUI.jsx'
 
 export default function Contracts({ activeSubject, onOpen }) {
-  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [] } = useApp()
+  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [tab, setTab] = useState('valid') // 'valid' = platné (vč. ukončených s budoucím koncem) | 'ended' = ukončené
@@ -66,8 +67,8 @@ export default function Contracts({ activeSubject, onOpen }) {
 
   // Platná = aktivní, nebo ukončená, jejíž poslední den nájmu teprve přijde
   const isValid = (c) => c.status === 'active' || isEndingArchived(c)
-  const validCount = filtered.filter(c => isValid(c) && (activeSubject === 'all' || c.assetSubject === activeSubject)).length
-  const endedCount = filtered.filter(c => !isValid(c) && (activeSubject === 'all' || c.assetSubject === activeSubject)).length
+  const validCount = filtered.filter(c => isValid(c) && selectionMatches(activeSubject, c.assetSubject)).length
+  const endedCount = filtered.filter(c => !isValid(c) && selectionMatches(activeSubject, c.assetSubject)).length
   const endTs = (c) => parseDate(c.end)?.getTime() || 0
 
   const renderCard = (c, isArchived = false) => {
@@ -112,12 +113,15 @@ export default function Contracts({ activeSubject, onOpen }) {
           cursor: 'pointer', marginBottom: 0, opacity: isArchived ? 0.6 : 1, padding: 0, overflow: 'hidden', borderRadius: 12,
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
           background: cardBg, 
-          border: `1px solid ${isArchived ? 'var(--border)' : cardBorderColor}` 
+          border: `1px solid ${isArchived ? 'var(--border)' : cardBorderColor}`,
+          // Barevný proužek firmy (pronajímatele) – JIHOTANK vs. JIHOTANK CB na první pohled
+          borderLeft: `5px solid ${getFirm && getFirm(c.assetSubject) ? firmColors(getFirm(c.assetSubject).color, theme).mid : 'var(--border)'}`,
         }} 
         onClick={() => onOpen(c.id)}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: headerBg, borderBottom: `1px solid ${isArchived ? 'var(--border)' : cardBorderColor}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <FirmBadge firm={getFirm ? getFirm(c.assetSubject) : null} size={22} />
             <span style={{ fontSize: 13 }}>{icon}</span>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -142,7 +146,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           </div>
 
           {(() => {
-            const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => c.assetSubject?.startsWith(g.val))?.isVatPayer ?? true)
+            const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(c.assetSubject) === g.val)?.isVatPayer ?? true)
             const showDph = (c.assetType === 'commercial' || c.assetType === 'ads' || c.assetType === 'parking') && isDphSubject
             return (
               <div style={{ display: 'grid', gridTemplateColumns: c.totalDeposit > 0 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 0 }}>
@@ -218,7 +222,7 @@ export default function Contracts({ activeSubject, onOpen }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 40, marginTop: 10 }}>
         {subjects.map(subject => {
-          if (activeSubject !== 'all' && activeSubject !== subject) return null
+          if (!selectionMatches(activeSubject, subject)) return null
 
           const allInSubject = filtered.filter(c => c.assetSubject === subject)
           // Záložka Platné: aktivní (řazení tažením) + ukončené s budoucím koncem; Ukončené: od nejnovějšího konce
@@ -228,17 +232,14 @@ export default function Contracts({ activeSubject, onOpen }) {
           const archivedInSubject = subjectContracts.filter(c => c.status !== 'active')
             .sort((a, b) => tab === 'ended' ? endTs(b) - endTs(a) : 0)
 
-          let subjectIcon = '🏢'
-          if (residentialSubjects.includes(subject)) subjectIcon = '🏠'
-          if (billingGroups.find(g => !g.isVatPayer && subject.startsWith(g.val))) subjectIcon = '👤'
-          if (subjectGroups.filter(g => !subjects.some(s => s.includes(' – ') && s.startsWith(g))).some(g => subject.startsWith(g))) subjectIcon = '⛽'
-          if (subject === 'Ostatní') subjectIcon = '📄'
+          const subjectFirm = getFirm ? getFirm(subject) : null
+          const subjectFc = subjectFirm ? firmColors(subjectFirm.color, theme) : null
 
           return (
             <div key={subject}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '2.5px solid var(--border)', paddingBottom: 11, marginBottom: 18 }}>
-                <span style={{ fontSize: 17 }}>{subjectIcon}</span>
-                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '1.2px' }}>{subject}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: `2.5px solid ${subjectFc ? subjectFc.mid + '55' : 'var(--border)'}`, paddingBottom: 11, marginBottom: 18 }}>
+                <FirmBadge firm={subjectFirm} size={30} />
+                <div style={{ fontSize: 13, fontWeight: 800, color: subjectFc ? subjectFc.txt : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '1.2px' }}>{subject}</div>
                 <div className="badge" style={{ background: 'var(--bg2)', color: 'var(--text2)', fontSize: 12, fontWeight: 600 }}>{tab === 'valid' ? `${activeInSubject.length} aktivních` : `${subjectContracts.length} ukončených`}</div>
               </div>
 

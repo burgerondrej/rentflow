@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
+import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
@@ -20,7 +21,7 @@ const TYPE_META = {
 }
 
 export default function DetailPanel({ type, id, onClose, onOpen }) {
-  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
+  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
 
   const SEP = ' – '
   const PREDEFINED_TAGS = [
@@ -625,47 +626,11 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         <div className="card">
           <div className="card-body">
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 12 }}>Aktivní smlouvy ({activeContracts.length})</div>
-            {activeContracts.length > 0 && (() => {
-              const calcRents = activeContracts.reduce((acc, c) => {
-                const asset = assets.find(a => a.id === c.assetId)
-                const effSub = c.billingSubject || asset?.subject || ''
-                const isBurger = billingGroups.find(g => !g.isVatPayer && effSub.startsWith(g.val)) !== undefined
-                const isResidential = asset?.type === 'residential'
-                const pLen = { 'Čtvrtletně': 3, 'Pololetně': 6, 'Ročně': 12 }[c.paymentFrequency] || 1
-                const rent = ((effectiveToday(c).rent) + (isResidential ? (effectiveToday(c).parking) : 0) + (effectiveToday(c).flatFee)) / pLen
-                if (isBurger) acc.burger += rent
-                else if (isResidential) acc.metroNoDph += rent
-                else acc.metroDph += rent
-                return acc
-              }, { metroDph: 0, metroNoDph: 0, burger: 0 })
-              calcRents.metro = calcRents.metroDph + calcRents.metroNoDph
-              const showBoth = calcRents.metro > 0 && calcRents.burger > 0
-              return (
-                <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-                  {calcRents.metro > 0 && (
-                    <div style={{ flex: 1, minWidth: 160, background: '#F0FDFA', border: '1px solid #5EEAD4', borderRadius: 10, padding: '10px 14px' }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>{subjectGroups.find(g => billingGroups.find(b => b.val === g)?.isVatPayer && subjects.some(s => s.includes(' – ') && s.startsWith(g)))}</div>
-                      {calcRents.metroDph > 0 && (
-                        <>
-                          <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--price-netto)' }}>{calcRents.metroDph.toLocaleString('cs-CZ')} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)' }}>Kč bez DPH</span></div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--price-brutto)' }}>{(calcRents.metroDph * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč s DPH 21 %</div>
-                        </>
-                      )}
-                      {calcRents.metroNoDph > 0 && (
-                        <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--price-netto)', marginTop: calcRents.metroDph > 0 ? 4 : 0 }}>{calcRents.metroNoDph.toLocaleString('cs-CZ')} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)' }}>Kč</span></div>
-                      )}
-                    </div>
-                  )}
-                  {calcRents.burger > 0 && (
-                    <div style={{ flex: 1, minWidth: 160, background: '#FAF5FF', border: '1px solid #C4B5FD', borderRadius: 10, padding: '10px 14px' }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>{billingGroups.find(g => !g.isVatPayer)?.label}</div>
-                      <div style={{ fontSize: 15, fontWeight: 900, color: '#7C3AED' }}>{calcRents.burger.toLocaleString('cs-CZ')} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)' }}>Kč</span></div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>neplátce DPH</div>
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
+            {activeContracts.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <FirmRentSummary rows={tenantRentsByFirm(activeContracts, assets, firms)} large />
+              </div>
+            )}
             {activeContracts.length === 0 ? (
               <div style={{ fontSize: 13, color: 'var(--text3)' }}>Tento kontakt aktuálně nic nepronajímá.</div>
             ) : (
@@ -694,7 +659,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                       const firstC = item.contracts[0]
                       const firstAsset = assets.find(a => a.id === firstC?.assetId)
                       const effSub = firstC?.billingSubject || firstAsset?.subject || ''
-                      const groupDph = firstC?.vatExempt === 2 ? true : firstC?.vatExempt === 1 ? false : (billingGroups.find(g => effSub.startsWith(g.val))?.isVatPayer ?? true)
+                      const groupDph = firstC?.vatExempt === 2 ? true : firstC?.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(effSub) === g.val)?.isVatPayer ?? true)
                       const groupAssetType = firstAsset?.type || 'parking'
                       const groupIcon = groupAssetType === 'ads' ? '📢' : groupAssetType === 'commercial' ? '🏢' : '🅿️'
                       const groupTypeLabel = groupAssetType === 'ads' ? 'Skupina reklamních ploch' : groupAssetType === 'commercial' ? 'Skupina komerčních prostor' : 'Skupina parkovacích stání'
@@ -743,7 +708,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                     const bg  = typeBg[aType]  || 'var(--bg2)'
                     const bdr = typeBdr[aType] || 'var(--border)'
                   const effectiveSub = c.billingSubject || asset?.subject || ''
-                  const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => effectiveSub.startsWith(g.val))?.isVatPayer ?? true)
+                  const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(effectiveSub) === g.val)?.isVatPayer ?? true)
                   const showDph = (aType === 'commercial' || aType === 'ads' || aType === 'parking' || aType === 'ostatni') && isDphSubject
                   const _eff = effectiveToday(c)
                   const rent = _eff.rent + (aType === 'residential' ? _eff.parking : 0)
@@ -1205,14 +1170,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
     const effectiveSubject = c.billingSubject || a?.subject || ''
     const isDphSubject = c.vatExempt === 2 ? true
       : c.vatExempt === 1 ? false
-      : (billingGroups.find(g => effectiveSubject.startsWith(g.val))?.isVatPayer ?? true)
+      : (billingGroups.find(g => firmOf(effectiveSubject) === g.val)?.isVatPayer ?? true)
     const isMetropoleParkingAsset = (parkingBillingOptions[0]?.label ? a?.subject === parkingBillingOptions[0].label : false)
     const isMetropoleAdsAsset = (adsBillingOptions[0]?.label ? a?.subject === adsBillingOptions[0].label : false)
     // isDphSubject pro edit formulář (reaguje na živý výběr billingSubject)
     const formEffSub = formData.billingSubject || a?.subject || ''
     const formIsDphSubject = (formData.vatExempt || 0) === 2 ? true
       : (formData.vatExempt || 0) === 1 ? false
-      : (billingGroups.find(g => formEffSub.startsWith(g.val))?.isVatPayer ?? true)
+      : (billingGroups.find(g => firmOf(formEffSub) === g.val)?.isVatPayer ?? true)
 
     const czToIso = (cz) => {
       if (!cz) return ''
@@ -1283,7 +1248,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         includedParkingRent: (c.includedParkingSpots > 0 && c.parking) ? String(c.parking) : '',
         billingSubject: (() => {
           // Pro ads/parking assety mimo DPH-plátce billingSubject nemá smysl — vymazat
-          if ((a?.type === 'ads' || a?.type === 'parking') && !(adsBillingOptions[0]?.label ? a?.subject?.startsWith(adsBillingOptions[0].label.split(' – ')[0]) : false)) return ''
+          if ((a?.type === 'ads' || a?.type === 'parking') && !(adsBillingOptions[0]?.label ? firmOf(a?.subject) === firmOf(adsBillingOptions[0].label) : false)) return ''
           return c.billingSubject || ''
         })(),
         vatExempt: c.vatExempt || 0,
@@ -1300,6 +1265,9 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
     const handleSave = (e) => {
       e.preventDefault()
+      // Striktní oddělení firem: název skupiny nesmí patřit jiné firmě
+      const conflict = groupLabelConflict(formData.groupLabel, c.assetId, formData.billingSubject !== undefined ? (formData.billingSubject || null) : c.billingSubject, id)
+      if (conflict) { showToast(`Skupina „${formData.groupLabel}“ už patří firmě ${conflict}. Zvol jiný název skupiny.`); return }
       updateContract(id, { 
         rent: Number(formData.rent), 
         deposit: Number(formData.deposit), 
@@ -1853,10 +1821,13 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           {!isReadOnly && <button className="btn btn-sm" onClick={handleEditClick}>Upravit</button>}
         </div>
 
-        {/* Hlavička */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        {/* Hlavička – barevný proužek a zkratka firmy (pronajímatele) */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, ...(getFirm && getFirm(contractSubject(c, assets)) ? { borderLeft: `5px solid ${firmColors(getFirm(contractSubject(c, assets)).color, theme).mid}`, paddingLeft: 14 } : {}) }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 4 }}>Smlouva</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <FirmBadge firm={getFirm ? getFirm(contractSubject(c, assets)) : null} size={22} />
+              <div style={{ fontSize: 11, fontWeight: 700, color: getFirm && getFirm(contractSubject(c, assets)) ? firmColors(getFirm(contractSubject(c, assets)).color, theme).sub : 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Smlouva · {firmOf(contractSubject(c, assets))}</div>
+            </div>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', lineHeight: 1.2 }}>{a ? a.unit : 'Neznámý předmět'}</div>
             {a?.subject && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>{a.subject}</div>}
           </div>
@@ -1884,7 +1855,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         </div>
 
         {/* Pronajímatel – jen když je přepsán (ne pro vlastní neplatčcovy ads/parking assety) */}
-        {c.billingSubject && !((a?.type === 'ads' || a?.type === 'parking') && !(adsBillingOptions[0]?.label ? a?.subject?.startsWith(adsBillingOptions[0].label.split(' – ')[0]) : false)) && (
+        {c.billingSubject && !((a?.type === 'ads' || a?.type === 'parking') && !(adsBillingOptions[0]?.label ? firmOf(a?.subject) === firmOf(adsBillingOptions[0].label) : false)) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10 }}>
             <span style={{ fontSize: 13 }}>🏢</span>
             <div>
@@ -1892,7 +1863,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>
                 {c.billingSubject}
                 <span style={{ fontWeight: 400, fontSize: 11 }}>
-                  {' · '}{(billingGroups.find(g => c.billingSubject.startsWith(g.val))?.isVatPayer ? 'Plátce DPH (21 %)' : 'Neplátce DPH')}
+                  {' · '}{(billingGroups.find(g => firmOf(c.billingSubject) === g.val)?.isVatPayer ? 'Plátce DPH (21 %)' : 'Neplátce DPH')}
                 </span>
               </div>
             </div>

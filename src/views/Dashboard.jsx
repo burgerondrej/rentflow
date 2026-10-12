@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable } from '../utils.js'
+import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, contractSubject, firmColors } from '../utils.js'
 
 export default function Dashboard({ onNav, onOpen }) {
-  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [] } = useApp() || {}
+  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [], getFirm, theme } = useApp() || {}
   const [expandedGroup, setExpandedGroup] = useState(null) // { days, colorVar, list }
 
   const today = new Date()
@@ -194,9 +194,7 @@ export default function Dashboard({ onNav, onOpen }) {
           const subContracts = contracts.filter(c => {
             if (!isContractBillable(c)) return false
             if (c.paymentFrequency === 'Zahrnuto v nájemném') return false
-            const asset = assets.find(a => a.id === c.assetId)
-            const effectiveSubject = c.billingSubject || asset?.subject || ''
-            return effectiveSubject === subject
+            return contractSubject(c, assets) === subject
           })
           if (subContracts.length === 0) return null
 
@@ -235,10 +233,15 @@ export default function Dashboard({ onNav, onOpen }) {
             return { ...m, total, paid, remaining: Math.max(0, total - paid) }
           })
 
+          const subFirm = getFirm ? getFirm(subject) : null
+          const subFc = subFirm ? firmColors(subFirm.color, theme) : null
           return (
             <div key={subject} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-              <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{subject}</span>
+              <div style={{ background: subFc ? subFc.mid : 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {subFirm && <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.3px', color: '#fff', background: 'rgba(255,255,255,0.22)', borderRadius: 6, padding: '3px 7px' }}>{subFirm.short}</span>}
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{subject}</span>
+                </span>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>{subContracts.length} {subContracts.length === 1 ? 'aktivní smlouva' : subContracts.length < 5 ? 'aktivní smlouvy' : 'aktivních smluv'}</span>
               </div>
               <div style={{ padding: '16px 20px' }}>

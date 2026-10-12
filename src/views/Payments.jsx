@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { save } from '@tauri-apps/api/dialog'
+import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
-import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits } from '../utils.js'
+import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
@@ -471,7 +472,7 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
 }
 
 export default function Payments() {
-  const { contracts = [], tenants = [], assets = [], payments = [], addPayment, deletePayment, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
+  const { contracts = [], tenants = [], assets = [], payments = [], firms = [], getFirm, theme, addPayment, deletePayment, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedYear, setSelectedYear]   = useState(new Date().getFullYear())
   const [showPicker, setShowPicker]       = useState(false)
@@ -490,7 +491,11 @@ export default function Payments() {
 
   // Synchronizuj activeSub na první dostupný subjekt po načtení smluv
   useEffect(() => {
-    if (subjectsWithContracts.length > 0 && !subjectsWithContracts.includes(activeSub)) {
+    // Platný výběr = sekce se smlouvami, nebo "Vše" firmy, která nějakou takovou sekci má
+    const valid = isFirmSelection(activeSub)
+      ? subjectsWithContracts.some(s => firmOf(s) === selectionFirm(activeSub))
+      : subjectsWithContracts.includes(activeSub)
+    if (subjectsWithContracts.length > 0 && !valid) {
       activeSubRef.current = subjectsWithContracts[0]
       setActiveSub(subjectsWithContracts[0])
     }
@@ -565,10 +570,17 @@ export default function Payments() {
   const applyOrder = (items) => applyContractOrder(items, getSavedOrder(), contracts)
 
 
+  // subName = sekce nebo firmSelection(firma) ("Vše" – jen smlouvy TÉ firmy, přesná shoda názvu firmy)
   const contractsForSub = (subName) =>
-    applyOrder(activeContracts.filter(c => getContractSubject(c) === subName))
+    applyOrder(activeContracts.filter(c => selectionMatches(subName, getContractSubject(c))))
 
   const isBytovySub = (subName) => residentialSubjects.includes(subName)
+  // Barevný proužek firmy na prvním sloupci řádku (inset stín – funguje i v tabulce)
+  const firmStripeShadow = (subject) => {
+    const f = getFirm ? getFirm(subject) : null
+    return f ? `inset 4px 0 0 ${firmColors(f.color, theme).mid}` : 'none'
+  }
+  const sectionLabelOf = (subject) => { const i = subject.indexOf(' – '); return i >= 0 ? subject.slice(i + 3) : subject }
 
   // ── Nájemné helpers (Varianta A: rent v DB = splátka dle frekvence) ────────
   const periodLen = (c) => PERIOD_LEN[c.paymentFrequency] || 1
@@ -760,7 +772,7 @@ export default function Payments() {
     if (payment) {
       deletePayment(payment.id)
     } else {
-      if (isBytovySub(activeSub)) {
+      if (isBytovySub(getContractSubject(contract))) {
         const tenant = tenants.find(t => t.id === contract.tenantId)
         const ev = { ...getEffectiveValues(contract, selectedYear, selectedMonth), ...getMonthDeposits(contract, selectedYear, selectedMonth, contracts) }
         const rentTotal = getMonthRentParking(contract, selectedYear, selectedMonth)
@@ -855,7 +867,7 @@ export default function Payments() {
       contracts.filter(c =>
         isContractBillable(c) &&
         c.paymentFrequency !== 'Zahrnuto v nájemném' &&
-        getContractSubject(c) === activeSub &&
+        selectionMatches(activeSub, getContractSubject(c)) &&
         (() => {
           const sD = parseDate(c.start); const eD = parseDate(c.end)
           if (sD && sD > mEnd) return false
@@ -1364,7 +1376,7 @@ export default function Payments() {
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Má být zaplaceno tento měsíc</div>
           <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text)' }}>{subExpected.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text3)' }}>Kč</span></div>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{activeSub} · {monthLabel}</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{selectionLabel(activeSub)} · {monthLabel}</div>
         </div>
         <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 14, padding: '16px 20px' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Uhrazeno</div>
@@ -1430,22 +1442,15 @@ export default function Payments() {
         </div>
       </div>
 
-      {/* ZÁLOŽKY SUBJEKTŮ */}
-      <div style={{ background: 'var(--bg2)', border: '1.5px solid var(--border)', borderRadius: 16, padding: 12, marginBottom: 24 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10, paddingLeft: 4 }}>Vyberte subjekt</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(4, auto)', gridAutoFlow: 'column', gap: 6 }}>
-          {subjectsWithContracts.map(sub => {
-            const isActive = activeSub === sub
-            const sub2 = sub.includes('–') ? sub.split('–').slice(1).join('–').trim() : sub
-            const group = sub.includes(' – ') ? sub.split(' – ')[0] : ''
-            return (
-              <button key={sub} onClick={() => handleSubChange(sub)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '8px 12px', borderRadius: 10, border: isActive ? '2px solid var(--accent)' : '1.5px solid var(--border)', background: isActive ? 'linear-gradient(135deg, #0A3D2B 0%, #1A8A62 100%)' : 'var(--bg)', color: isActive ? '#fff' : 'var(--text)', cursor: 'pointer', textAlign: 'left', boxShadow: isActive ? '0 4px 14px rgba(18,101,74,0.30)' : 'none', transition: 'all 0.15s ease' }}>
-                {group && <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? 'rgba(255,255,255,0.7)' : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 2, whiteSpace: 'nowrap' }}>{group}</span>}
-                <span style={{ fontSize: 12.5, fontWeight: isActive ? 700 : 600, color: isActive ? '#fff' : 'var(--text)', lineHeight: 1.3, whiteSpace: 'nowrap' }}>{sub2}</span>
-              </button>
-            )
-          })}
-        </div>
+      {/* VÝBĚR FIRMA → SEKCE */}
+      <div style={{ marginBottom: 24 }}>
+        <FirmPicker
+          value={activeSub}
+          onChange={handleSubChange}
+          sections={subjectsWithContracts}
+          crumbPrefix="Platby"
+          getStat={(sel) => { const st = getSubStatus(sel); return progressStat(st.total - st.unpaid, st.total, 'bez smluv') }}
+        />
       </div>
 
       {/* VNITŘNÍ ZÁLOŽKY */}
@@ -1508,7 +1513,7 @@ export default function Payments() {
                         const isPaid = !!groupPayment
                         const isPartial = groupPayment && Number(groupPayment.amount) < groupTotal - 0.01
                         const effectiveSub = members[0].billingSubject || getAssetForContract(members[0])?.subject || ''
-                        const showDph = getAssetForContract(members[0])?.type !== 'residential' && (billingGroups.find(g => effectiveSub.startsWith(g.val))?.isVatPayer ?? true)
+                        const showDph = getAssetForContract(members[0])?.type !== 'residential' && (billingGroups.find(g => firmOf(effectiveSub) === g.val)?.isVatPayer ?? true)
 
                         const handleGroupToggle = (e) => {
                           e.stopPropagation()
@@ -1524,7 +1529,7 @@ export default function Payments() {
                           <tr key={`group-${label}`}
                             style={{ borderBottom: '1px solid var(--border2)', background: isPaid ? 'rgba(187,247,208,0.55)' : 'rgba(239,68,68,0.18)', cursor: 'default' }}
                           >
-                            <td style={{ padding: '14px 20px' }}>
+                            <td style={{ padding: '14px 20px', boxShadow: firmStripeShadow(getContractSubject(members[0])) }}>
                               <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                                 <span style={{ fontSize: 10, background: '#EDE9FE', color: '#6D28D9', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>🔗 {label}</span>
@@ -1648,7 +1653,7 @@ export default function Payments() {
                       const rentTotal = getMonthRent(c, selectedYear, selectedMonth)
                       const effectiveSub = c.billingSubject || asset?.subject || ''
                       const showDph = asset?.type !== 'residential' && (
-                        (c.vatExempt === 2) ? true : (c.vatExempt === 1) ? false : (billingGroups.find(g => effectiveSub.startsWith(g.val))?.isVatPayer ?? true)
+                        (c.vatExempt === 2) ? true : (c.vatExempt === 1) ? false : (billingGroups.find(g => firmOf(effectiveSub) === g.val)?.isVatPayer ?? true)
                       )
                       const isCommercial = asset?.type === 'commercial'
 
@@ -1658,9 +1663,9 @@ export default function Payments() {
                           onMouseOver={e => { e.currentTarget.style.background = rowBgH }}
                           onMouseOut={e => { e.currentTarget.style.background = rowBg }}
                         >
-                          <td style={{ padding: '14px 20px' }}>
+                          <td style={{ padding: '14px 20px', boxShadow: firmStripeShadow(getContractSubject(c)) }}>
                             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{asset?.unit || '—'}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{asset?.unit || '—'}{isFirmSelection(activeSub) ? ` · ${sectionLabelOf(getContractSubject(c))}` : ''}</div>
                             {payment?.note && (
                               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, fontStyle: 'italic' }}>
                                 💬 {payment.note}
@@ -1788,7 +1793,7 @@ export default function Payments() {
           <div style={{ flex: '0 0 32%', position: 'sticky', top: 24 }}>
             <div style={{ background: 'var(--bg)', border: '2px solid var(--border)', borderRadius: 20, padding: 24, boxShadow: '0 16px 32px rgba(0,0,0,0.05)' }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: '#16A34A', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>Subjekt · {monthLabel}</div>
-              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 20, color: 'var(--text)', lineHeight: 1.3 }}>{activeSub}</div>
+              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 20, color: 'var(--text)', lineHeight: 1.3 }}>{selectionLabel(activeSub)}</div>
               <div style={{ marginBottom: 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'baseline' }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>Vybráno</span>
@@ -1824,7 +1829,7 @@ export default function Payments() {
       {activeTab === 'history' && (
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 20 }}>
-            Inkaso nájemného — <span style={{ color: 'var(--accent)' }}>{activeSub}</span> — posledních 6 měsíců
+            Inkaso nájemného — <span style={{ color: 'var(--accent)' }}>{selectionLabel(activeSub)}</span> — posledních 6 měsíců
           </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, padding: '24px 28px', marginBottom: 24, minHeight: 200 }}>
             {last6Months.map((m, i) => {
@@ -1906,18 +1911,21 @@ export default function Payments() {
                 <tbody>
                   {debtors.map(({ contract: c, tenant, asset, rs, isGroup, groupLabel, groupTotal }) => (
                     <tr key={isGroup ? `group-${groupLabel}` : c.id} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', transition: '0.15s' }}
-                      onClick={() => { setDetailContract(c); setActiveTab('overview'); setActiveSub(asset?.subject || subjects[0] || '') }}
+                      onClick={() => { setDetailContract(c); setActiveTab('overview'); handleSubChange(getContractSubject(c) || subjects[0] || '') }}
                       onMouseOver={e => e.currentTarget.style.background = rs.status === 'partial' ? '#FFFBEB' : '#FEF2F2'}
                       onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <td style={{ padding: '14px 20px' }}>
+                      <td style={{ padding: '14px 20px', boxShadow: firmStripeShadow(getContractSubject(c)) }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>
                         {tenant?.phone && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>📞 {tenant.phone}</div>}
                         {isGroup && <div style={{ marginTop: 3 }}><span style={{ fontSize: 10, background: '#EDE9FE', color: '#6D28D9', padding: '1px 7px', borderRadius: 8, fontWeight: 700 }}>🔗 {groupLabel}</span></div>}
                       </td>
                       <td style={{ padding: '14px 20px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{isGroup ? `Skupina (${activeContracts.filter(x => x.groupLabel === groupLabel).length} smlouvy)` : (asset?.unit || '—')}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{asset?.subject || '—'}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{isGroup ? `Skupina (${new Set(activeContracts.filter(x => x.groupLabel === groupLabel).map(x => x.assetId)).size} předm.)` : (asset?.unit || '—')}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
+                          <FirmBadge firm={getFirm ? getFirm(getContractSubject(c)) : null} size={18} />
+                          {getContractSubject(c) || '—'}
+                        </div>
                       </td>
                       <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                         {rs.status === 'partial' ? (

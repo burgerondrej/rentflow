@@ -17,6 +17,8 @@ import OperationalCosts from './views/OperationalCosts.jsx'
 import SettingsPanel from './SettingsPanel.jsx'
 import UpdateDialog from './UpdateDialog.jsx'
 import ActivationScreen from './ActivationScreen.jsx'
+import { FirmPickerButton } from './FirmUI.jsx'
+import { contractSubject, selectionMatches, parseDate } from './utils.js'
 import { invoke } from '@tauri-apps/api/tauri'
 
 function AppWithActivation() {
@@ -329,10 +331,18 @@ function AppInner() {
               )}
             </div>
 
-            <select value={subject} onChange={e => setSubject(e.target.value)} style={{ appearance: 'none', padding: '8px 14px', border: '1px solid #BBF7D0', borderRadius: 'var(--r)', fontSize: 13, background: '#F0FDF4', color: '#15803D', fontWeight: 600, minWidth: 220, cursor: 'pointer', outline: 'none' }}>
-              <option value="all">Všechny pronajímající subjekty</option>
-              {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <FirmPickerButton
+              value={subject}
+              onChange={setSubject}
+              sections={subjects.filter(s => assets.some(a => a.subject === s) || contracts.some(c => contractSubject(c, assets) === s))}
+              getStat={(sel) => {
+                // Aktivní smlouvy ve výběru + kolik z nich končí do 60 dní
+                const today = new Date(); today.setHours(0, 0, 0, 0)
+                const act = contracts.filter(c => c.status === 'active' && selectionMatches(sel, contractSubject(c, assets)))
+                const ending = act.filter(c => { const e = parseDate(c.end); return e && e >= today && (e - today) / 86400000 <= 60 }).length
+                return { count: `${act.length} sml.`, text: ending > 0 ? `${ending} brzy končí` : `${act.length} aktivních smluv`, tone: ending > 0 ? 'warn' : 'muted' }
+              }}
+            />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
             {/* Dark mode toggle */}

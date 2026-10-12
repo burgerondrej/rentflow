@@ -5,6 +5,94 @@
 
 export const PERIOD_LEN = { 'Čtvrtletně': 3, 'Pololetně': 6, 'Ročně': 12 }
 
+// ─────────────────────────────────────────
+// FIRMY (pronajímatelé) A SEKCE
+// Subjekt = "FIRMA – Sekce" (nebo jen "FIRMA"). Firma se určuje VŽDY přesným
+// porovnáním části před oddělovačem – nikdy startsWith ("JIHOTANK CB" ≠ "JIHOTANK").
+// ─────────────────────────────────────────
+export const SUBJECT_SEP = ' – '
+
+export function firmOf(subject) {
+  const s = subject || ''
+  const i = s.indexOf(SUBJECT_SEP)
+  return (i >= 0 ? s.slice(0, i) : s).trim()
+}
+
+export function sectionOf(subject) {
+  const s = subject || ''
+  const i = s.indexOf(SUBJECT_SEP)
+  return i >= 0 ? s.slice(i + SUBJECT_SEP.length).trim() : s
+}
+
+// Výběr "Vše" za celou firmu – hodnota se nemůže shodovat s názvem subjektu
+const FIRM_SEL = '✱firm:'
+export const firmSelection = (firm) => FIRM_SEL + firm
+export const isFirmSelection = (sel) => typeof sel === 'string' && sel.startsWith(FIRM_SEL)
+export const selectionFirm = (sel) => isFirmSelection(sel) ? sel.slice(FIRM_SEL.length) : firmOf(sel)
+
+/** Patří subjekt do výběru? sel = 'all' | subjekt | firmSelection(firma) */
+export function selectionMatches(sel, subject) {
+  if (!sel || sel === 'all') return true
+  if (isFirmSelection(sel)) return firmOf(subject) === sel.slice(FIRM_SEL.length)
+  return subject === sel
+}
+
+export function selectionLabel(sel) {
+  if (!sel || sel === 'all') return 'Všechny firmy'
+  if (isFirmSelection(sel)) return `${sel.slice(FIRM_SEL.length)} – vše`
+  return sel
+}
+
+// Barvy firem: klíč z DB (subjects.color) → odstíny pro světlý / tmavý režim
+// bg = podklad, mid = výrazná barva (zkratka, proužek), txt = text na podkladu, sub = vedlejší text
+const FIRM_PALETTE = {
+  wine:    { light: { bg: '#F5E4E7', mid: '#6E1423', txt: '#4A0D17', sub: '#8C2A3A' }, dark: { bg: '#3A0A12', mid: '#C0566A', txt: '#F5E4E7', sub: '#E3A3AE' } },
+  orange:  { light: { bg: '#FDEBD8', mid: '#D9701A', txt: '#7A3A06', sub: '#A8560F' }, dark: { bg: '#3D2006', mid: '#F09A4E', txt: '#FDEBD8', sub: '#F5C08E' } },
+  violet:  { light: { bg: '#F3E8F6', mid: '#7B3F8C', txt: '#3F1A4A', sub: '#6A3479' }, dark: { bg: '#2E1436', mid: '#B784C6', txt: '#F3E8F6', sub: '#D8B8E2' } },
+  blue:    { light: { bg: '#E6F1FB', mid: '#185FA5', txt: '#0C447C', sub: '#185FA5' }, dark: { bg: '#042C53', mid: '#5A9BE0', txt: '#E6F1FB', sub: '#B5D4F4' } },
+  emerald: { light: { bg: '#E1F5EE', mid: '#0F7A5C', txt: '#064030', sub: '#0F6E56' }, dark: { bg: '#04342C', mid: '#4CC39B', txt: '#E1F5EE', sub: '#9FE1CB' } },
+  slate:   { light: { bg: '#EDF0F3', mid: '#5B6B7A', txt: '#2E3A46', sub: '#4A5866' }, dark: { bg: '#1F262D', mid: '#93A3B3', txt: '#EDF0F3', sub: '#C3CDD7' } },
+}
+
+/** Subjekt (pronajímatel) smlouvy: u typu Ostatní subjekt předmětu, jinak billing_subject nebo subjekt předmětu. */
+export function contractSubject(c, assets) {
+  const asset = (assets || []).find(a => a.id === c?.assetId)
+  if (asset?.type === 'ostatni') return asset.subject || ''
+  return c?.billingSubject || asset?.subject || ''
+}
+
+/**
+ * Měsíční nájem nájemce rozdělený STRIKTNĚ po firmách (pronajímatelích).
+ * Vrací [{ name, short, color, isVatPayer, dph, noDph }] v pořadí firem; dph = částka bez DPH u plátce.
+ */
+export function tenantRentsByFirm(activeContracts, assets, firms) {
+  const out = []
+  for (const c of activeContracts) {
+    if (c.paymentFrequency === 'Zahrnuto v nájemném') continue
+    const asset = (assets || []).find(a => a.id === c.assetId)
+    const fname = firmOf(contractSubject(c, assets))
+    const firm = (firms || []).find(f => f.name === fname)
+    let row = out.find(r => r.name === fname)
+    if (!row) {
+      row = { name: fname, short: firm?.short || fname.slice(0, 3).toUpperCase(), color: firm?.color || 'slate', isVatPayer: firm?.isVatPayer ?? true, dph: 0, noDph: 0 }
+      out.push(row)
+    }
+    const ev = getEffectiveValuesToday(c)
+    const isRes = asset?.type === 'residential'
+    const rent = (ev.rent + (isRes ? ev.parking : 0) + ev.flatFee) / (PERIOD_LEN[c.paymentFrequency] || 1)
+    const withDph = !isRes && (c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : row.isVatPayer)
+    if (withDph) row.dph += rent
+    else row.noDph += rent
+  }
+  const idx = (n) => { const i = (firms || []).findIndex(f => f.name === n); return i < 0 ? 999 : i }
+  return out.filter(r => r.dph + r.noDph > 0).sort((a, b) => idx(a.name) - idx(b.name))
+}
+
+export function firmColors(colorKey, theme) {
+  const p = FIRM_PALETTE[colorKey] || FIRM_PALETTE.slate
+  return theme === 'dark' ? p.dark : p.light
+}
+
 /**
  * Date → CZ datum "D. M. RRRR".
  */

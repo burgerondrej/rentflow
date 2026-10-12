@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
-import { parseDate, getCurrentAssetContract, isEndingArchived } from './utils.js'
+import { parseDate, getCurrentAssetContract, isEndingArchived, firmOf } from './utils.js'
 
 
 const CONTRACT_TYPES = [
@@ -19,7 +19,7 @@ function isoToCz(iso) {
 }
 
 export default function ContractForm({ onClose }) {
-  const { tenants, assets, contracts = [], addContract, subjects = [], billingGroups = [], parkingBillingOptions = [], adsBillingOptions = [] } = useApp()
+  const { tenants, assets, contracts = [], addContract, groupLabelConflict, showToast, subjects = [], billingGroups = [], parkingBillingOptions = [], adsBillingOptions = [] } = useApp()
 
   const [contractType, setContractType] = useState(null)
   const [revealed, setRevealed] = useState(false)
@@ -136,7 +136,7 @@ export default function ContractForm({ onClose }) {
   const effectiveSubject = formData.billingSubject || selectedAsset?.subject || ''
   const isDphSubject = formData.vatExempt === 2 ? true
     : formData.vatExempt === 1 ? false
-    : (billingGroups.find(g => effectiveSubject.startsWith(g.val))?.isVatPayer ?? true)
+    : (billingGroups.find(g => firmOf(effectiveSubject) === g.val)?.isVatPayer ?? true)
   const isMetropoleParkingAsset = (parkingBillingOptions[0]?.label ? selectedAsset?.subject === parkingBillingOptions[0].label : false)
   const isMetropoleAdsAsset = (adsBillingOptions[0]?.label ? selectedAsset?.subject === adsBillingOptions[0].label : false)
 
@@ -164,6 +164,9 @@ export default function ContractForm({ onClose }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    // Striktní oddělení firem: název skupiny nesmí patřit jiné firmě
+    const conflict = groupLabelConflict(formData.groupLabel, formData.assetId, formData.billingSubject || null, null)
+    if (conflict) { showToast(`Skupina „${formData.groupLabel}“ už patří firmě ${conflict}. Zvol jiný název skupiny.`); return }
     const freqTypes = ['ads', 'parking', 'ostatni']
     const isParkingIncluded = contractType === 'parking' && formData.paymentFrequency === 'Zahrnuto v nájemném'
     addContract({

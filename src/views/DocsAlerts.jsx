@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
+import { FirmPicker } from '../FirmUI.jsx'
+import { selectionMatches, contractSubject } from '../utils.js'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
@@ -72,14 +74,12 @@ export function Docs() {
   // ── Sestavení stromové struktury ─────────────────────────────────
   const buildTree = () => {
     // Dokumenty patřící do aktivního subjektu
-    const subjectDocs = documents.filter(d => d.subject === activeSub)
+    const subjectDocs = documents.filter(d => selectionMatches(activeSub, d.subject))
 
     // Smlouvy patřící do aktivního subjektu (přes billing_subject nebo asset subject)
     const subjectContracts = contracts.filter(c => {
       if (c.status === 'deleted') return false
-      const asset = assets.find(a => a.id === c.assetId)
-      const effectiveSubject = c.billingSubject || (asset ? asset.subject : null)
-      return effectiveSubject === activeSub
+      return selectionMatches(activeSub, contractSubject(c, assets))
     })
 
     // Mapa contractId → nájemce
@@ -326,7 +326,7 @@ export function Docs() {
   }
 
   const { groups, freeDocs } = buildTree()
-  const totalDocs = documents.filter(d => d.subject === activeSub).length
+  const totalDocs = documents.filter(d => selectionMatches(activeSub, d.subject)).length
 
   return (
     <div style={{ paddingBottom: 60 }}>
@@ -338,7 +338,15 @@ export function Docs() {
         <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Nahrát dokument</button>
       </div>
 
-      <SubjectSelector subjects={subjects} active={activeSub} onSelect={setActiveSub} />
+      <div style={{ marginBottom: 24 }}>
+        <FirmPicker
+          value={activeSub}
+          onChange={setActiveSub}
+          crumbPrefix="Dokumenty"
+          sections={subjects.filter(s => documents.some(d => d.subject === s) || assets.some(a => a.subject === s) || contracts.some(c => contractSubject(c, assets) === s))}
+          getStat={(sel) => { const n = documents.filter(d => selectionMatches(sel, d.subject)).length; return { count: `${n} dok.`, text: n ? `${n} dokumentů` : 'bez dokumentů', tone: 'muted' } }}
+        />
+      </div>
 
       {/* ── STROM ─────────────────────────────────────────────────── */}
       {totalDocs === 0 ? (

@@ -12,7 +12,7 @@ const CONFIG = {
 }
 
 export default function AssetForm({ type, onClose }) {
-  const { addAsset, subjects = [] } = useApp()
+  const { addAsset, subjects = [], firms = [] } = useApp()
   const conf = CONFIG[type]
 
   const [formData, setFormData] = useState({
@@ -109,7 +109,12 @@ export default function AssetForm({ type, onClose }) {
               {lbl('Subjekt / Budova *')}
               <select className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }} value={formData.subject} onChange={e => set('subject', e.target.value)} required>
                 <option value="" disabled>— Vyberte subjekt —</option>
-                {subjects.filter(s => s !== 'Ostatní').map(s => <option key={s} value={s}>{s}</option>)}
+                {/* Seskupeno po firmách – JIHOTANK a JIHOTANK CB nesmí jít zaměnit */}
+                {firms.filter(f => f.name !== 'Ostatní').map(f => (
+                  <optgroup key={f.name} label={`${f.short} · ${f.name}`}>
+                    {f.sections.map(s => <option key={s} value={s}>{s}</option>)}
+                  </optgroup>
+                ))}
               </select>
             </div>
           )}

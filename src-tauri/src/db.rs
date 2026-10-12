@@ -342,6 +342,76 @@ impl Database {
         // Subjects a objects jsou spravovány výhradně uživatelem přes Settings.
         // Seed byl odstraněn — fresh install začíná s prázdnými tabulkami.
 
+        // v1.2.4 — firmy: zkratka + barva, sekce JIHOTANK / JIHOTANK CB / METROPOLE CZ, pořadí
+        let _ = self.conn.execute("ALTER TABLE subjects ADD COLUMN short_name TEXT NOT NULL DEFAULT ''", []);
+        let _ = self.conn.execute("ALTER TABLE subjects ADD COLUMN color TEXT NOT NULL DEFAULT ''", []);
+        self.migrate_firms_v124()?;
+
+        Ok(())
+    }
+
+    /// Jednorázová migrace firem (v1.2.4). Běží jen dokud neexistuje sekce METROPOLE CZ.
+    /// Na existující DB bez subjektů (fresh install) nic nezakládá.
+    fn migrate_firms_v124(&self) -> Result<()> {
+        let done: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM subjects WHERE name = 'METROPOLE CZ – Komerční prostory'", [], |r| r.get(0))?;
+        let has_any: i64 = self.conn.query_row("SELECT COUNT(*) FROM subjects", [], |r| r.get(0))?;
+        if done > 0 || has_any == 0 {
+            return Ok(());
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        // JIHOTANK / JIHOTANK CB → sekce "Komerční prostory" (přejmenovat i všechny odkazy)
+        for (old, new) in [("JIHOTANK", "JIHOTANK – Komerční prostory"), ("JIHOTANK CB", "JIHOTANK CB – Komerční prostory")] {
+            let exists_new: i64 = tx.query_row("SELECT COUNT(*) FROM subjects WHERE name = ?1", params![new], |r| r.get(0))?;
+            if exists_new == 0 {
+                tx.execute("UPDATE subjects SET name = ?1 WHERE name = ?2", params![new, old])?;
+            }
+            tx.execute("UPDATE assets SET subject = ?1 WHERE subject = ?2", params![new, old])?;
+            tx.execute("UPDATE documents SET subject = ?1 WHERE subject = ?2", params![new, old])?;
+            tx.execute("UPDATE revisions SET subject = ?1 WHERE subject = ?2", params![new, old])?;
+        }
+        // Nové sekce (komerční + parkování); prázdné se v UI nezobrazují
+        for (name, asset_type) in [
+            ("JIHOTANK – Komerční prostory", "commercial"),
+            ("JIHOTANK – Parkování", "parking"),
+            ("JIHOTANK CB – Komerční prostory", "commercial"),
+            ("JIHOTANK CB – Parkování", "parking"),
+            ("METROPOLE CZ – Komerční prostory", "commercial"),
+            ("METROPOLE CZ – Parkování", "parking"),
+        ] {
+            tx.execute(
+                "INSERT OR IGNORE INTO subjects (id, name, sort_order, asset_type, is_vat_payer) VALUES (?1, ?2, 999, ?3, 1)",
+                params![Self::new_id(), name, asset_type],
+            )?;
+        }
+        // Pořadí firem: METROPOLE CB, Bürger Pavel, METROPOLE CZ, JIHOTANK, JIHOTANK CB, Ostatní
+        // (sekce uvnitř firmy si drží dosavadní pořadí)
+        let firms = [
+            ("METROPOLE CB", "MCB", "wine"),
+            ("Bürger Pavel", "BP", "orange"),
+            ("METROPOLE CZ", "MCZ", "violet"),
+            ("JIHOTANK", "JT", "blue"),
+            ("JIHOTANK CB", "JCB", "emerald"),
+            ("Ostatní", "OST", "slate"),
+        ];
+        let mut order = 1i64;
+        for (firm, short, color) in firms {
+            let prefix = format!("{} – %", firm);
+            let names: Vec<String> = {
+                let mut stmt = tx.prepare(
+                    "SELECT name FROM subjects WHERE name = ?1 OR name LIKE ?2 ORDER BY sort_order, name")?;
+                let rows = stmt.query_map(params![firm, prefix], |r| r.get::<_, String>(0))?;
+                rows.collect::<std::result::Result<Vec<_>, _>>()?
+            };
+            for n in names {
+                tx.execute("UPDATE subjects SET sort_order = ?1, short_name = ?2, color = ?3 WHERE name = ?4",
+                    params![order, short, color, n])?;
+                order += 1;
+            }
+        }
+        // Ostatní subjekty mimo známé firmy → na konec, původní pořadí zachováno
+        tx.execute("UPDATE subjects SET sort_order = sort_order + 1000 WHERE short_name = ''", [])?;
+        tx.commit()?;
         Ok(())
     }
 
@@ -549,7 +619,50 @@ impl Database {
         Ok(result)
     }
 
+    /// Firma = část názvu subjektu před " – " (celý název, pokud oddělovač chybí).
+    fn firm_of(subject: &str) -> String {
+        subject.split(" – ").next().unwrap_or(subject).trim().to_string()
+    }
+
+    /// Firma (pronajímatel) smlouvy: u typu Ostatní subjekt předmětu, jinak billing_subject nebo subjekt předmětu.
+    fn firm_of_contract(&self, asset_id: &str, billing_subject: &Option<String>) -> Result<String> {
+        let (asset_type, asset_subject): (String, String) = self.conn.query_row(
+            "SELECT asset_type, COALESCE(subject, '') FROM assets WHERE id = ?1",
+            params![asset_id], |r| Ok((r.get(0)?, r.get(1)?)),
+        ).unwrap_or_default();
+        let subj = match billing_subject {
+            Some(b) if asset_type != "ostatni" && !b.trim().is_empty() => b.clone(),
+            _ => asset_subject,
+        };
+        Ok(Self::firm_of(&subj))
+    }
+
+    /// Skupina smluv (group_label) nesmí být sdílená mezi firmami – skupinové platby se párují
+    /// jen podle názvu skupiny, sdílený název by slil platby dvou firem.
+    fn check_group_label(&self, c: &Contract, self_id: Option<&str>) -> Result<()> {
+        let label = match &c.group_label {
+            Some(l) if !l.trim().is_empty() => l.clone(),
+            _ => return Ok(()),
+        };
+        let firm = self.firm_of_contract(&c.asset_id, &c.billing_subject)?;
+        let others: Vec<(String, String, Option<String>)> = {
+            let mut stmt = self.conn.prepare("SELECT id, asset_id, billing_subject FROM contracts WHERE group_label = ?1")?;
+            let rows = stmt.query_map(params![label], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        for (oid, oasset, obilling) in others {
+            if Some(oid.as_str()) == self_id { continue; }
+            let ofirm = self.firm_of_contract(&oasset, &obilling)?;
+            if ofirm != firm {
+                return Err(AppError::Other(format!(
+                    "Skupina „{}“ už patří firmě {}. Každá firma musí mít vlastní název skupiny.", label, ofirm)));
+            }
+        }
+        Ok(())
+    }
+
     pub fn add_contract(&self, c: &Contract) -> Result<Contract> {
+        self.check_group_label(c, None)?;
         let id = Self::new_id();
         let addenda_json = serde_json::to_string(&c.addenda)?;
         let energy_json = serde_json::to_string(&c.energy_settlements)?;
@@ -565,6 +678,7 @@ impl Database {
     }
 
     pub fn update_contract(&self, id: &str, c: &Contract) -> Result<()> {
+        self.check_group_label(c, Some(id))?;
         let addenda_json = serde_json::to_string(&c.addenda)?;
         let energy_json = serde_json::to_string(&c.energy_settlements)?;
         self.conn.execute(
@@ -983,13 +1097,15 @@ impl Database {
 
     pub fn get_subjects(&self) -> Result<Vec<Subject>> {
         let mut stmt = self.conn.prepare(
-            "SELECT name, asset_type, is_vat_payer FROM subjects ORDER BY sort_order"
+            "SELECT name, asset_type, is_vat_payer, COALESCE(short_name, ''), COALESCE(color, '') FROM subjects ORDER BY sort_order"
         )?;
         let items = stmt.query_map([], |row| {
             Ok(Subject {
                 name: row.get(0)?,
                 asset_type: row.get(1)?,
                 is_vat_payer: row.get::<_, i64>(2)? != 0,
+                short_name: row.get(3)?,
+                color: row.get(4)?,
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(items)

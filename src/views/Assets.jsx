@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import AssetForm from '../AssetForm.jsx'
-import { getCurrentAssetContract, isContractOccupying } from '../utils.js'
+import { getCurrentAssetContract, isContractOccupying, selectionMatches, firmOf, firmColors } from '../utils.js'
+import { FirmBadge } from '../FirmUI.jsx'
 
 
 // Sekce pro bytové jednotky
@@ -53,7 +54,7 @@ function useDragOrder(initialItems) {
 }
 
 export default function Assets({ type, activeSubject, onOpen }) {
-  const { assets = [], contracts = [], tenants = [] , residentialSubjects = [] } = useApp()
+  const { assets = [], contracts = [], tenants = [] , residentialSubjects = [], firms = [], getFirm, theme } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
@@ -66,7 +67,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
 
   let allFiltered = assets.filter(a => a.type === type)
   if (activeSubject && activeSubject !== 'all') {
-    allFiltered = allFiltered.filter(a => a.subject === activeSubject)
+    allFiltered = allFiltered.filter(a => selectionMatches(activeSubject, a.subject))
   }
   if (search) {
     const term = search.toLowerCase()
@@ -104,6 +105,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
         style={{
           cursor: 'grab', marginBottom: 0, padding: 0, overflow: 'hidden', borderRadius: 12,
           border: `1px solid ${cardBorder}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          borderLeft: `5px solid ${getFirm && getFirm(asset.subject) ? firmColors(getFirm(asset.subject).color, theme).mid : cardBorder}`,
           background: cardBg, transition: 'opacity 0.15s',
           opacity: isDragging ? 0.5 : 1,
           userSelect: 'none',
@@ -208,7 +210,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
         <div key={sectionName} style={{ marginBottom: 40 }}>
           {/* Section header – stejný styl jako Smlouvy */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '2.5px solid var(--border)', paddingBottom: 11, marginBottom: 18 }}>
-            <span style={{ fontSize: 18 }}>{sectionIcon}</span>
+            {getFirm && getFirm(sectionName) ? <FirmBadge firm={getFirm(sectionName)} size={28} /> : <span style={{ fontSize: 18 }}>{sectionIcon}</span>}
             <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>
               {shortName}
             </div>
@@ -239,32 +241,45 @@ export default function Assets({ type, activeSubject, onOpen }) {
   }
 
   // Generická sekční funkce pro parking a ads – dle format pole
+  // Sekce VŽDY v rámci jedné firmy: firma → umístění (format). Stejné umístění dvou firem = dvě sekce.
+  const firmIndex = (name) => { const i = firms.findIndex(f => f.name === name); return i < 0 ? 999 : i }
   const renderFormatSections = (sectionNames, icon) => {
-    const sections = [...sectionNames]
-    const others = filtered.filter(a => !a.format || !sectionNames.includes(a.format))
-    if (others.length > 0) sections.push('Ostatní')
+    const keys = []
+    filtered.forEach(a => {
+      const k = `${firmOf(a.subject)}\u0001${a.format && sectionNames.includes(a.format) ? a.format : 'Ostatní'}`
+      if (!keys.includes(k)) keys.push(k)
+    })
+    keys.sort((x, y) => {
+      const [fx, sx] = x.split('\u0001'), [fy, sy] = y.split('\u0001')
+      if (fx !== fy) return firmIndex(fx) - firmIndex(fy)
+      if (sx === 'Ostatní') return 1
+      if (sy === 'Ostatní') return -1
+      return sectionNames.indexOf(sx) - sectionNames.indexOf(sy)
+    })
 
-    return sections.map(sectionName => {
-      const items = sectionName === 'Ostatní'
-        ? getOrdered(others)
-        : getOrdered(filtered.filter(a => a.format === sectionName))
+    return keys.map(key => {
+      const [firmName, sectionName] = key.split('\u0001')
+      const sectionFirm = firms.find(f => f.name === firmName)
+      const items = getOrdered(filtered.filter(a => firmOf(a.subject) === firmName &&
+        (sectionName === 'Ostatní' ? (!a.format || !sectionNames.includes(a.format)) : a.format === sectionName)))
       if (items.length === 0) return null
 
-      const isCollapsed = collapsedSections[sectionName]
+      const isCollapsed = collapsedSections[key]
       const activeCount = items.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && isContractOccupying(c))).length
 
       return (
-        <div key={sectionName} style={{ marginBottom: 40 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '2.5px solid var(--border)', paddingBottom: 11, marginBottom: 18 }}>
-            <span style={{ fontSize: 18 }}>{icon}</span>
-            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>
-              {sectionName}
+        <div key={key} style={{ marginBottom: 40 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: `2.5px solid ${sectionFirm ? firmColors(sectionFirm.color, theme).mid + '55' : 'var(--border)'}`, paddingBottom: 11, marginBottom: 18 }}>
+            {sectionFirm ? <FirmBadge firm={sectionFirm} size={28} /> : <span style={{ fontSize: 18 }}>{icon}</span>}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{icon} {sectionName}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: sectionFirm ? firmColors(sectionFirm.color, theme).sub : 'var(--text3)' }}>{firmName}</div>
             </div>
             <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '3px 10px', borderRadius: 8, fontWeight: 600 }}>
               {activeCount} obsazeno / {items.length} celkem
             </span>
             <button
-              onClick={() => toggleSection(sectionName)}
+              onClick={() => toggleSection(key)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text3)', padding: '2px 6px', borderRadius: 6 }}
             >
               {isCollapsed ? '▸ Rozbalit' : '▾ Sbalit'}
@@ -315,9 +330,26 @@ export default function Assets({ type, activeSubject, onOpen }) {
         : type === 'ads'
         ? renderFormatSections([...new Set(filtered.map(a => a.format).filter(Boolean))], '🪧')
         : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-            {getOrdered(filtered).map(a => renderCard(a))}
-          </div>
+          // Komerční / ostatní: sekce po firmách (striktně odděleno)
+          [...new Set(filtered.map(a => firmOf(a.subject)))].sort((x, y) => firmIndex(x) - firmIndex(y)).map(firmName => {
+            const firm = firms.find(f => f.name === firmName)
+            const items = getOrdered(filtered.filter(a => firmOf(a.subject) === firmName))
+            const activeCount = items.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && isContractOccupying(c))).length
+            return (
+              <div key={firmName} style={{ marginBottom: 40 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: `2.5px solid ${firm ? firmColors(firm.color, theme).mid + '55' : 'var(--border)'}`, paddingBottom: 11, marginBottom: 18 }}>
+                  {firm && <FirmBadge firm={firm} size={28} />}
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>{firmName}</div>
+                  <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '3px 10px', borderRadius: 8, fontWeight: 600 }}>
+                    {activeCount} obsazeno / {items.length} celkem
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                  {items.map(a => renderCard(a))}
+                </div>
+              </div>
+            )
+          })
         )
       }
 
