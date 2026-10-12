@@ -817,6 +817,11 @@ pub fn get_objects(state: State<AppState>) -> std::result::Result<Vec<String>, A
     db!(state).get_objects()
 }
 
+#[tauri::command]
+pub fn get_object_firms(state: State<AppState>) -> std::result::Result<Vec<ObjectItem>, AppError> {
+    db!(state).get_object_firms()
+}
+
 // ─────────────────────────────────────────
 // UPDATER
 // ─────────────────────────────────────────

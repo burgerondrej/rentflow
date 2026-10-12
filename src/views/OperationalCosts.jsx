@@ -1,4 +1,6 @@
 import React, { useState } from 'react'
+import { FirmPicker, useObjectFirms } from '../FirmUI.jsx'
+import { selectionLabel } from '../utils.js'
 import { useApp } from '../AppContext.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
 
@@ -28,16 +30,17 @@ export default function OperationalCosts() {
   const [confirmDialog, setConfirmDialog] = useState(null)
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
-  // Nastaví první objekt po načtení mainObjects z DB
-  React.useEffect(() => { if (mainObjects.length > 0 && !activeObj) setActiveObj(mainObjects[0]) }, [mainObjects, activeObj])
+  // Výběr firma → budova ("Vše" = všechny budovy firmy); neplatný výběr → první firma
+  const { itemsByFirm, matches, isValid, firstSel, firstObjectOf } = useObjectFirms()
+  const sel = isValid(activeObj) ? activeObj : firstSel
 
-  const filtered = operationalCosts.filter(c => c.objectName === activeObj)
+  const filtered = operationalCosts.filter(c => matches(sel, c.objectName))
 
-  const openAdd = () => { setEditId(null); setForm({ objectName: activeObj, category: CATEGORIES[0], amount: '', frequency: 'Ročně', notes: '', vatIncluded: false }); setShowForm(true) }
+  const openAdd = () => { setEditId(null); setForm({ objectName: firstObjectOf(sel), category: CATEGORIES[0], amount: '', frequency: 'Ročně', notes: '', vatIncluded: false }); setShowForm(true) }
   const openEdit = (oc) => {
     setEditId(oc.id)
     setForm({
-      objectName: oc.objectName || activeObj,
+      objectName: oc.objectName || firstObjectOf(sel),
       category: oc.category || CATEGORIES[0],
       amount: oc.amount?.toString() || '',
       frequency: oc.frequency || 'Ročně',
@@ -106,29 +109,16 @@ export default function OperationalCosts() {
         {!isReadOnly && <button className="btn btn-primary" onClick={openAdd}>+ Přidat náklad</button>}
       </div>
 
-      {/* Selector subjektů */}
-      <div style={{ background: 'var(--bg2)', border: '1.5px solid var(--border)', borderRadius: 16, padding: 12, marginBottom: 24 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10, paddingLeft: 4 }}>Vyberte objekt</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
-          {mainObjects.map(obj => {
-            const isActive = activeObj === obj
-            const group = obj.includes(' – ') ? obj.split(' – ')[0] : ''
-            const sub2 = obj.includes('–') ? obj.split('–').slice(1).join('–').trim() : obj
-            return (
-              <button key={obj} onClick={() => setActiveObj(obj)} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                padding: '8px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                border: isActive ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                background: isActive ? 'linear-gradient(135deg, #0A3D2B 0%, #1A8A62 100%)' : 'var(--bg)',
-                boxShadow: isActive ? '0 4px 14px rgba(18,101,74,0.30)' : 'none',
-                transition: 'all 0.15s ease',
-              }}>
-                {group && <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? 'rgba(255,255,255,0.7)' : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 2 }}>{group}</span>}
-                <span style={{ fontSize: 14, fontWeight: isActive ? 700 : 600, color: isActive ? '#fff' : 'var(--text)', lineHeight: 1.3, whiteSpace: 'nowrap' }}>{sub2}</span>
-              </button>
-            )
-          })}
-        </div>
+      {/* Výběr firma → budova */}
+      <div style={{ marginBottom: 24 }}>
+        <FirmPicker
+          value={sel}
+          onChange={setActiveObj}
+          itemsByFirm={itemsByFirm}
+          itemIcon={() => '🏢'}
+          crumbPrefix="Provozní náklady"
+          getStat={(s) => { const n = operationalCosts.filter(c => matches(s, c.objectName)).length; return { count: `${n} pol.`, text: n ? `${n} nákladů` : 'bez nákladů', tone: 'muted' } }}
+        />
       </div>
 
       {/* Souhrn */}
@@ -154,7 +144,7 @@ export default function OperationalCosts() {
         <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text3)' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>🏗️</div>
           <div style={{ fontSize: 15, fontWeight: 600 }}>Žádné provozní náklady</div>
-          <div style={{ fontSize: 13, marginTop: 4 }}>Pro objekt {activeObj} zatím nejsou evidovány žádné náklady.</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}>Pro {selectionLabel(sel)} zatím nejsou evidovány žádné náklady.</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

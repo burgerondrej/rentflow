@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { FirmPicker, useObjectFirms } from '../FirmUI.jsx'
 import { useApp } from '../AppContext.jsx'// ── Pomocná komponenta: selector subjektů ────────────────────────────────────
 function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt' }) {
   const cols = subjects.length <= 5 ? 'repeat(auto-fill, minmax(160px, 1fr))' : 'repeat(3, 1fr)'
@@ -78,11 +79,15 @@ export default function Maintenance() {
   })
 
   // Filtrace: nejdřív podle subject (nový způsob), fallback přes asset (stará data)
-  const filteredRevisions = enrichedRevisions.filter(r => {
-    if (r.subject) return r.subject === activeSub
+  // Výběr firma → budova ("Vše" = všechny budovy firmy); neplatný výběr → první firma
+  const { itemsByFirm, matches, isValid, firstSel } = useObjectFirms()
+  const sel = isValid(activeSub) ? activeSub : firstSel
+  const revisionsIn = (s) => enrichedRevisions.filter(r => {
+    if (r.subject) return matches(s, r.subject)
     const asset = assets.find(a => a.id === r.assetId)
-    return asset && asset.subject === activeSub
+    return asset && matches(s, asset.subject)
   })
+  const filteredRevisions = revisionsIn(sel)
 
   const stats = {
     urgent: filteredRevisions.filter(r => r.status.label === 'Propadlé').length,
@@ -113,7 +118,25 @@ export default function Maintenance() {
         <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Nová revize</button>
       </div>
 
-      <SubjectSelector subjects={mainObjects} active={activeSub} onSelect={setActiveSub} />
+      <div style={{ marginBottom: 24 }}>
+        <FirmPicker
+          value={sel}
+          onChange={setActiveSub}
+          itemsByFirm={itemsByFirm}
+          itemIcon={() => '🏢'}
+          crumbPrefix="Revize"
+          getStat={(s) => {
+            const rs = revisionsIn(s)
+            const urgent = rs.filter(r => r.status.label === 'Propadlé').length
+            const warning = rs.filter(r => r.status.label === 'Blíží se').length
+            return {
+              count: `${rs.length} rev.`,
+              text: urgent ? `${urgent} propadlé` : warning ? `${warning} blíží se` : rs.length ? 'vše v pořádku' : 'bez revizí',
+              tone: urgent ? 'bad' : warning ? 'warn' : rs.length ? 'ok' : 'muted',
+            }
+          }}
+        />
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16, marginBottom: 32 }}>
         <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: 24, borderRadius: 16 }}>

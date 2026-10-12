@@ -323,6 +323,15 @@ pub struct Subject {
     pub color: String,       // barevný klíč firmy (wine, orange, violet, blue, emerald, slate)
 }
 
+// Objekt (budova) a firma, které patří
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectItem {
+    pub name: String,
+    #[serde(default)]
+    pub firm: String,
+}
+
 // ─────────────────────────────────────────
 // ERROR TYPE
 // ─────────────────────────────────────────

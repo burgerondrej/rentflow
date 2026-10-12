@@ -346,6 +346,20 @@ impl Database {
         let _ = self.conn.execute("ALTER TABLE subjects ADD COLUMN short_name TEXT NOT NULL DEFAULT ''", []);
         let _ = self.conn.execute("ALTER TABLE subjects ADD COLUMN color TEXT NOT NULL DEFAULT ''", []);
         self.migrate_firms_v124()?;
+        // v1.2.4 — úprava barev: BP mátová (místo oranžové), JCB oranžová (místo smaragdové); jen pokud se neměnily
+        let _ = self.conn.execute("UPDATE subjects SET color = 'mint' WHERE short_name = 'BP' AND color = 'orange'", []);
+        let _ = self.conn.execute("UPDATE subjects SET color = 'orange' WHERE short_name = 'JCB' AND color = 'emerald'", []);
+        // v1.2.4 — objekty (budovy) patří firmě; revize a provozní náklady se filtrují firma → budova
+        let _ = self.conn.execute("ALTER TABLE objects ADD COLUMN firm TEXT NOT NULL DEFAULT ''", []);
+        for (name, firm) in [
+            ("METROPOLE CB – U Staré trati", "METROPOLE CB"),
+            ("Novohradská 57a", "METROPOLE CB"),
+            ("Novohradská 53/55", "METROPOLE CB"),
+            ("JIHOTANK", "JIHOTANK"),
+            ("JIHOTANK CB", "JIHOTANK CB"),
+        ] {
+            let _ = self.conn.execute("UPDATE objects SET firm = ?1 WHERE name = ?2 AND firm = ''", params![firm, name]);
+        }
 
         Ok(())
     }
@@ -388,10 +402,10 @@ impl Database {
         // (sekce uvnitř firmy si drží dosavadní pořadí)
         let firms = [
             ("METROPOLE CB", "MCB", "wine"),
-            ("Bürger Pavel", "BP", "orange"),
+            ("Bürger Pavel", "BP", "mint"),
             ("METROPOLE CZ", "MCZ", "violet"),
             ("JIHOTANK", "JT", "blue"),
-            ("JIHOTANK CB", "JCB", "emerald"),
+            ("JIHOTANK CB", "JCB", "orange"),
             ("Ostatní", "OST", "slate"),
         ];
         let mut order = 1i64;
@@ -1114,6 +1128,17 @@ impl Database {
     // ─────────────────────────────────────────
     // OBJECTS (Fyzické budovy — provozní náklady + revize)
     // ─────────────────────────────────────────
+
+    /// Objekty (budovy) s firmou, které patří – pro výběr firma → budova.
+    pub fn get_object_firms(&self) -> Result<Vec<ObjectItem>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT name, COALESCE(firm, '') FROM objects ORDER BY sort_order"
+        )?;
+        let items = stmt.query_map([], |row| {
+            Ok(ObjectItem { name: row.get(0)?, firm: row.get(1)? })
+        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
 
     pub fn get_objects(&self) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(

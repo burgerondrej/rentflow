@@ -48,6 +48,7 @@ export function selectionLabel(sel) {
 const FIRM_PALETTE = {
   wine:    { light: { bg: '#F5E4E7', mid: '#6E1423', txt: '#4A0D17', sub: '#8C2A3A' }, dark: { bg: '#3A0A12', mid: '#C0566A', txt: '#F5E4E7', sub: '#E3A3AE' } },
   orange:  { light: { bg: '#FDEBD8', mid: '#D9701A', txt: '#7A3A06', sub: '#A8560F' }, dark: { bg: '#3D2006', mid: '#F09A4E', txt: '#FDEBD8', sub: '#F5C08E' } },
+  mint:    { light: { bg: '#DDF4E6', mid: '#2F9E68', txt: '#145A37', sub: '#23804F' }, dark: { bg: '#0F3A24', mid: '#5CC98F', txt: '#DDF4E6', sub: '#A6E3C2' } },
   violet:  { light: { bg: '#F3E8F6', mid: '#7B3F8C', txt: '#3F1A4A', sub: '#6A3479' }, dark: { bg: '#2E1436', mid: '#B784C6', txt: '#F3E8F6', sub: '#D8B8E2' } },
   blue:    { light: { bg: '#E6F1FB', mid: '#185FA5', txt: '#0C447C', sub: '#185FA5' }, dark: { bg: '#042C53', mid: '#5A9BE0', txt: '#E6F1FB', sub: '#B5D4F4' } },
   emerald: { light: { bg: '#E1F5EE', mid: '#0F7A5C', txt: '#064030', sub: '#0F6E56' }, dark: { bg: '#04342C', mid: '#4CC39B', txt: '#E1F5EE', sub: '#9FE1CB' } },

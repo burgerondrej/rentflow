@@ -34,6 +34,7 @@ export function AppProvider({ children }) {
   const [operationalCosts, setOperationalCosts] = useState([])
   const [subjectData, setSubjectData] = useState([])
   const [mainObjects, setMainObjects] = useState([])
+  const [objectFirms, setObjectFirms] = useState([]) // [{ name, firm }] – budova → firma
   const [loading, setLoading] = useState(true)
   const [splashStatus, setSplashStatus] = useState('Spouštím RentFlow…')
   const [currentUser, setCurrentUserState] = useState(() => localStorage.getItem('rentflow_user') || 'Ondra')
@@ -104,12 +105,14 @@ export function AppProvider({ children }) {
         if (oc) setOperationalCosts(oc)
 
         setSplashStatus('Načítám konfiguraci…')
-        const [subj, objs] = await Promise.all([
+        const [subj, objs, objFirms] = await Promise.all([
           invoke('get_subjects'),
           invoke('get_objects'),
+          invoke('get_object_firms').catch(() => []),
         ])
         if (subj) setSubjectData(subj)
         if (objs) setMainObjects(objs)
+        if (objFirms) setObjectFirms(objFirms)
 
         setSplashStatus('Vše připraveno ✓')
         await new Promise(r => setTimeout(r, 400))
@@ -742,6 +745,7 @@ export function AppProvider({ children }) {
     parkingBillingOptions,
     adsBillingOptions,
     mainObjects,
+    objectFirms,
     // State
     loading,
     currentUser, setCurrentUser,

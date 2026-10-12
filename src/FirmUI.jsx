@@ -82,16 +82,19 @@ function Ring({ pct, color, size = 34 }) {
  * sections = názvy sekcí, které se mají nabízet (prázdné se nezobrazují); firmy bez sekcí se skryjí.
  * getStat(sel) → { pct?: 0–1, text?: string, tone?: 'ok'|'bad'|'warn'|'muted', count?: string } (volitelné)
  */
-export function FirmPicker({ value, onChange, sections, getStat, crumbPrefix, compact = false }) {
+export function FirmPicker({ value, onChange, sections, getStat, crumbPrefix, compact = false, itemsByFirm, itemIcon, itemLabel }) {
   const { theme, firms = [], subjectData = [] } = useApp()
+  // Položky stromu: sekce firmy (výchozí), nebo vlastní seznam (např. budovy) přes itemsByFirm[firma]
   const visible = firms
-    .map(f => ({ ...f, secs: f.sections.filter(s => !sections || sections.includes(s)) }))
+    .map(f => ({ ...f, secs: (itemsByFirm ? (itemsByFirm[f.name] || []) : f.sections).filter(s => !sections || sections.includes(s)) }))
     .filter(f => f.secs.length > 0)
-  const activeFirmName = value ? selectionFirm(value) : null
+  const activeFirmName = !value ? null : isFirmSelection(value) ? selectionFirm(value) : (visible.find(f => f.secs.includes(value))?.name || firmOf(value))
   const firm = visible.find(f => f.name === activeFirmName) || visible[0]
   if (!firm) return null
   const c = firmColors(firm.color, theme)
   const typeOf = (s) => subjectData.find(x => x.name === s)?.assetType || 'other'
+  const iconOf = (s) => itemIcon ? itemIcon(s) : (TYPE_ICON[typeOf(s)] || '📄')
+  const labelOf = (s) => itemLabel ? itemLabel(s) : sectionOf(s)
   const rows = firm.secs.length > 1 ? [firmSelection(firm.name), ...firm.secs] : firm.secs
   const curRow = rows.includes(value) ? value : rows[0]
   const statOf = (sel) => (getStat ? getStat(sel) : null) || {}
@@ -147,8 +150,8 @@ export function FirmPicker({ value, onChange, sections, getStat, crumbPrefix, co
                   <span style={{ display: 'flex', justifyContent: 'center' }}>
                     <span style={{ width: 10, height: 10, borderRadius: '50%', background: on ? c.mid : 'var(--bg)', border: `2px solid ${c.mid}`, zIndex: 1 }} />
                   </span>
-                  <span style={{ fontSize: 15, textAlign: 'center' }}>{isAll ? '▦' : (TYPE_ICON[typeOf(r)] || '📄')}</span>
-                  <span style={{ fontSize: 13, fontWeight: on || isAll ? 700 : 500, color: on ? c.txt : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isAll ? 'Vše' : sectionOf(r)}</span>
+                  <span style={{ fontSize: 15, textAlign: 'center' }}>{isAll ? '▦' : iconOf(r)}</span>
+                  <span style={{ fontSize: 13, fontWeight: on || isAll ? 700 : 500, color: on ? c.txt : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isAll ? 'Vše' : labelOf(r)}</span>
                   <span style={{ height: 6, borderRadius: 3, background: 'var(--bg2)', border: '1px solid var(--border)', overflow: 'hidden', visibility: st.pct != null ? 'visible' : 'hidden' }}>
                     <span style={{ display: 'block', height: '100%', width: `${Math.round((st.pct || 0) * 100)}%`, background: (st.pct || 0) >= 0.999 ? TONE.ok : c.mid }} />
                   </span>
@@ -164,7 +167,7 @@ export function FirmPicker({ value, onChange, sections, getStat, crumbPrefix, co
             <span style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, background: c.mid }} />
             <span>{crumbPrefix}</span><span style={{ color: c.sub }}>›</span>
             <span style={{ fontWeight: 800 }}>{firm.name}</span><span style={{ color: c.sub }}>›</span>
-            <span>{isFirmSelection(curRow) ? 'Vše' : sectionOf(curRow)}</span>
+            <span>{isFirmSelection(curRow) ? 'Vše' : labelOf(curRow)}</span>
           </div>
         )}
       </div>
@@ -230,3 +233,21 @@ export function progressStat(done, total, emptyText = 'bez položek') {
 }
 
 export { firmOf }
+
+/**
+ * Objekty (budovy) seskupené po firmách – pro Revize a Provozní náklady.
+ * Budova bez přiřazené firmy spadne pod "Ostatní".
+ */
+export function useObjectFirms() {
+  const { objectFirms = [], mainObjects = [], firms = [] } = useApp()
+  const firmOfObject = (name) => objectFirms.find(o => o.name === name)?.firm || 'Ostatní'
+  const itemsByFirm = {}
+  mainObjects.forEach(n => { const f = firmOfObject(n); (itemsByFirm[f] = itemsByFirm[f] || []).push(n) })
+  const matches = (sel, name) => !sel ? false : isFirmSelection(sel) ? firmOfObject(name) === selectionFirm(sel) : name === sel
+  const isValid = (sel) => !!sel && (isFirmSelection(sel) ? (itemsByFirm[selectionFirm(sel)] || []).length > 1 : mainObjects.includes(sel))
+  const first = firms.find(f => (itemsByFirm[f.name] || []).length > 0)
+  const firstSel = !first ? '' : itemsByFirm[first.name].length > 1 ? firmSelection(first.name) : itemsByFirm[first.name][0]
+  // První budova výběru (pro předvyplnění formulářů při výběru "Vše")
+  const firstObjectOf = (sel) => isFirmSelection(sel) ? ((itemsByFirm[selectionFirm(sel)] || [])[0] || '') : sel
+  return { itemsByFirm, firmOfObject, matches, isValid, firstSel, firstObjectOf }
+}

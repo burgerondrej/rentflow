@@ -122,6 +122,7 @@ fn main() {
             commands::install_update,
             commands::get_subjects,
             commands::get_objects,
+            commands::get_object_firms,
             commands::verify_activation,
             commands::check_activation,
         ])
