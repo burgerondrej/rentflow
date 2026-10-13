@@ -43,16 +43,19 @@ export function selectionLabel(sel) {
   return sel
 }
 
-// Barvy firem: klíč z DB (subjects.color) → odstíny pro světlý / tmavý režim
+// Barvy firem: klíč z DB (subjects.color) → odstíny pro světlý / tmavý režim (sytá paleta v1.2.4)
 // bg = podklad, mid = výrazná barva (zkratka, proužek), txt = text na podkladu, sub = vedlejší text
 const FIRM_PALETTE = {
-  wine:    { light: { bg: '#F5E4E7', mid: '#6E1423', txt: '#4A0D17', sub: '#8C2A3A' }, dark: { bg: '#3A0A12', mid: '#C0566A', txt: '#F5E4E7', sub: '#E3A3AE' } },
-  orange:  { light: { bg: '#FDEBD8', mid: '#D9701A', txt: '#7A3A06', sub: '#A8560F' }, dark: { bg: '#3D2006', mid: '#F09A4E', txt: '#FDEBD8', sub: '#F5C08E' } },
-  mint:    { light: { bg: '#DDF4E6', mid: '#2F9E68', txt: '#145A37', sub: '#23804F' }, dark: { bg: '#0F3A24', mid: '#5CC98F', txt: '#DDF4E6', sub: '#A6E3C2' } },
-  violet:  { light: { bg: '#F3E8F6', mid: '#7B3F8C', txt: '#3F1A4A', sub: '#6A3479' }, dark: { bg: '#2E1436', mid: '#B784C6', txt: '#F3E8F6', sub: '#D8B8E2' } },
-  blue:    { light: { bg: '#E6F1FB', mid: '#185FA5', txt: '#0C447C', sub: '#185FA5' }, dark: { bg: '#042C53', mid: '#5A9BE0', txt: '#E6F1FB', sub: '#B5D4F4' } },
-  emerald: { light: { bg: '#E1F5EE', mid: '#0F7A5C', txt: '#064030', sub: '#0F6E56' }, dark: { bg: '#04342C', mid: '#4CC39B', txt: '#E1F5EE', sub: '#9FE1CB' } },
-  slate:   { light: { bg: '#EDF0F3', mid: '#5B6B7A', txt: '#2E3A46', sub: '#4A5866' }, dark: { bg: '#1F262D', mid: '#93A3B3', txt: '#EDF0F3', sub: '#C3CDD7' } },
+  wine:    { light: { bg: '#F8E6EA', mid: '#7A1029', txt: '#4A0A19', sub: '#8E1D38' }, dark: { bg: '#3B0814', mid: '#E0577A', txt: '#F8E6EA', sub: '#F0A3B6' } },
+  royal:   { light: { bg: '#E5EDFF', mid: '#2563EB', txt: '#13307A', sub: '#1D4ED8' }, dark: { bg: '#0E2257', mid: '#6B9BFF', txt: '#E5EDFF', sub: '#A9C4FF' } },
+  violet:  { light: { bg: '#F3E8FF', mid: '#9333EA', txt: '#4C1580', sub: '#7E22CE' }, dark: { bg: '#2E0F52', mid: '#C08CFF', txt: '#F3E8FF', sub: '#DDBEFF' } },
+  teal:    { light: { bg: '#DDF6F3', mid: '#0D9488', txt: '#064E48', sub: '#0F766E' }, dark: { bg: '#063B37', mid: '#3CCFBF', txt: '#DDF6F3', sub: '#9BE7DE' } },
+  orange:  { light: { bg: '#FFEDE0', mid: '#EA580C', txt: '#7C2D07', sub: '#C2410C' }, dark: { bg: '#43180A', mid: '#FF8A47', txt: '#FFEDE0', sub: '#FFC09A' } },
+  slate:   { light: { bg: '#EBEEF2', mid: '#475569', txt: '#1F2937', sub: '#475569' }, dark: { bg: '#1E242C', mid: '#94A3B8', txt: '#EBEEF2', sub: '#CBD5E1' } },
+  // Dřívější návrhové klíče (DB je migrace převede) – jen pojistka
+  mint:    { light: { bg: '#E5EDFF', mid: '#2563EB', txt: '#13307A', sub: '#1D4ED8' }, dark: { bg: '#0E2257', mid: '#6B9BFF', txt: '#E5EDFF', sub: '#A9C4FF' } },
+  blue:    { light: { bg: '#DDF6F3', mid: '#0D9488', txt: '#064E48', sub: '#0F766E' }, dark: { bg: '#063B37', mid: '#3CCFBF', txt: '#DDF6F3', sub: '#9BE7DE' } },
+  emerald: { light: { bg: '#FFEDE0', mid: '#EA580C', txt: '#7C2D07', sub: '#C2410C' }, dark: { bg: '#43180A', mid: '#FF8A47', txt: '#FFEDE0', sub: '#FFC09A' } },
 }
 
 /** Subjekt (pronajímatel) smlouvy: u typu Ostatní subjekt předmětu, jinak billing_subject nebo subjekt předmětu. */

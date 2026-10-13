@@ -35,6 +35,7 @@ export function AppProvider({ children }) {
   const [subjectData, setSubjectData] = useState([])
   const [mainObjects, setMainObjects] = useState([])
   const [objectFirms, setObjectFirms] = useState([]) // [{ name, firm }] – budova → firma
+  const [navSelection, setNavSelection] = useState(null) // výběr firma/sekce předaný mezi obrazovkami (Dashboard → Platby)
   const [loading, setLoading] = useState(true)
   const [splashStatus, setSplashStatus] = useState('Spouštím RentFlow…')
   const [currentUser, setCurrentUserState] = useState(() => localStorage.getItem('rentflow_user') || 'Ondra')
@@ -746,6 +747,7 @@ export function AppProvider({ children }) {
     adsBillingOptions,
     mainObjects,
     objectFirms,
+    navSelection, setNavSelection,
     // State
     loading,
     currentUser, setCurrentUser,

@@ -346,8 +346,9 @@ impl Database {
         let _ = self.conn.execute("ALTER TABLE subjects ADD COLUMN short_name TEXT NOT NULL DEFAULT ''", []);
         let _ = self.conn.execute("ALTER TABLE subjects ADD COLUMN color TEXT NOT NULL DEFAULT ''", []);
         self.migrate_firms_v124()?;
-        // v1.2.4 — úprava barev: BP mátová (místo oranžové), JCB oranžová (místo smaragdové); jen pokud se neměnily
-        let _ = self.conn.execute("UPDATE subjects SET color = 'mint' WHERE short_name = 'BP' AND color = 'orange'", []);
+        // v1.2.4 — finální sytá paleta: BP královská modrá, JT tyrkysová, JCB oranžová (jen z dřívějších návrhových hodnot)
+        let _ = self.conn.execute("UPDATE subjects SET color = 'royal' WHERE short_name = 'BP' AND color IN ('orange', 'mint')", []);
+        let _ = self.conn.execute("UPDATE subjects SET color = 'teal' WHERE short_name = 'JT' AND color = 'blue'", []);
         let _ = self.conn.execute("UPDATE subjects SET color = 'orange' WHERE short_name = 'JCB' AND color = 'emerald'", []);
         // v1.2.4 — objekty (budovy) patří firmě; revize a provozní náklady se filtrují firma → budova
         let _ = self.conn.execute("ALTER TABLE objects ADD COLUMN firm TEXT NOT NULL DEFAULT ''", []);
@@ -402,9 +403,9 @@ impl Database {
         // (sekce uvnitř firmy si drží dosavadní pořadí)
         let firms = [
             ("METROPOLE CB", "MCB", "wine"),
-            ("Bürger Pavel", "BP", "mint"),
+            ("Bürger Pavel", "BP", "royal"),
             ("METROPOLE CZ", "MCZ", "violet"),
-            ("JIHOTANK", "JT", "blue"),
+            ("JIHOTANK", "JT", "teal"),
             ("JIHOTANK CB", "JCB", "orange"),
             ("Ostatní", "OST", "slate"),
         ];

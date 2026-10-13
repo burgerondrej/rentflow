@@ -479,6 +479,12 @@ export default function Payments() {
   const [activeSub, setActiveSub]     = useState(subjects[0] || '')
   const activeSubRef = useRef(subjects[0] || '')
   const handleSubChange = useCallback((sub) => { activeSubRef.current = sub; setActiveSub(sub) }, [])
+  // Výběr předaný z jiné obrazovky (karta firmy na Dashboardu)
+  const { navSelection, setNavSelection } = useApp() || {}
+  useEffect(() => {
+    if (navSelection) { handleSubChange(navSelection); setNavSelection(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navSelection])
 
   // Subjekty s alespoň jednou smlouvou (pro selector)
   const subjectsWithContracts = subjects.filter(sub =>
@@ -580,6 +586,15 @@ export default function Payments() {
     const f = getFirm ? getFirm(subject) : null
     return f ? `inset 4px 0 0 ${firmColors(f.color, theme).mid}` : 'none'
   }
+  // Stav řádku: výrazný levý pruh + jemný nádech + štítek se symbolem (čitelné i bez rozlišení barev)
+  const ROW_STATUS = {
+    ok:   { color: '#16A34A', bg: 'rgba(22,163,74,0.07)',  bgH: 'rgba(22,163,74,0.14)',  label: '✓ Uhrazeno' },
+    part: { color: '#D97706', bg: 'rgba(217,119,6,0.09)',  bgH: 'rgba(217,119,6,0.17)',  label: '◐ Částečně' },
+    bad:  { color: '#DC2626', bg: 'rgba(220,38,38,0.07)',  bgH: 'rgba(220,38,38,0.14)',  label: '✕ Neuhrazeno' },
+  }
+  const StatusPill = ({ st }) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '5px 11px', borderRadius: 999, background: st.color, color: '#fff', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', letterSpacing: '0.2px' }}>{st.label}</span>
+  )
   const sectionLabelOf = (subject) => { const i = subject.indexOf(' – '); return i >= 0 ? subject.slice(i + 3) : subject }
 
   // ── Nájemné helpers (Varianta A: rent v DB = splátka dle frekvence) ────────
@@ -1525,12 +1540,16 @@ export default function Payments() {
                           }
                         }
 
+                        const gst = ROW_STATUS[isPartial ? 'part' : isPaid ? 'ok' : 'bad']
                         return (
                           <tr key={`group-${label}`}
-                            style={{ borderBottom: '1px solid var(--border2)', background: isPaid ? 'rgba(187,247,208,0.55)' : 'rgba(239,68,68,0.18)', cursor: 'default' }}
+                            style={{ borderBottom: '1px solid var(--border2)', background: gst.bg, cursor: 'default' }}
                           >
-                            <td style={{ padding: '14px 20px', boxShadow: firmStripeShadow(getContractSubject(members[0])) }}>
-                              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>
+                            <td style={{ padding: '14px 20px', boxShadow: `inset 6px 0 0 ${gst.color}` }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <FirmBadge firm={getFirm ? getFirm(getContractSubject(members[0])) : null} size={22} />
+                                <span style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</span>
+                              </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                                 <span style={{ fontSize: 10, background: '#EDE9FE', color: '#6D28D9', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>🔗 {label}</span>
                                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>
@@ -1593,6 +1612,8 @@ export default function Payments() {
                                 : <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>}
                             </td>
                             <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+                              <StatusPill st={gst} />
                               {isPaid ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                                   {!isReadOnly && (
@@ -1619,10 +1640,11 @@ export default function Payments() {
                                 </div>
                               ) : (
                                 <button onClick={handleGroupToggle} className="btn btn-sm"
-                                  style={{ background: '#22C55E', color: '#fff', borderColor: '#22C55E', fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
-                                  Uhrazeno
+                                  style={{ background: '#fff', color: '#166534', borderColor: '#86EFAC', fontWeight: 800, minWidth: 110, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
+                                  + Zapsat úhradu
                                 </button>
                               )}
+                              </div>
                             </td>
                           </tr>
                         )
@@ -1648,8 +1670,9 @@ export default function Payments() {
                       // Výsledný stav řádku — zohledňuje nájem i zálohy pro bytové
                       const rowAllPaid    = isPaid && (!hasDeposit || depPaidRow)
                       const rowSomePaid   = !rowAllPaid && (isPaid || isPartial || depPaidRow)
-                      const rowBg  = rowAllPaid ? 'rgba(187,247,208,0.55)' : rowSomePaid ? 'rgba(254,215,170,0.55)' : 'rgba(239,68,68,0.18)'
-                      const rowBgH = rowAllPaid ? 'rgba(187,247,208,0.85)'   : rowSomePaid ? 'rgba(254,215,170,0.85)'   : 'rgba(239,68,68,0.30)'
+                      const rst    = ROW_STATUS[rowAllPaid ? 'ok' : rowSomePaid ? 'part' : 'bad']
+                      const rowBg  = rst.bg
+                      const rowBgH = rst.bgH
                       const rentTotal = getMonthRent(c, selectedYear, selectedMonth)
                       const effectiveSub = c.billingSubject || asset?.subject || ''
                       const showDph = asset?.type !== 'residential' && (
@@ -1663,8 +1686,11 @@ export default function Payments() {
                           onMouseOver={e => { e.currentTarget.style.background = rowBgH }}
                           onMouseOut={e => { e.currentTarget.style.background = rowBg }}
                         >
-                          <td style={{ padding: '14px 20px', boxShadow: firmStripeShadow(getContractSubject(c)) }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>
+                          <td style={{ padding: '14px 20px', boxShadow: `inset 6px 0 0 ${rst.color}` }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <FirmBadge firm={getFirm ? getFirm(getContractSubject(c)) : null} size={22} />
+                              <span style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</span>
+                            </div>
                             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{asset?.unit || '—'}{isFirmSelection(activeSub) ? ` · ${sectionLabelOf(getContractSubject(c))}` : ''}</div>
                             {payment?.note && (
                               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, fontStyle: 'italic' }}>
@@ -1740,6 +1766,8 @@ export default function Payments() {
                               : <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>}
                           </td>
                           <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+                            <StatusPill st={rst} />
                             {isPaid ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                                 {!isReadOnly && (
@@ -1771,10 +1799,11 @@ export default function Payments() {
                               </div>
                             ) : (
                               <button onClick={(e) => handleToggle(e, c, payment)} className="btn btn-sm"
-                                style={{ background: '#22C55E', color: '#fff', borderColor: '#22C55E', fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
-                                Uhrazeno
+                                style={{ background: '#fff', color: '#166534', borderColor: '#86EFAC', fontWeight: 800, minWidth: 110, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
+                                + Zapsat úhradu
                               </button>
                             )}
+                            </div>
                           </td>
                         </tr>
                       )

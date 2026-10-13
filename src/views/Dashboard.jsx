@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, contractSubject, firmColors } from '../utils.js'
+import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, contractSubject, firmColors, firmOf, firmSelection } from '../utils.js'
+import { FirmBadge } from '../FirmUI.jsx'
 
 export default function Dashboard({ onNav, onOpen }) {
-  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [], getFirm, theme } = useApp() || {}
+  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [], getFirm, theme, firms = [], setNavSelection } = useApp() || {}
   const [expandedGroup, setExpandedGroup] = useState(null) // { days, colorVar, list }
 
   const today = new Date()
@@ -94,6 +95,45 @@ export default function Dashboard({ onNav, onOpen }) {
     }
   })
 
+  // ── Karty firem: plnění za aktuální měsíc, neuhrazeno, 6 měsíců, končící smlouvy ──
+  // Vždy STRIKTNĚ za jednu firmu (přesná shoda názvu firmy)
+  const firmMonth = (firmName, y, m) => {
+    const key = `${y}-${m}`
+    const cs = contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
+      isContractInMonth(c, y, m) && firmOf(contractSubject(c, assets)) === firmName)
+    let exp = 0, rec = 0
+    const seenGroups = new Set()
+    for (const c of cs) {
+      exp += getMonthRent(c, y, m) / (PERIOD_LEN[c.paymentFrequency] || 1)
+      if (c.groupLabel) {
+        if (seenGroups.has(c.groupLabel)) continue
+        seenGroups.add(c.groupLabel)
+        const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === key && p.paymentType !== 'deposit')
+        if (gp) rec += Number(gp.amount) || 0
+      } else {
+        const p = payments.find(p => p.contractId === c.id && p.month === key && p.paymentType !== 'deposit')
+        if (p) rec += Number(p.amount) || 0
+      }
+    }
+    return { exp, rec, n: cs.length }
+  }
+  const firmCards = firms.map(f => {
+    const months = [-5, -4, -3, -2, -1, 0].map(o => {
+      const d = new Date(today.getFullYear(), today.getMonth() + o, 1)
+      const st = firmMonth(f.name, d.getFullYear(), d.getMonth())
+      return { ...st, pct: st.exp > 0 ? Math.min(1, st.rec / st.exp) : null }
+    })
+    const cur = months[months.length - 1]
+    const ending = activeContracts.filter(c => firmOf(contractSubject(c, assets)) === f.name && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
+      (() => { const e = parseDate(c.end); return e && e >= today && (e - today) / 86400000 <= 60 })()).length
+    return { firm: f, months, cur, unpaid: Math.max(0, cur.exp - cur.rec), ending }
+  }).filter(x => x.cur.n > 0)
+  const openFirmPayments = (f) => {
+    const secs = f.sections.filter(s => contracts.some(c => contractSubject(c, assets) === s))
+    if (setNavSelection) setNavSelection(secs.length > 1 ? firmSelection(f.name) : (secs[0] || firmSelection(f.name)))
+    if (onNav) onNav('payments')
+  }
+
   const activeTasks       = tasks.filter(t => t.status !== 'done').slice(0, 5)
   const upcomingRevisions = revisions.slice(0, 5)
 
@@ -129,6 +169,50 @@ export default function Dashboard({ onNav, onOpen }) {
           <div className="page-sub">Přehled expirací smluv, úkolů, blížících se revizí a měsíčních plateb nájemného</div>
         </div>
       </div>
+
+      {/* 0. KARTY FIREM – kliknutím do Plateb dané firmy */}
+      {firmCards.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14, marginBottom: 28 }}>
+          {firmCards.map(({ firm: f, months, cur, unpaid, ending }) => {
+            const c = firmColors(f.color, theme)
+            const pct = cur.pct ?? 1
+            const r = 19, circ = 2 * Math.PI * r
+            const done = pct >= 0.999
+            return (
+              <div key={f.name} onClick={() => openFirmPayments(f)} className="card-interactive" style={{
+                cursor: 'pointer', background: 'var(--bg)', border: '1px solid var(--border)', borderTop: `5px solid ${c.mid}`,
+                borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <FirmBadge firm={f} size={28} />
+                  <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>{cur.n} sml.</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <svg width="52" height="52" viewBox="0 0 52 52" style={{ flexShrink: 0 }}>
+                    <circle cx="26" cy="26" r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
+                    <circle cx="26" cy="26" r={r} fill="none" stroke={done ? '#16A34A' : c.mid} strokeWidth="6" strokeLinecap="round"
+                      strokeDasharray={`${(circ * pct).toFixed(1)} ${circ.toFixed(1)}`} transform="rotate(-90 26 26)" />
+                    <text x="26" y="30" textAnchor="middle" fontSize="12" fontWeight="800" fill="var(--text)">{Math.round(pct * 100)}%</text>
+                  </svg>
+                  <div style={{ lineHeight: 1.35 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>Neuhrazeno tento měsíc</div>
+                    <div style={{ fontSize: 17, fontWeight: 900, color: unpaid > 0.5 ? '#DC2626' : '#16A34A' }}>{Math.round(unpaid).toLocaleString('cs-CZ')} Kč</div>
+                  </div>
+                </div>
+                <div title="Plnění posledních 6 měsíců" style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 26, margin: '10px 0 8px' }}>
+                  {months.map((m, i) => (
+                    <span key={i} style={{ flex: 1, height: Math.max(3, Math.round((m.pct ?? 0) * 26)), borderRadius: 3, background: i === months.length - 1 ? c.mid : c.mid + '55' }} />
+                  ))}
+                </div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: ending ? '#D97706' : 'var(--text3)' }}>
+                  {ending ? `${ending} ${ending === 1 ? 'smlouva končí' : ending < 5 ? 'smlouvy končí' : 'smluv končí'} do 60 dní` : 'Žádná smlouva brzy nekončí'}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* 1. EXPIRUJÍCÍ SMLOUVY */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 32 }}>
