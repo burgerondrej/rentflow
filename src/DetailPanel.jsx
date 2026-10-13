@@ -41,6 +41,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [formData, setFormData] = useState({})
   const [customTagInput, setCustomTagInput] = useState('')
   const [confirmDialog, setConfirmDialog] = useState(null)
+  const [contractTab, setContractTab] = useState('overview') // záložka detailu smlouvy
+  useEffect(() => { setContractTab('overview') }, [id])
   const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
   const [renewFor, setRenewFor] = useState(null) // smlouva, ze které se zakládají navazující smlouvy
   const [closing, setClosing] = useState(false)
@@ -1817,25 +1819,73 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
     return (
       <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          {!isReadOnly && <button className="btn btn-sm" onClick={handleEditClick}>Upravit</button>}
-        </div>
-
-        {/* Hlavička – barevný proužek a zkratka firmy (pronajímatele) */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, ...(getFirm && getFirm(contractSubject(c, assets)) ? { borderLeft: `5px solid ${firmColors(getFirm(contractSubject(c, assets)).color, theme).mid}`, paddingLeft: 14 } : {}) }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <FirmBadge firm={getFirm ? getFirm(contractSubject(c, assets)) : null} size={22} />
-              <div style={{ fontSize: 11, fontWeight: 700, color: getFirm && getFirm(contractSubject(c, assets)) ? firmColors(getFirm(contractSubject(c, assets)).color, theme).sub : 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Smlouva · {firmOf(contractSubject(c, assets))}</div>
+        {/* ── Pás firmy (pronajímatele) + klíčové údaje + záložky ── */}
+        {(() => {
+          const cSubj = contractSubject(c, assets)
+          const cFirm = getFirm ? getFirm(cSubj) : null
+          const fc = cFirm ? firmColors(cFirm.color, theme) : { mid: '#12654A', bg: 'var(--bg2)', txt: 'var(--text)', sub: 'var(--text3)' }
+          const ev = effectiveToday(c)
+          const isIncluded = c.paymentFrequency === 'Zahrnuto v nájemném'
+          const freqLabel = { 'Čtvrtletně': 'Nájem / čtvrtletí', 'Pololetně': 'Nájem / pololetí', 'Ročně': 'Nájem / rok' }[c.paymentFrequency] || 'Nájem / měsíc'
+          // Stav platby za aktuální měsíc (u víceměsíčních smluv celé platební období)
+          const now = new Date()
+          const nowKey = `${now.getFullYear()}-${now.getMonth()}`
+          const paidNow = c.groupLabel
+            ? payments.some(p => p.groupLabel === c.groupLabel && p.month === nowKey && p.paymentType !== 'deposit')
+            : payments.some(p => p.contractId === c.id && p.paymentType !== 'deposit' && getPeriodMonthKeys(c, now.getFullYear(), now.getMonth()).includes(p.month))
+          const tabs = [
+            { id: 'overview', label: 'Přehled' },
+            { id: 'payments', label: 'Platby' },
+            ...((a?.type === 'residential' || a?.type === 'commercial') ? [{ id: 'amendments', label: 'Dodatky' }] : []),
+            { id: 'docs', label: 'Dokumenty' },
+          ]
+          const kv = (label, value, color, onClick) => (
+            <div onClick={onClick} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', cursor: onClick ? 'pointer' : 'default', minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>{label}</div>
+              <div style={{ fontSize: 14.5, fontWeight: 800, color: color || 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
             </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', lineHeight: 1.2 }}>{a ? a.unit : 'Neznámý předmět'}</div>
-            {a?.subject && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>{a.subject}</div>}
-          </div>
-          <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-gray'}`} style={{ marginTop: 4, flexShrink: 0 }}>
-            {c.status === 'active' ? 'Aktivní' : 'Ukončeno'}
-          </span>
-        </div>
+          )
+          return (
+            <>
+              <div style={{ background: fc.mid, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{cFirm ? cFirm.short : '—'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cSubj || '—'}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a ? a.unit : 'Neznámý předmět'}</div>
+                </div>
+                <span style={{ background: c.status === 'active' ? '#16A34A' : 'rgba(255,255,255,0.25)', color: '#fff', fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 999, flexShrink: 0 }}>
+                  {c.status === 'active' ? 'Aktivní' : 'Ukončeno'}
+                </span>
+                {!isReadOnly && (
+                  <button onClick={handleEditClick} style={{ background: '#fff', color: fc.mid, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
+                )}
+              </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+                {kv('Nájemce', t ? t.name : '—', null, t ? () => onOpen('tenant', t.id) : undefined)}
+                {kv(freqLabel, isIncluded ? 'zahrnuto' : `${(ev.rent + ev.parking + ev.flatFee).toLocaleString('cs-CZ')} Kč`)}
+                {kv('Platnost', c.end ? `do ${c.end}` : 'na dobu neurčitou')}
+                {kv('Tento měsíc', isIncluded ? '—' : paidNow ? '✓ Uhrazeno' : '✕ Neuhrazeno', isIncluded ? null : paidNow ? '#16A34A' : '#DC2626')}
+              </div>
+
+              {/* Záložky – kontrastní: neaktivní tmavý text na světlém, aktivní bílý text na barvě firmy */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingBottom: 2, borderBottom: '1px solid var(--border)' }}>
+                {tabs.map(tb => {
+                  const on = contractTab === tb.id
+                  return (
+                    <button key={tb.id} onClick={() => setContractTab(tb.id)} style={{
+                      padding: '8px 18px', borderRadius: '10px 10px 0 0', fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
+                      background: on ? fc.mid : 'var(--bg2)', color: on ? '#fff' : 'var(--text)',
+                      border: `1px solid ${on ? fc.mid : 'var(--border)'}`, borderBottom: 'none', marginBottom: -3,
+                    }}>{tb.label}</button>
+                  )
+                })}
+              </div>
+            </>
+          )
+        })()}
+
+        {contractTab === 'overview' && (<>
         {/* Nájemce + Předmět – 2 karty */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div onClick={() => onOpen('tenant', t?.id)} style={{ cursor: 'pointer', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', transition: 'border-color 0.15s' }}
@@ -2210,8 +2260,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           </div>
         )}
 
-        {/* ── HISTORIE ZMĚN NÁJEMNÉHO / ZÁLOH ── */}
-        {(a?.type === 'residential' || a?.type === 'commercial') && (
+        </>)}
+
+        {/* ── HISTORIE ZMĚN NÁJEMNÉHO / ZÁLOH (záložka Dodatky) ── */}
+        {contractTab === 'amendments' && (a?.type === 'residential' || a?.type === 'commercial') && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 0 }}>
             <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>📈 Valorizace / změny nájemného a záloh</span>
@@ -2351,13 +2403,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           </div>
         )}
 
-        {/* VYKRESLENÍ ZCELA NOVÉ HISTORIE PLATEB PRO SMLOUVU */}
-        {renderPaymentsSection(c)}
+        {/* Záložka Platby */}
+        {contractTab === 'payments' && renderPaymentsSection(c)}
 
-        {/* Vykreslení dokumentů pod tím */}
-        {renderDocsSection(a?.subject)}
+        {/* Záložka Dokumenty */}
+        {contractTab === 'docs' && renderDocsSection(a?.subject)}
 
-        {!isReadOnly && <div style={{ display: 'flex', gap: 8, marginTop: 24, padding: '16px 0 4px', borderTop: '1px solid var(--border)' }}>
+        {/* Akce se smlouvou – na záložce Přehled */}
+        {contractTab === 'overview' && !isReadOnly && <div style={{ display: 'flex', gap: 8, marginTop: 24, padding: '16px 0 4px', borderTop: '1px solid var(--border)' }}>
           {c.status === 'active' && (
             <button
               className="btn btn-sm"
