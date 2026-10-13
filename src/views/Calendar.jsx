@@ -17,15 +17,11 @@ const TYPES = {
 }
 const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 
-export default function Calendar({ onOpen, onNav }) {
-  const { contracts = [], assets = [], tenants = [], revisions = [], tasks = [], firms = [], theme } = useApp()
-  const { firmOfObject } = useObjectFirms()
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
-  const [firmFilter, setFirmFilter] = useState('all')
-  const [typeOn, setTypeOn] = useState({ contract: true, revision: true, task: true })
-
-  // ── Události ──
+/**
+ * Události kalendáře (konce smluv, revize, termíny úkolů) – sdílené s Dashboardem.
+ * Každá událost: { type, date, firm, title, sub, onClick }
+ */
+export function buildCalendarEvents({ contracts = [], assets = [], tenants = [], revisions = [], tasks = [], firms = [], firmOfObject, onOpen, onNav }) {
   const events = []
   contracts.filter(c => c.status === 'active' && c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
     const d = parseDate(c.end)
@@ -39,7 +35,7 @@ export default function Calendar({ onOpen, onNav }) {
     if (!last) return
     const next = new Date(last.getFullYear(), last.getMonth() + (parseInt(r.interval) || 12), last.getDate())
     const obj = r.subject || assets.find(a => a.id === r.assetId)?.subject || ''
-    events.push({ type: 'revision', date: next, firm: r.subject ? firmOfObject(r.subject) : firmOf(obj), title: `Revize: ${r.title}`, sub: obj, onClick: () => onNav && onNav('maintenance') })
+    events.push({ type: 'revision', date: next, firm: r.subject && firmOfObject ? firmOfObject(r.subject) : firmOf(obj), title: `Revize: ${r.title}`, sub: obj, onClick: () => onNav && onNav('maintenance') })
   })
   tasks.filter(t => t.status !== 'done' && t.deadline).forEach(t => {
     const [y, m, d] = (t.deadline || '').split('-').map(Number)
@@ -47,6 +43,21 @@ export default function Calendar({ onOpen, onNav }) {
     const tagFirm = (t.tag || '').split(',').map(x => x.trim()).find(x => firms.some(f => f.name === x))
     events.push({ type: 'task', date: new Date(y, m - 1, d), firm: tagFirm || '', title: t.title, sub: 'Úkol', onClick: () => onNav && onNav('kanban') })
   })
+  return events
+}
+
+export const CALENDAR_TYPE_ICON = { contract: '📄', revision: '🔧', task: '✅' }
+
+export default function Calendar({ onOpen, onNav }) {
+  const { contracts = [], assets = [], tenants = [], revisions = [], tasks = [], firms = [], theme } = useApp()
+  const { firmOfObject } = useObjectFirms()
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
+  const [firmFilter, setFirmFilter] = useState('all')
+  const [typeOn, setTypeOn] = useState({ contract: true, revision: true, task: true })
+
+  // ── Události ──
+  const events = buildCalendarEvents({ contracts, assets, tenants, revisions, tasks, firms, firmOfObject, onOpen, onNav })
   const visible = events.filter(e => typeOn[e.type] && (firmFilter === 'all' || e.firm === firmFilter))
   const byDay = {}
   visible.forEach(e => { (byDay[dayKey(e.date)] = byDay[dayKey(e.date)] || []).push(e) })

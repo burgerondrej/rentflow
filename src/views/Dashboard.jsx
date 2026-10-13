@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, contractSubject, firmColors, firmOf, firmSelection, getPeriodMonthKeys, overdueDays } from '../utils.js'
-import { FirmBadge } from '../FirmUI.jsx'
+import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
+import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
 
 export default function Dashboard({ onNav, onOpen }) {
   const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [], getFirm, theme, firms = [], setNavSelection } = useApp() || {}
@@ -155,6 +156,14 @@ export default function Dashboard({ onNav, onOpen }) {
     if (onNav) onNav('payments')
   }
 
+  // ── Nejbližší termíny (stejné události jako Kalendář) ──
+  const { firmOfObject } = useObjectFirms()
+  const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 60)
+  const upcoming = buildCalendarEvents({ contracts, assets, tenants, revisions, tasks, firms, firmOfObject, onOpen: (type, id) => onOpen && onOpen(id), onNav })
+    .filter(e => e.date >= today && e.date <= horizon)
+    .sort((a, b) => a.date - b.date)
+    .slice(0, 5)
+
   const activeTasks       = tasks.filter(t => t.status !== 'done').slice(0, 5)
   const upcomingRevisions = revisions.slice(0, 5)
 
@@ -237,6 +246,36 @@ export default function Dashboard({ onNav, onOpen }) {
           })}
         </div>
       )}
+
+      {/* Nejbližší termíny */}
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', marginBottom: 28, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>📅 Nejbližší termíny</div>
+          <button className="btn btn-sm" onClick={() => onNav && onNav('calendar')}>Otevřít kalendář ›</button>
+        </div>
+        {upcoming.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>V příštích 60 dnech nic není.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {upcoming.map((e, i) => {
+              const days = Math.round((e.date - today) / 86400000)
+              const f = firms.find(x => x.name === e.firm)
+              const mid = f ? firmColors(f.color, theme).mid : '#64748B'
+              return (
+                <div key={i} onClick={e.onClick} style={{ display: 'grid', gridTemplateColumns: '92px 26px minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', boxShadow: `inset 5px 0 0 ${mid}` }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{e.date.getDate()}. {e.date.getMonth() + 1}. {e.date.getFullYear()}</span>
+                  {f ? <FirmBadge firm={f} size={24} /> : <span />}
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{CALENDAR_TYPE_ICON[e.type]} {e.title}</span>
+                    {e.sub && <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.sub}</span>}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: days <= 7 ? '#DC2626' : days <= 30 ? '#D97706' : 'var(--text2)', whiteSpace: 'nowrap' }}>{days === 0 ? 'dnes' : `za ${days} ${days === 1 ? 'den' : days < 5 ? 'dny' : 'dní'}`}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* 1. EXPIRUJÍCÍ SMLOUVY */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 32 }}>

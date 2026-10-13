@@ -158,7 +158,7 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
           </table>
         </div>
 
-        <div style={{ fontSize: 12.5, color: 'var(--text2)', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '8px 12px', marginBottom: errors.length ? 8 : 16 }}>
+        <div style={{ fontSize: 12.5, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', marginBottom: errors.length ? 8 : 16 }}>
           {newStart && chosen.length > 0
             ? <>Ukončí se <b>{chosen.length}</b> {chosen.length === 1 ? 'smlouva' : chosen.length < 5 ? 'smlouvy' : 'smluv'} a vznikne stejný počet nových od <b>{toCzDate(newStart)}</b>{newEnd ? <> do <b>{toCzDate(newEnd)}</b></> : ' na dobu neurčitou'}. Skupiny zůstávají, platby navazují. Před provedením se udělá záloha.</>
             : 'Vyberte smlouvy a začátek nové smlouvy.'}

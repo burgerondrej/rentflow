@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, assetTypeStyle, parseDate } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, assetTypeStyle, parseDate, overdueDays } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
@@ -44,7 +44,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [contractTab, setContractTab] = useState('overview') // záložka detailu smlouvy
   const [assetTab, setAssetTab] = useState('overview')       // záložka detailu předmětu
-  useEffect(() => { setContractTab('overview'); setAssetTab('overview') }, [id])
+  const [tenantTab, setTenantTab] = useState('overview')     // záložka detailu nájemce
+  useEffect(() => { setContractTab('overview'); setAssetTab('overview'); setTenantTab('overview') }, [id])
   const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
   const [renewFor, setRenewFor] = useState(null) // smlouva, ze které se zakládají navazující smlouvy
   const [closing, setClosing] = useState(false)
@@ -600,20 +601,77 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
     return (
       <div style={{ padding: '24px 32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: -20, position: 'relative', zIndex: 2 }}>
-          {!isReadOnly && <button className="btn btn-sm" onClick={handleEditClick}>Upravit</button>}
-        </div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', background: t.avatarBg || 'var(--bg3)', color: t.avatarColor || 'var(--text3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700 }}>
-            {t.initials || t.name.substring(0,2).toUpperCase()}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
-            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Přidán: {t.added}</div>
-          </div>
-        </div>
+        {/* ── Pás nájemce + klíčové údaje + záložky ── */}
+        {(() => {
+          const now = new Date()
+          const y = now.getFullYear(), m = now.getMonth(), key = `${y}-${m}`
+          let unpaid = 0, overdue = 0
+          const seenG = new Set()
+          activeContracts.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
+            let paid
+            if (c.groupLabel) {
+              if (seenG.has(c.groupLabel)) return
+              seenG.add(c.groupLabel)
+              paid = payments.some(p => p.groupLabel === c.groupLabel && p.month === key && p.paymentType !== 'deposit')
+            } else {
+              paid = payments.some(p => p.contractId === c.id && p.paymentType !== 'deposit' && getPeriodMonthKeys(c, y, m).includes(p.month))
+            }
+            if (!paid) { unpaid++; if (overdueDays(c, y, m) > 0) overdue++ }
+          })
+          const initials = (() => {
+            if (t.initials) return t.initials
+            const words = (t.name || '').replace(/,|s\.\s*r\.\s*o\.|a\.\s*s\.|spol\./gi, ' ').trim().split(/\s+/).filter(Boolean)
+            return words.length ? ((words[0][0] || '') + (words[1]?.[0] || words[0][1] || '')).toUpperCase() : '??'
+          })()
+          const kv = (label, value, color) => (
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>{label}</div>
+              <div style={{ fontSize: 14.5, fontWeight: 800, color: color || 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
+            </div>
+          )
+          const tabs = [{ id: 'overview', label: 'Přehled' }, { id: 'contracts', label: 'Smlouvy' }, { id: 'payments', label: 'Platby' }, { id: 'docs', label: 'Dokumenty' }]
+          return (
+            <div style={{ marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ background: 'var(--accent)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>{isCompany ? `Firma${t.ico ? ` · IČ ${t.ico}` : ''}` : t.tenantType ? 'Fyzická osoba' : 'Nájemce'}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
+                </div>
+                <StatusPill kind={activeContracts.length ? 'active' : 'ended'} text={activeContracts.length ? `${activeContracts.length} ${activeContracts.length === 1 ? 'aktivní smlouva' : activeContracts.length < 5 ? 'aktivní smlouvy' : 'aktivních smluv'}` : 'Bez aktivní smlouvy'} style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }} />
+                {!isReadOnly && (
+                  <button onClick={handleEditClick} style={{ background: '#fff', color: '#12654A', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+                {kv('Telefon', t.phone || '—')}
+                {kv('E-mail', t.email || '—')}
+                {kv('Tento měsíc', unpaid ? `✕ ${unpaid} neuhrazeno` : activeContracts.length ? '✓ Vše uhrazeno' : '—', unpaid ? '#DC2626' : activeContracts.length ? '#16A34A' : null)}
+                {kv('Po splatnosti', overdue ? `⚠ ${overdue}` : '0', overdue ? '#DC2626' : null)}
+              </div>
+              {/* Záložky – neaktivní tmavý text na světlém, aktivní bílý text na zelené */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingBottom: 2, borderBottom: '1px solid var(--border)' }}>
+                {tabs.map(tb => {
+                  const on = tenantTab === tb.id
+                  return (
+                    <button key={tb.id} onClick={() => setTenantTab(tb.id)} style={{
+                      padding: '8px 18px', borderRadius: '10px 10px 0 0', fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
+                      background: on ? 'var(--accent)' : 'var(--bg2)', color: on ? '#fff' : 'var(--text)',
+                      border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, borderBottom: 'none', marginBottom: -3,
+                    }}>{tb.label}</button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
+        {tenantTab === 'overview' && (<>
+        {activeContracts.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <FirmRentSummary rows={tenantRentsByFirm(activeContracts, assets, firms)} large />
+          </div>
+        )}
         {t.tags && t.tags.length > 0 && (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 16 }}>
             {t.tags.map(tag => <span key={tag} className="badge" style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}>{tag}</span>)}
@@ -668,6 +726,97 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           </div>
         </div>
 
+        </>)}
+
+        {/* Záložka Platby – stav za tento měsíc + přijaté platby (vlastní i platby skupin) */}
+        {tenantTab === 'payments' && (() => {
+          const MONTHS_T = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
+          const mk = (k) => { const [yy, mm] = (k || '').split('-').map(Number); return isNaN(yy) ? 0 : yy * 12 + mm }
+          const fmtK = (k) => { const [yy, mm] = (k || '').split('-').map(Number); return MONTHS_T[mm] ? `${MONTHS_T[mm]} ${yy}` : k }
+          const myContracts = contracts.filter(c => c.tenantId === t.id)
+          const ids = new Set(myContracts.map(c => c.id))
+          const myGroups = new Set(myContracts.map(c => c.groupLabel).filter(Boolean))
+          const now = new Date()
+          const y = now.getFullYear(), m = now.getMonth(), key = `${y}-${m}`
+          const items = []
+          const seenG = new Set()
+          activeContracts.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
+            const subj = contractSubject(c, assets)
+            if (c.groupLabel) {
+              if (seenG.has(c.groupLabel)) return
+              seenG.add(c.groupLabel)
+              const paid = payments.some(p => p.groupLabel === c.groupLabel && p.month === key && p.paymentType !== 'deposit')
+              items.push({ id: 'g' + c.groupLabel, label: `🔗 ${c.groupLabel}`, subj, paid, od: paid ? 0 : overdueDays(c, y, m) })
+            } else {
+              const a2 = assets.find(x => x.id === c.assetId)
+              const paid = payments.some(p => p.contractId === c.id && p.paymentType !== 'deposit' && getPeriodMonthKeys(c, y, m).includes(p.month))
+              items.push({ id: c.id, label: a2?.unit || '—', subj, paid, od: paid ? 0 : overdueDays(c, y, m) })
+            }
+          })
+          // Přijaté platby: sloučit měsíce jedné úhrady (víceměsíční platby)
+          const rows = {}
+          payments.filter(p => ids.has(p.contractId) || (p.groupLabel && myGroups.has(p.groupLabel))).forEach(p => {
+            const k = `${p.groupLabel ? 'g:' + p.groupLabel : p.contractId}|${p.date}|${p.paymentType}`
+            ;(rows[k] = rows[k] || []).push(p)
+          })
+          const hist = Object.values(rows).map(ps => {
+            ps.sort((p, q) => mk(p.month) - mk(q.month))
+            const p0 = ps[0]
+            const c0 = p0.groupLabel ? myContracts.find(c => c.groupLabel === p0.groupLabel) : myContracts.find(c => c.id === p0.contractId)
+            const a0 = c0 ? assets.find(x => x.id === c0.assetId) : null
+            return {
+              ps, last: mk(ps[ps.length - 1].month),
+              label: p0.groupLabel ? `🔗 ${p0.groupLabel}` : (a0?.unit || '—'),
+              firm: c0 && getFirm ? getFirm(contractSubject(c0, assets)) : null,
+              months: ps.length > 1 ? `${fmtK(ps[0].month)} – ${fmtK(ps[ps.length - 1].month)}` : fmtK(p0.month),
+              total: ps.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
+              date: p0.date, deposit: p0.paymentType === 'deposit',
+            }
+          }).sort((p, q) => q.last - p.last)
+          const sectionTitle = (txt) => <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text2)', margin: '4px 0 8px' }}>{txt}</div>
+          return (
+            <div>
+              {sectionTitle(`Tento měsíc – ${MONTHS_T[m]} ${y}`)}
+              {items.length === 0 ? <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic', marginBottom: 14 }}>Žádné aktivní placené smlouvy.</div> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
+                  {items.map(it => {
+                    const f = getFirm ? getFirm(it.subj) : null
+                    return (
+                      <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '26px minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 10, boxShadow: `inset 5px 0 0 ${it.paid ? '#16A34A' : '#DC2626'}` }}>
+                        {f ? <FirmBadge firm={f} size={24} /> : <span />}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.label}</div>
+                          <div style={{ fontSize: 11.5, color: 'var(--text2)' }}>{it.subj}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                          <StatusPill kind={it.paid ? 'paid' : 'unpaid'} size="sm" />
+                          {it.od > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: '#DC2626' }}>⚠ po splatnosti {it.od} {it.od === 1 ? 'den' : it.od < 5 ? 'dny' : 'dní'}</span>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {sectionTitle('Přijaté platby')}
+              {hist.length === 0 ? <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Zatím žádné zapsané platby.</div> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {hist.slice(0, 60).map((h, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                      {h.firm ? <FirmBadge firm={h.firm} size={24} /> : <span />}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.months}{h.deposit ? ' · zálohy' : ''}</div>
+                        <div style={{ fontSize: 11.5, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.label}{h.date ? ` · přijato ${h.date}` : ''}</div>
+                      </div>
+                      <div style={{ fontSize: 14.5, fontWeight: 900, color: '#16A34A', whiteSpace: 'nowrap' }}>+ {Math.round(h.total).toLocaleString('cs-CZ')} Kč</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {tenantTab === 'contracts' && (
         <div className="card">
           <div className="card-body">
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 12 }}>Aktivní smlouvy ({activeContracts.length})</div>
@@ -876,10 +1025,13 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             )}
           </div>
         </div>
+        )}
 
-        {renderDocsSection(defaultSubject)}
+        {/* Záložka Dokumenty */}
+        {tenantTab === 'docs' && renderDocsSection(defaultSubject)}
 
-        {!isReadOnly && <div style={{ display: 'flex', gap: 8, marginTop: 24, padding: '16px 0 4px', borderTop: '1px solid var(--border)' }}>
+        {/* Akce s nájemcem – na záložce Přehled */}
+        {tenantTab === 'overview' && !isReadOnly && <div style={{ display: 'flex', gap: 8, marginTop: 24, padding: '16px 0 4px', borderTop: '1px solid var(--border)' }}>
           <button
             className="btn btn-sm"
             style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
