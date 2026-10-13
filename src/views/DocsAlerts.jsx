@@ -330,7 +330,7 @@ export function Docs() {
 
   return (
     <div style={{ paddingBottom: 60 }}>
-      <div className="page-header" style={{ marginBottom: 24 }}>
+      <div className="page-header" data-icon="📁" style={{ marginBottom: 24 }}>
         <div>
           <div className="page-title">Dokumenty a Soubory</div>
           <div className="page-sub">Centrální archív dokumentů všech společností</div>
@@ -648,7 +648,7 @@ export function Alerts() {
 
   return (
     <div style={{ paddingBottom: 60, maxWidth: 1000 }}>
-      <div className="page-header" style={{ marginBottom: 32 }}>
+      <div className="page-header" data-icon="🔔" style={{ marginBottom: 32 }}>
         <div>
           <div className="page-title">Centrum upozornění</div>
           <div className="page-sub">Agregovaný přehled všeho, co aktuálně hoří.</div>

@@ -16,7 +16,7 @@ export default function History() {
 
   return (
     <div style={{ paddingBottom: 60, maxWidth: 1100 }}>
-      <div className="page-header" style={{ marginBottom: 32 }}>
+      <div className="page-header" data-icon="🕑" style={{ marginBottom: 32 }}>
         <div>
           <div className="page-title">Log aktivity</div>
           <div className="page-sub">Historie změn a činností uživatelů v systému</div>

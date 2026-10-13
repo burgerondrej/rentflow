@@ -359,11 +359,11 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text2)', marginBottom: 4 }}>Částka (Kč)</label>
-                  <input type="number" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'text', background: '#fff' }} value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+                  <input type="number" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'text', background: 'var(--bg)' }} value={payAmount} onChange={e => setPayAmount(e.target.value)} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text2)', marginBottom: 4 }}>Datum úhrady</label>
-                  <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'text', background: '#fff' }} value={payDate} onChange={e => setPayDate(e.target.value)} />
+                  <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'text', background: 'var(--bg)' }} value={payDate} onChange={e => setPayDate(e.target.value)} />
                 </div>
               </div>
               <button className="btn" style={{ width: '100%', background: '#22C55E', color: '#fff', border: 'none' }} onClick={handleAddPaymentClick}>Uložit platbu</button>

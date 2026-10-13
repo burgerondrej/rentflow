@@ -88,7 +88,7 @@ export default function Contracts({ activeSubject, onOpen }) {
         key={c.id} 
         className="card card-interactive"
         style={{ 
-          cursor: 'pointer', marginBottom: 0, opacity: isArchived ? 0.6 : 1, padding: 0, overflow: 'hidden', borderRadius: 14,
+          cursor: 'pointer', marginBottom: 0, opacity: isArchived ? 0.8 : 1, padding: 0, overflow: 'hidden', borderRadius: 14,
           boxShadow: '0 3px 12px rgba(0,0,0,0.08)',
           background: cardBg,
           border: `1.5px solid ${isArchived ? 'var(--border)' : cardBorderColor}`,
@@ -105,7 +105,7 @@ export default function Contracts({ activeSubject, onOpen }) {
               <div style={{ fontSize: 15, fontWeight: 800, color: accentColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.1px' }}>
                 {c.assetUnit || 'Neznámý předmět'}
               </div>
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: accentColor, opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: accentColor, opacity: 0.9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {c.assetSubject || ''}
               </div>
             </div>
@@ -163,11 +163,14 @@ export default function Contracts({ activeSubject, onOpen }) {
 
   return (
     <div style={{ paddingBottom: 60 }}>
-      <div className="page-header">
+      <div className="page-header" data-icon="📑">
         <div>
           <div className="page-title">Smlouvy</div>
           <div className="page-sub">
-            Přehled jednotlivých smluv podle subjektů
+            {validCount} platných · {endedCount} ukončených{(() => {
+              const soon = filtered.filter(c => c.status === 'active' && c.daysLeft !== null && c.daysLeft >= 0 && c.daysLeft <= 30 && selectionMatches(activeSubject, c.assetSubject)).length
+              return soon ? ` · ${soon} končí do 30 dní` : ''
+            })()}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>

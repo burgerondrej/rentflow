@@ -4,7 +4,7 @@
   --bg3: #f1f4f2;
   --text: #1a1c1b;
   --text2: #4a4d4b;
-  --text3: #606563;
+  --text3: #545957;   /* vedlejší text – kontrast ≥ 7:1 na bílé */
   --border: #e1e4e2;
   --border2: #d1d4d2;
   --card-bg: #ffffff;
@@ -39,8 +39,8 @@
   --bg2: #1e2022;
   --bg3: #262a2d;
   --text: #e2e4e6;
-  --text2: #9ba3ab;
-  --text3: #636c75;
+  --text2: #b4bcc4;
+  --text3: #939ca5;   /* vedlejší text v tmavém režimu – kontrast ≥ 5:1 */
   --border: #2e3338;
   --border2: #3a4047;
   --card-bg: #1e2022;
@@ -71,9 +71,19 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .content { flex: 1; overflow-y: auto; padding: 24px 32px 60px; }
 
 /* Typografie & Základní prvky */
-.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-.page-title { font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
-.page-sub { font-size: 13px; color: var(--text3); margin-top: 2px; }
+.page-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 24px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 16px; padding: 14px 18px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+.page-header > :first-child { flex: 1; min-width: 0; }
+/* Ikona sekce v barevném čtverci (data-icon), u předmětů v barvě typu (data-type) */
+.page-header[data-icon]::before { content: attr(data-icon); flex-shrink: 0; width: 46px; height: 46px; border-radius: 13px;
+  display: flex; align-items: center; justify-content: center; font-size: 22px; background: var(--bg2); border: 1.5px solid var(--border); }
+.page-header[data-type="residential"]::before { background: var(--asset-residential-bg); border-color: var(--asset-residential-border); }
+.page-header[data-type="commercial"]::before  { background: var(--asset-commercial-bg);  border-color: var(--asset-commercial-border); }
+.page-header[data-type="ads"]::before         { background: var(--asset-ads-bg);         border-color: var(--asset-ads-border); }
+.page-header[data-type="parking"]::before     { background: var(--asset-parking-bg);     border-color: var(--asset-parking-border); }
+.page-header[data-type="ostatni"]::before     { background: var(--asset-ostatni-bg);     border-color: var(--asset-ostatni-border); }
+.page-title { font-size: 22px; font-weight: 800; letter-spacing: -.5px; color: var(--text); }
+.page-sub { font-size: 13px; font-weight: 500; color: var(--text2); margin-top: 3px; }
 
 .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r); box-shadow: 0 1px 3px rgba(0,0,0,0.02); margin-bottom: 16px; }
 .card-body { padding: 20px; }

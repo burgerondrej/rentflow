@@ -111,7 +111,7 @@ export default function Maintenance() {
   
   return (
     <div style={{ paddingBottom: 60 }}>
-      <div className="page-header" style={{ marginBottom: 24 }}>
+      <div className="page-header" data-icon="🔧" style={{ marginBottom: 24 }}>
         <div>
           <div className="page-title">Revize a údržba</div>
           <div className="page-sub">Přehled o revizích a nutných technických krocích</div>

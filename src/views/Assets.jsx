@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import AssetForm from '../AssetForm.jsx'
-import { getCurrentAssetContract, isContractOccupying, selectionMatches, firmOf, firmColors } from '../utils.js'
+import { getCurrentAssetContract, isContractOccupying, selectionMatches, firmOf, firmColors, assetTypeStyle } from '../utils.js'
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
 
@@ -301,10 +301,13 @@ export default function Assets({ type, activeSubject, onOpen }) {
 
   return (
     <div style={{ paddingBottom: 60 }}>
-      <div className="page-header">
+      <div className="page-header" data-icon={assetTypeStyle(type).icon} data-type={type}>
         <div>
           <div className="page-title">{conf.title}</div>
-          <div className="page-sub">{filtered.length} položek</div>
+          <div className="page-sub">{(() => {
+            const occ = filtered.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && isContractOccupying(c))).length
+            return `${filtered.length} položek · ${occ} obsazeno · ${filtered.length - occ} volných`
+          })()}</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ position: 'relative' }}>
@@ -366,7 +369,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
             </div>
           </div>
           {showArchived && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, opacity: 0.6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, opacity: 0.8 }}>
               {archivedAssets.map(a => renderCard(a))}
             </div>
           )}

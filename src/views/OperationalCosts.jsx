@@ -101,7 +101,7 @@ export default function OperationalCosts() {
     <div style={{ paddingBottom: 60 }}>
       {confirmDialog && <ConfirmDialog title={confirmDialog.title} text={confirmDialog.text} danger={confirmDialog.danger} okLabel={confirmDialog.okLabel} onOk={confirmDialog.onOk} onClose={confirmDialog.onClose} />}
 
-      <div className="page-header">
+      <div className="page-header" data-icon="💸">
         <div>
           <div className="page-title">Provozní náklady</div>
           <div className="page-sub">Přehled provozních nákladů na režii objektů</div>

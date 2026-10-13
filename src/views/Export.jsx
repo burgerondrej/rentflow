@@ -499,7 +499,7 @@ export default function Export() {
 
   return (
     <div style={{ paddingBottom: 60 }}>
-      <div className="page-header">
+      <div className="page-header" data-icon="🖨️">
         <div>
           <div className="page-title">Export a tisk</div>
           <div className="page-sub">Přímé generování PDF — výběr umístění, uložení bez otevírání prohlížeče</div>

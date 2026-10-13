@@ -184,7 +184,7 @@ export default function Dashboard({ onNav, onOpen }) {
         </div>
       )}
 
-      <div className="page-header">
+      <div className="page-header" data-icon="📊">
         <div>
           <div className="page-title">Dashboard</div>
           <div className="page-sub">Přehled expirací smluv, úkolů, blížících se revizí a měsíčních plateb nájemného</div>
@@ -255,7 +255,7 @@ export default function Dashboard({ onNav, onOpen }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
             {activeTasks.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--dash-blue-empty)', opacity: 0.6, fontStyle: 'italic', padding: '12px 0' }}>Žádné aktivní úkoly.</div>
+              <div style={{ fontSize: 13, color: 'var(--dash-blue-empty)', opacity: 0.85, fontStyle: 'italic', padding: '12px 0' }}>Žádné aktivní úkoly.</div>
             ) : activeTasks.map(task => (
               <div key={task.id} style={{ background: 'var(--dash-inner-bg)', padding: '12px 16px', borderRadius: 8, border: '1px solid var(--dash-inner-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -277,7 +277,7 @@ export default function Dashboard({ onNav, onOpen }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
             {upcomingRevisions.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--dash-purple-empty)', opacity: 0.6, fontStyle: 'italic', padding: '12px 0' }}>Žádné evidované revize.</div>
+              <div style={{ fontSize: 13, color: 'var(--dash-purple-empty)', opacity: 0.85, fontStyle: 'italic', padding: '12px 0' }}>Žádné evidované revize.</div>
             ) : upcomingRevisions.map(rev => (
               <div key={rev.id} style={{ background: 'var(--dash-inner-bg)', padding: '12px 16px', borderRadius: 8, border: '1px solid var(--dash-inner-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>

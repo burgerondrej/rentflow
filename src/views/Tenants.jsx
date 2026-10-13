@@ -376,7 +376,7 @@ export default function Tenants({ onOpen }) {
   return (
     <div style={{ paddingBottom: 60 }}>
       {/* Hlavička */}
-      <div className="page-header">
+      <div className="page-header" data-icon="👥">
         <div>
           <div className="page-title">Adresář nájemníků</div>
           <div className="page-sub">
@@ -416,7 +416,7 @@ export default function Tenants({ onOpen }) {
               <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{stat.icon}</div>
               <div>
                 <div style={{ fontSize: 26, fontWeight: 900, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
-                <div style={{ fontSize: 11, color: stat.color, fontWeight: 600, marginTop: 3, opacity: 0.75, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{stat.label}</div>
+                <div style={{ fontSize: 11, color: stat.color, fontWeight: 700, marginTop: 3, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{stat.label}</div>
               </div>
             </div>
           ))}
@@ -571,7 +571,7 @@ export default function Tenants({ onOpen }) {
             </div>
           </div>
           {showArchived && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 16, opacity: 0.6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 16, opacity: 0.8 }}>
               {archived.map(t => renderCard(t))}
             </div>
           )}

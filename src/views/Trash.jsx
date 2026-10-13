@@ -16,7 +16,7 @@ export default function Trash() {
 
   return (
     <div style={{ paddingBottom: 60, maxWidth: 1000 }}>
-      <div className="page-header" style={{ marginBottom: 32 }}>
+      <div className="page-header" data-icon="🗑️" style={{ marginBottom: 32 }}>
         <div>
           <div className="page-title">Koš</div>
           <div className="page-sub">Obnova smazaných položek a trvalé odstranění</div>

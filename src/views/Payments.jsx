@@ -1326,7 +1326,7 @@ export default function Payments() {
       )}
 
       {/* HLAVIČKA */}
-      <div className="page-header" style={{ marginBottom: 20 }}>
+      <div className="page-header" data-icon="💳" style={{ marginBottom: 20 }}>
         <div>
           <div className="page-title">Evidence plateb</div>
           <div className="page-sub">Přehled plateb za {monthLabel}</div>

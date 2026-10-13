@@ -90,7 +90,7 @@ export default function Calendar({ onOpen, onNav }) {
 
   return (
     <div style={{ paddingBottom: 60 }}>
-      <div className="page-header" style={{ marginBottom: 18 }}>
+      <div className="page-header" data-icon="📅" style={{ marginBottom: 18 }}>
         <div>
           <div className="page-title">Kalendář</div>
           <div className="page-sub">Konce smluv, revize a termíny úkolů – barevně podle firem</div>

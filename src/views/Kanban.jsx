@@ -106,7 +106,7 @@ export default function Kanban() {
 
   return (
     <div style={{ height: 'calc(100vh / var(--ui-zoom, 1) - 120px)', display: 'flex', flexDirection: 'column', width: '100%' }}>
-      <div className="page-header" style={{ marginBottom: 24, flexShrink: 0 }}>
+      <div className="page-header" data-icon="🗂️" style={{ marginBottom: 24, flexShrink: 0 }}>
         <div>
           <div className="page-title">Operativní Kanban</div>
           <div className="page-sub">Správa úkolů, které je třeba udělat</div>
