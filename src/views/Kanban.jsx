@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
+import { FirmBadge } from '../FirmUI.jsx'
+import { firmColors } from '../utils.js'
 
 const COLUMNS = [
   { id: 'longterm',  title: 'Dlouhodobé úkoly',            cssKey: 'longterm'  },
@@ -21,7 +23,11 @@ const parseTags = (tag) => (tag || '').split(',').map(t => t.trim()).filter(Bool
 const joinTags  = (arr)  => arr.join(', ')
 
 export default function Kanban() {
-  const { tasks = [], addTask, updateTask, deleteTask, isReadOnly, subjectGroups = [], showToast } = useApp()
+  const { tasks = [], addTask, updateTask, deleteTask, isReadOnly, subjectGroups = [], showToast, firms = [], theme } = useApp()
+  // Firemní štítek = tag přesně shodný s názvem firmy (nikdy podle začátku názvu)
+  const firmOfTag = (tg) => firms.find(f => f.name === tg) || null
+  const [firmFilter, setFirmFilter] = useState('all')
+  const visibleTasks = firmFilter === 'all' ? tasks : tasks.filter(t => parseTags(t.tag).includes(firmFilter))
 
   const [showForm, setShowForm]           = useState(false)
   const [formMode, setFormMode]           = useState('add')
@@ -110,11 +116,32 @@ export default function Kanban() {
         )}
       </div>
 
+      {/* Filtr podle firmy */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, flexShrink: 0 }}>
+        {[{ name: 'all' }, ...firms.filter(f => subjectGroups.includes(f.name))].map(f => {
+          const isAll = f.name === 'all'
+          const on = firmFilter === f.name
+          const c = isAll ? null : firmColors(f.color, theme)
+          const count = isAll ? tasks.length : tasks.filter(t => parseTags(t.tag).includes(f.name)).length
+          return (
+            <button key={f.name} onClick={() => setFirmFilter(f.name)} style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '5px 12px 5px 6px', borderRadius: 10, cursor: 'pointer',
+              border: on ? `2px solid ${c ? c.mid : 'var(--accent)'}` : '1px solid var(--border)', background: on ? (c ? c.bg : 'var(--bg2)') : 'var(--bg)',
+              fontSize: 12.5, fontWeight: 700, color: on && c ? c.txt : 'var(--text)',
+            }}>
+              {isAll ? <span style={{ width: 22, height: 22, borderRadius: 7, background: 'var(--accent)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>▦</span> : <FirmBadge firm={f} size={22} />}
+              {isAll ? 'Všechny úkoly' : f.name}
+              <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       <div style={{ flex: 1, overflowX: 'auto', paddingBottom: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, height: '100%', minWidth: 1300 }}>
           {COLUMNS.map(col => {
             const ck       = col.cssKey
-            const colTasks = tasks.filter(t => t.status === col.id)
+            const colTasks = visibleTasks.filter(t => t.status === col.id)
             const isOver   = dragOverCol === col.id
             return (
               <div key={col.id}
@@ -151,9 +178,18 @@ export default function Kanban() {
                         <div style={{ fontWeight: 700, fontSize: 13.5, color: task.status === 'done' ? 'var(--text3)' : 'var(--text)', marginBottom: 6, lineHeight: 1.3, textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>{task.title}</div>
                         {tags.length > 0 && (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-                            {tags.map(tg => (
-                              <span key={tg} style={{ fontSize: 10, color: `var(--kanban-${ck}-color)`, background: `var(--kanban-${ck}-border)`, padding: '2px 7px', borderRadius: 5, fontWeight: 700 }}>#{tg}</span>
-                            ))}
+                            {tags.map(tg => {
+                              const tf = firmOfTag(tg)
+                              if (tf) {
+                                const fc = firmColors(tf.color, theme)
+                                return (
+                                  <span key={tg} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: fc.txt, background: fc.bg, border: `1px solid ${fc.mid}`, padding: '1px 6px 1px 2px', borderRadius: 6, fontWeight: 800 }}>
+                                    <FirmBadge firm={tf} size={16} />{tf.name}
+                                  </span>
+                                )
+                              }
+                              return <span key={tg} style={{ fontSize: 10, color: `var(--kanban-${ck}-color)`, background: `var(--kanban-${ck}-border)`, padding: '2px 7px', borderRadius: 5, fontWeight: 700 }}>#{tg}</span>
+                            })}
                           </div>
                         )}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 8, borderTop: `1px dashed var(--kanban-${ck}-border)` }}>
@@ -226,9 +262,12 @@ export default function Kanban() {
                   <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
                     {subjectGroups.map(pt => {
                       const isA = selectedTags.includes(pt)
+                      const tf = firmOfTag(pt)
+                      const fc = tf ? firmColors(tf.color, theme) : null
                       return (
                         <button key={pt} type="button" onClick={() => togglePreset(pt)}
-                          style={{ padding: '5px 12px', borderRadius: 8, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: isA ? 'var(--accent)' : 'var(--bg2)', color: isA ? '#fff' : 'var(--text2)', border: isA ? '1.5px solid var(--accent)' : `1px solid var(--kanban-card-border)`, transition: '0.15s' }}>
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px 4px 5px', borderRadius: 8, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: isA ? (fc ? fc.mid : 'var(--accent)') : (fc ? fc.bg : 'var(--bg2)'), color: isA ? '#fff' : (fc ? fc.txt : 'var(--text2)'), border: `1.5px solid ${fc ? fc.mid : 'var(--kanban-card-border)'}`, transition: '0.15s' }}>
+                          {tf && <FirmBadge firm={tf} size={18} filled={!isA} />}
                           {pt}
                         </button>
                       )

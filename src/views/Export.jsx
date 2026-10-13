@@ -3,6 +3,8 @@ import { useApp } from '../AppContext.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import { save } from '@tauri-apps/api/dialog'
 import { getEffectiveValuesToday } from '../utils.js'
+import { FirmPickerButton } from '../FirmUI.jsx'
+import { contractSubject, selectionMatches, selectionLabel, firmColors } from '../utils.js'
 
 // ── CSS pro tisk (inline do HTML exportu) ──
 const PRINT_CSS = `
@@ -28,6 +30,7 @@ const PRINT_CSS = `
   .badge-orange { background: #FFF7ED; color: #92400E; }
   .amount { font-weight: 700; text-align: right; white-space: nowrap; }
   .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #E5E5E5; font-size: 10px; color: #999; display: flex; justify-content: space-between; }
+  .firm-chip { display: inline-block; min-width: 30px; text-align: center; padding: 2px 6px; border-radius: 6px; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 0.3px; margin-right: 8px; vertical-align: middle; }
   .summary-box { display: inline-block; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 10px 16px; margin-top: 8px; margin-right: 12px; }
   .summary-label { font-size: 10px; color: #166534; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
   .summary-value { font-size: 18px; font-weight: 800; color: #12654A; margin-top: 2px; }
@@ -45,6 +48,11 @@ const PRINT_CSS = `
     .no-print { display: none; }
   }
 `
+
+// Firma v exportu: fi(subject) → { name, short, mid, bg, txt } (barvy světlého režimu)
+function firmChip(f) {
+  return f ? `<span class="firm-chip" style="background:${f.mid}">${f.short}</span>` : ''
+}
 
 function fmtCzk(v) {
   return Number(v || 0).toLocaleString('cs-CZ') + ' Kč'
@@ -72,25 +80,25 @@ function urgencyClass(days) {
 
 // ── GENERÁTORY HTML ──────────────────────────────────────────────────────────
 
-function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjectOrder) {
+function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjectOrder, fi) {
   const activeContracts = contracts.filter(c => c.status === 'active')
-  const subjects = subjectFilter === 'all'
-    ? subjectOrder
-    : [subjectFilter]
+  // Výběr: vše / firma ("Vše") / sekce – vždy podle skutečného pronajímatele smlouvy
+  const subjects = subjectOrder.filter(s => selectionMatches(subjectFilter, s))
 
   let sectionsHtml = ''
-  let grandTotal = 0
+  const firmTotals = {} // součty STRIKTNĚ po firmách
 
   subjects.forEach(subject => {
-    const subjectAssets = assets.filter(a => a.subject === subject)
-    const subjectContracts = activeContracts.filter(c => subjectAssets.some(a => a.id === c.assetId))
+    const subjectContracts = activeContracts.filter(c => contractSubject(c, assets) === subject)
     if (subjectContracts.length === 0) return
 
     const subTotal = subjectContracts.reduce((s, c) => {
       const ev = getEffectiveValuesToday(c)
       return s + ev.rent + ev.parking + ev.flatFee
     }, 0)
-    grandTotal += subTotal
+    const f = fi(subject)
+    const fk = f ? f.name : subject
+    firmTotals[fk] = { f, total: (firmTotals[fk]?.total || 0) + subTotal }
 
     const rows = subjectContracts.map(c => {
       const a = assets.find(x => x.id === c.assetId)
@@ -114,7 +122,7 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
 
     sectionsHtml += `
       <div class="section">
-        <div class="section-title">${subject}</div>
+        <div class="section-title" style="${f ? `color:${f.txt};background:${f.bg};border-left:5px solid ${f.mid}` : ''}">${firmChip(f)}${subject}</div>
         <table>
           <thead><tr>
             <th>Předmět nájmu</th><th>Nájemce</th><th>Platnost od</th><th>Platnost do</th>
@@ -129,7 +137,12 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
       </div>`
   })
 
-  const title = subjectFilter === 'all' ? 'Přehled portfolia — všechny subjekty' : `Přehled portfolia — ${subjectFilter}`
+  const title = subjectFilter === 'all' ? 'Přehled portfolia — všechny firmy' : `Přehled portfolia — ${selectionLabel(subjectFilter)}`
+  const firmBoxes = Object.values(firmTotals).map(({ f, total }) => `
+        <div class="summary-box" style="${f ? `background:${f.bg};border-color:${f.mid}` : ''}">
+          <div class="summary-label" style="${f ? `color:${f.txt}` : ''}">${firmChip(f)}${f ? f.name : ''} · nájemné / měsíc</div>
+          <div class="summary-value" style="${f ? `color:${f.mid}` : ''}">${fmtCzk(total)}</div>
+        </div>`).join('')
 
   return `<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8">
     <title>${title}</title>
@@ -140,12 +153,7 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
         <div style="font-size:18px;font-weight:700;color:#1a1a1a;margin-top:4px">${title}</div>
         <div class="header-sub">Aktivní smlouvy · Vygenerováno ${today()}</div>
       </div>
-      <div class="header-date">
-        <div class="summary-box">
-          <div class="summary-label">Celkové nájemné / měsíc</div>
-          <div class="summary-value">${fmtCzk(grandTotal)}</div>
-        </div>
-      </div>
+      <div class="header-date" style="text-align:right">${firmBoxes}</div>
     </div>
     ${sectionsHtml}
     <div class="footer">
@@ -155,7 +163,7 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
   </div></body></html>`
 }
 
-function genTenantCard(tenant, contracts, assets) {
+function genTenantCard(tenant, contracts, assets, fi) {
   const tenantContracts = contracts.filter(c => c.tenantId === tenant.id)
   const activeContracts = tenantContracts.filter(c => c.status === 'active')
   const archivedContracts = tenantContracts.filter(c => c.status !== 'active')
@@ -171,7 +179,7 @@ function genTenantCard(tenant, contracts, assets) {
     const days = daysLeft(c.end)
     return `
       <div class="card" style="${isActive ? '' : 'opacity:0.65'}">
-        <div class="card-header">${a?.unit || '—'} <span style="font-size:11px;font-weight:500;color:#666">${a?.subject || ''}</span>
+        <div class="card-header">${firmChip(fi(contractSubject(c, assets)))}${a?.unit || '—'} <span style="font-size:11px;font-weight:500;color:#666">${contractSubject(c, assets)}</span>
           ${isActive ? '<span class="badge badge-green" style="float:right">Aktivní</span>' : '<span class="badge badge-gray" style="float:right">Ukončena</span>'}
         </div>
         <div class="row"><span class="label">Platnost</span><span class="value">${c.start || '—'} → ${c.end || 'Neurčito'}</span></div>
@@ -197,10 +205,21 @@ function genTenantCard(tenant, contracts, assets) {
         <div class="header-sub">Vygenerováno ${today()}</div>
       </div>
       <div style="text-align:right">
-        ${activeContracts.length > 0 ? `<div class="summary-box">
-          <div class="summary-label">Aktivní nájemné / měsíc</div>
-          <div class="summary-value">${fmtCzk(totalMonthly)}</div>
-        </div>` : ''}
+        ${(() => {
+          // Nájemné / měsíc STRIKTNĚ po firmách (pronajímatelích)
+          const byFirm = {}
+          activeContracts.forEach(c => {
+            const f = fi(contractSubject(c, assets))
+            const k = f ? f.name : '—'
+            const ev = getEffectiveValuesToday(c)
+            byFirm[k] = byFirm[k] || { f, total: 0 }
+            byFirm[k].total += ev.rent + ev.parking + ev.flatFee
+          })
+          return Object.values(byFirm).map(({ f, total }) => `<div class="summary-box" style="${f ? `background:${f.bg};border-color:${f.mid}` : ''}">
+          <div class="summary-label" style="${f ? `color:${f.txt}` : ''}">${firmChip(f)}${f ? f.name : ''} · nájemné / měsíc</div>
+          <div class="summary-value" style="${f ? `color:${f.mid}` : ''}">${fmtCzk(total)}</div>
+        </div>`).join('')
+        })()}
       </div>
     </div>
 
@@ -237,7 +256,7 @@ function genTenantCard(tenant, contracts, assets) {
   </div></body></html>`
 }
 
-function genExpirationReport(contracts, assets, tenants) {
+function genExpirationReport(contracts, assets, tenants, fi) {
   const active = contracts.filter(c => c.status === 'active')
   const enriched = active.map(c => ({
     ...c,
@@ -260,7 +279,7 @@ function genExpirationReport(contracts, assets, tenants) {
       const total = ev.rent + ev.parking + ev.flatFee
       return `<tr>
       <td>${c.asset?.unit || '—'}</td>
-      <td>${c.asset?.subject || '—'}</td>
+      <td>${firmChip(fi(contractSubject(c, assets)))}${contractSubject(c, assets) || '—'}</td>
       <td>${c.tenant?.name || '—'}</td>
       <td>${c.tenant?.phone || '—'}</td>
       <td>${c.end}</td>
@@ -298,17 +317,27 @@ function genExpirationReport(contracts, assets, tenants) {
   </div></body></html>`
 }
 
-function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrder) {
+function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrder, fi) {
   const active = contracts.filter(c => c.status === 'active')
-  const filtered = subjectFilter === 'all' ? active : active.filter(c => {
-    const a = assets.find(x => x.id === c.assetId)
-    return a?.subject === subjectFilter
-  })
+  // Filtr a řazení podle skutečného pronajímatele smlouvy (ne podle subjektu předmětu)
+  const filtered = active.filter(c => selectionMatches(subjectFilter, contractSubject(c, assets)))
 
   const sorted = [...filtered].sort((a, b) => {
-    const sa = assets.find(x => x.id === a.assetId)?.subject || ''
-    const sb = assets.find(x => x.id === b.assetId)?.subject || ''
+    const sa = contractSubject(a, assets)
+    const sb = contractSubject(b, assets)
     return subjectOrder.indexOf(sa) - subjectOrder.indexOf(sb)
+  })
+  // Součty po firmách (striktně odděleno)
+  const firmSums = {}
+  sorted.forEach(c => {
+    const f = fi(contractSubject(c, assets))
+    const k = f ? f.name : '—'
+    const ev = getEffectiveValuesToday(c)
+    firmSums[k] = firmSums[k] || { f, rent: 0, flat: 0, dep: 0, total: 0 }
+    firmSums[k].rent += ev.rent + ev.parking
+    firmSums[k].flat += ev.flatFee
+    firmSums[k].dep += ev.deposit
+    firmSums[k].total += ev.rent + ev.parking + ev.flatFee
   })
 
   const totalRent = sorted.reduce((s, c) => { const ev = getEffectiveValuesToday(c); return s + ev.rent + ev.parking + ev.flatFee }, 0)
@@ -325,7 +354,7 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
     const ev = getEffectiveValuesToday(c)
     const total = ev.rent + ev.parking + ev.flatFee
     return `<tr>
-      <td>${a?.subject || '—'}</td>
+      <td>${firmChip(fi(contractSubject(c, assets)))}${contractSubject(c, assets) || '—'}</td>
       <td>${a?.unit || '—'}</td>
       <td>${t?.name || '—'}</td>
       <td class="amount">${fmtCzk(ev.rent)}</td>
@@ -336,7 +365,7 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
     </tr>`
   }).join('')
 
-  const title = subjectFilter === 'all' ? 'Měsíční předpis nájemného — celé portfolio' : `Měsíční předpis — ${subjectFilter}`
+  const title = subjectFilter === 'all' ? 'Měsíční předpis nájemného — všechny firmy' : `Měsíční předpis — ${selectionLabel(subjectFilter)}`
 
   return `<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8">
     <title>${title}</title>
@@ -366,8 +395,13 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
           <th style="text-align:right">Paušál</th><th style="text-align:right">Zálohy</th><th style="text-align:right">Celkem</th>
         </tr></thead>
         <tbody>${rows}</tbody>
-        <tfoot><tr style="background:#F0FDF4;font-weight:700">
-          <td colspan="3" style="padding:10px">SOUČET</td>
+        <tfoot>${Object.values(firmSums).map(s => `<tr style="font-weight:700;background:${s.f ? s.f.bg : '#F8F8F8'}">
+          <td colspan="3" style="padding:8px 10px;${s.f ? `color:${s.f.txt};box-shadow:inset 5px 0 0 ${s.f.mid}` : ''}">${firmChip(s.f)}Součet ${s.f ? s.f.name : ''}</td>
+          <td class="amount">${fmtCzk(s.rent)}</td><td class="amount">—</td>
+          <td class="amount">${fmtCzk(s.flat)}</td><td class="amount">${fmtCzk(s.dep)}</td>
+          <td class="amount" style="${s.f ? `color:${s.f.mid}` : ''}">${fmtCzk(s.total)}</td>
+        </tr>`).join('')}<tr style="background:#F0FDF4;font-weight:700">
+          <td colspan="3" style="padding:10px">SOUČET (všechny vybrané)</td>
           <td class="amount">${fmtCzk(totalRent - totalFlatFee)}</td>
           <td class="amount">${fmtCzk(totalParking)}</td>
           <td class="amount">${fmtCzk(totalFlatFee)}</td>
@@ -392,7 +426,14 @@ const EXPORT_TYPES = [
 ]
 
 export default function Export() {
-  const { contracts = [], assets = [], tenants = [], subjects = [] } = useApp() || {}
+  const { contracts = [], assets = [], tenants = [], subjects = [], getFirm } = useApp() || {}
+  // Barvy firmy pro tisk (vždy světlý režim)
+  const fi = (subject) => {
+    const f = getFirm ? getFirm(subject) : null
+    if (!f) return null
+    const c = firmColors(f.color, 'light')
+    return { name: f.name, short: f.short, mid: c.mid, bg: c.bg, txt: c.txt }
+  }
   const [activeType, setActiveType] = useState('portfolio')
   const [subjectFilter, setSubjectFilter] = useState('all')
   const [tenantFilter, setTenantFilter] = useState('')
@@ -418,22 +459,22 @@ export default function Export() {
 
       switch (activeType) {
         case 'portfolio':
-          html = genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjects)
-          filename = `RentFlow-Portfolio-${subjectFilter === 'all' ? 'Vsechny' : subjectFilter.replace(/[^a-zA-Z0-9]/g, '-')}-${stamp}.html`
+          html = genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjects, fi)
+          filename = `RentFlow-Portfolio-${subjectFilter === 'all' ? 'Vsechny' : selectionLabel(subjectFilter).replace(/[^a-zA-Z0-9]/g, '-')}-${stamp}.html`
           break
         case 'tenant': {
           const t = tenants.find(x => x.id === tenantFilter)
           if (!t) { setError('Vyberte nájemce.'); setLoading(false); return }
-          html = genTenantCard(t, contracts, assets)
+          html = genTenantCard(t, contracts, assets, fi)
           filename = `RentFlow-Karta-${t.name.replace(/[^a-zA-Z0-9]/g, '-')}-${stamp}.html`
           break
         }
         case 'expiry':
-          html = genExpirationReport(contracts, assets, tenants)
+          html = genExpirationReport(contracts, assets, tenants, fi)
           filename = `RentFlow-Expirace-${stamp}.html`
           break
         case 'monthly':
-          html = genMonthlyReport(contracts, assets, tenants, subjectFilter, subjects)
+          html = genMonthlyReport(contracts, assets, tenants, subjectFilter, subjects, fi)
           filename = `RentFlow-Predpis-${stamp}.html`
           break
       }
@@ -504,11 +545,12 @@ export default function Export() {
         {(activeType === 'portfolio' || activeType === 'monthly') && (
           <div style={{ marginBottom: 20 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Subjekt / firma</label>
-            <select className="btn" style={{ width: '100%', maxWidth: 460, textAlign: 'left', cursor: 'pointer' }}
-              value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)}>
-              <option value="all">Celé portfolio (všechny subjekty)</option>
-              {activeSubjects.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <FirmPickerButton
+              value={subjectFilter}
+              onChange={setSubjectFilter}
+              sections={subjects.filter(s => contracts.some(c => c.status === 'active' && contractSubject(c, assets) === s))}
+              getStat={(sel) => { const n = contracts.filter(c => c.status === 'active' && selectionMatches(sel, contractSubject(c, assets))).length; return { count: `${n} sml.`, text: `${n} aktivních smluv`, tone: 'muted' } }}
+            />
           </div>
         )}
 
@@ -534,7 +576,7 @@ export default function Export() {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Co bude v exportu</div>
           {activeType === 'portfolio' && (
             <ul style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 2, paddingLeft: 18 }}>
-              <li>Seznam aktivních smluv dle {subjectFilter === 'all' ? 'všech subjektů' : subjectFilter}</li>
+              <li>Seznam aktivních smluv dle {subjectFilter === 'all' ? 'všech firem' : selectionLabel(subjectFilter)}</li>
               <li>Nájemce, předmět nájmu, platnost smlouvy, zbývající dny</li>
               <li>Nájemné, parkovné, celková měsíční částka</li>
               <li>Součty dle subjektu + celkové portfolio</li>

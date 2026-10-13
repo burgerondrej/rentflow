@@ -17,7 +17,7 @@ import OperationalCosts from './views/OperationalCosts.jsx'
 import SettingsPanel from './SettingsPanel.jsx'
 import UpdateDialog from './UpdateDialog.jsx'
 import ActivationScreen from './ActivationScreen.jsx'
-import { FirmPickerButton } from './FirmUI.jsx'
+import { FirmPickerButton, FirmBadge } from './FirmUI.jsx'
 import { contractSubject, selectionMatches, parseDate } from './utils.js'
 import { invoke } from '@tauri-apps/api/tauri'
 
@@ -34,7 +34,7 @@ function AppWithActivation() {
 }
 
 function AppInner() {
-  const { unreadCount, urgentContracts, currentUser, setCurrentUser, isReadOnly, theme, setTheme, tenants = [], assets = [], tasks = [], documents = [], contracts = [], getBackupInfo, createBackup, subjects = [] } = useApp()
+  const { unreadCount, urgentContracts, currentUser, setCurrentUser, isReadOnly, theme, setTheme, tenants = [], assets = [], tasks = [], documents = [], contracts = [], getBackupInfo, createBackup, subjects = [], getFirm } = useApp()
 
   // Sledujeme zda od poslední zálohy došlo ke změnám
   const prevCountRef = useRef(tenants.length + assets.length + contracts.length + tasks.length)
@@ -160,14 +160,15 @@ function AppInner() {
     // Hledání v nájemnících (jméno, email, ico)
     tenants.forEach(t => {
       if ((t.name && t.name.toLowerCase().includes(q)) || (t.email && t.email.toLowerCase().includes(q)) || (t.ico && t.ico.includes(q))) {
-        results.push({ id: t.id, type: 'tenant', label: 'Nájemce', text: t.name })
+        const tFirms = [...new Set(contracts.filter(c => c.tenantId === t.id && c.status === 'active').map(c => getFirm && getFirm(contractSubject(c, assets))).filter(Boolean))]
+        results.push({ id: t.id, type: 'tenant', label: 'Nájemce', text: t.name, firms: tFirms })
       }
     })
 
     // Hledání v předmětech (jednotka, firma)
     assets.forEach(a => {
       if ((a.unit && a.unit.toLowerCase().includes(q)) || (a.subject && a.subject.toLowerCase().includes(q))) {
-        results.push({ id: a.id, type: 'asset', label: 'Objekt', text: `${a.unit} (${a.subject})` })
+        results.push({ id: a.id, type: 'asset', label: 'Objekt', text: `${a.unit} (${a.subject})`, firms: [getFirm && getFirm(a.subject)].filter(Boolean) })
       }
     })
 
@@ -182,16 +183,17 @@ function AppInner() {
     contracts.forEach(c => {
       const tenant = tenants.find(t => t.id === c.tenantId)
       const asset = assets.find(a => a.id === c.assetId)
-      const text = [tenant?.name, asset?.unit, asset?.subject].filter(Boolean).join(' · ')
+      const cSubject = contractSubject(c, assets)
+      const text = [tenant?.name, asset?.unit, cSubject].filter(Boolean).join(' · ')
       if (text.toLowerCase().includes(q)) {
-        results.push({ id: c.id, type: 'contract', label: 'Smlouva', text })
+        results.push({ id: c.id, type: 'contract', label: 'Smlouva', text, firms: [getFirm && getFirm(cSubject)].filter(Boolean) })
       }
     })
 
     // Hledání v dokumentech (název souboru)
     documents.forEach(d => {
       if (d.name && d.name.toLowerCase().includes(q)) {
-        results.push({ id: d.id, type: 'doc', label: 'Soubor', text: d.name })
+        results.push({ id: d.id, type: 'doc', label: 'Soubor', text: d.name, firms: [getFirm && d.subject && getFirm(d.subject)].filter(Boolean) })
       }
     })
 
@@ -320,7 +322,8 @@ function AppInner() {
                       <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', background: 'var(--bg3)', padding: '4px 8px', borderRadius: 6, color: 'var(--text2)', width: 70, textAlign: 'center' }}>
                         {res.label}
                       </span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{res.text}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0 }}>{res.text}</span>
+                      {(res.firms || []).map(f => <FirmBadge key={f.name} firm={f} size={22} />)}
                     </div>
                   )) : (
                     <div style={{ padding: '16px', fontSize: 13, color: 'var(--text3)', textAlign: 'center', fontWeight: 500 }}>
