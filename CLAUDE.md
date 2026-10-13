@@ -14,6 +14,9 @@ Komunikace: česky, přímo, stručně, bez vaty. Šetři tokeny.
 - Po každé úpravě vypiš: seznam změněných souborů (s cestou), postup testu (konkrétní kroky v appce), případný build postup.
 - Po změně Rust souborů (commands.rs, models.rs, db.rs) ověř kompilaci: `cd src-tauri; cargo check`.
 - Po změně frontendu ověř: `npm run build`.
+- Pracovat v JEDNÉ složce `C:\Users\ondra\rentflow`. Pokud session běží ve worktree, před testem změny commitni a srovnej hlavní složku (`git -C C:\Users\ondra\rentflow merge --ff-only <větev>`) – Ondra testuje vždy z hlavní složky.
+- Ke každé žádosti o test přidej spustitelný blok: `cd C:\Users\ondra\rentflow; npm run tauri:dev` (před testem připomenout Ctrl+S).
+- Změny UI dělej po blocích; větší grafické změny nejdřív jako náhled (mockup) k odsouhlasení.
 
 ## 2. Git a release — TVRDÁ PRAVIDLA
 
@@ -49,17 +52,23 @@ Secrets: TAURI_PRIVATE_KEY, TAURI_KEY_PASSWORD, PAGES_TOKEN, RELEASES_TOKEN.
 - Ctrl+S v appce = záloha `YYYY-MM-DD_HHMM.db` + kopie DB a documents/ na GDrive.
 
 Klíčové soubory:
-- `src/utils.js` – parseDate, getEffectiveValues(c, yr, mo), getEffectiveValuesToday(c), PERIOD_LEN.
+- `src/utils.js` – parseDate, getEffectiveValues/Today, getMonthRent/RentParking, getMonthDeposits, isContractBillable/InMonth/Occupying, getCurrentAssetContract, getPeriodMonthKeys, applyContractOrder, dueDateFor/overdueDays, firmOf/sectionOf, firmSelection/selectionMatches/selectionLabel, firmColors (paleta firem), ASSET_TYPES/assetTypeStyle, contractSubject, tenantRentsByFirm.
+- `src/FirmUI.jsx` – FirmBadge (zkratka firmy), FirmRentSummary (součty po firmách), FirmPicker (strom firma → sekce/budova, „Vše“), FirmPickerButton (horní lišta), useObjectFirms (budovy po firmách), progressStat.
+- `src/StatusUI.jsx` – STATUS (jednotný slovník stavů), StatusPill, contractStatus(c).
+- `src/RenewContractsDialog.jsx` – navazující smlouvy (hromadné prodloužení).
+- `src/views/Calendar.jsx` – kalendář (konce smluv, revize, úkoly); buildCalendarEvents sdílí Dashboard.
 - `src/AppContext.jsx` – Tauri IPC bridge, state, theme, showToast(message, type). archiveContract kontroluje jiné aktivní smlouvy.
 - `src/App.jsx` – AppWithActivation wrapper, Ctrl+F, Ctrl+S, PIN modal, auto-update check po 3 s.
-- `src/DetailPanel.jsx` – effectiveToday(c), formulář dodatku.
+- `src/DetailPanel.jsx` – detaily smlouvy / předmětu / nájemce: barevný pás + klíčové údaje + záložky (smlouva: Přehled/Platby/Dodatky/Dokumenty; předmět: Přehled/Smlouvy/Dokumenty; nájemce: Přehled/Smlouvy/Platby/Dokumenty). Podíl na platbě skupiny (jen zobrazení).
 - `src/views/Payments.jsx` – platební logika (viz níže).
 - `src/views/Export.jsx` – PDF přes getEffectiveValuesToday(c), sloupec Paušál. PDF = Edge headless `--print-to-pdf` (bez Google Fonts @import).
 - `src/ActivationScreen.jsx` – aktivace (hash SHA-256 v Rustu, stav v settings.json "activated").
 - `src-tauri/src/db.rs` – migrace (seed subjektů ODSTRANĚN, fresh install = prázdné tabulky).
 - `src-tauri/src/commands.rs` – verify_activation, check_activation, load_settings (odstraňuje UTF-8 BOM), backup.
 
-Subjekty (11) jsou VÝHRADNĚ v tabulce `subjects` (asset_type: commercial / residential / ads / parking / other, is_vat_payer). Načítání přes get_subjects() / get_objects().
+Subjekty jsou VÝHRADNĚ v tabulce `subjects` (name, asset_type, is_vat_payer, short_name, color, sort_order). Název = „FIRMA – Sekce“ (oddělovač ` – ` EN DASH), firma = část před oddělovačem.
+Firmy v pořadí: METROPOLE CB (MCB, wine), Bürger Pavel (BP, royal), METROPOLE CZ (MCZ, violet), JIHOTANK (JT, teal), JIHOTANK CB (JCB, orange), Ostatní (OST, slate). JIHOTANK / JIHOTANK CB / MCZ mají sekce „– Komerční prostory“ a „– Parkování“. Prázdné sekce se v UI nezobrazují (kromě formuláře předmětu).
+Budovy (`objects`, sloupec `firm`) patří firmám – Revize a Provozní náklady filtrují firma → budova. Načítání: get_subjects(), get_objects(), get_object_firms().
 
 ## 4. Absolutní pravidla kódu
 
@@ -78,6 +87,15 @@ Subjekty (11) jsou VÝHRADNĚ v tabulce `subjects` (asset_type: commercial / res
 - Obsazenost předmětu nájmu přes getCurrentAssetContract / isContractOccupying (utils.js), NIKDY jen podle asset.status nebo c.status === 'active'.
 - Pořadí smluv (Platby, Smlouvy) vždy přes applyContractOrder (utils.js) – navazující smlouva převezme pozici předchozí smlouvy na stejném předmětu.
 - Dodatky řadí chronologicky _getEffVals v utils.js. DB je vrací řazené jako TEXT ("15. 10." < "5. 9.") – na pořadí z DB nikdy nespoléhat.
+- Firma VŽDY přesnou shodou přes firmOf() – NIKDY startsWith ("JIHOTANK CB" ≠ "JIHOTANK"). Pronajímatel smlouvy = contractSubject(c, assets) (u Ostatní subjekt předmětu, jinak billing_subject || subjekt předmětu) – NIKDY jen asset.subject (exporty, součty, filtry).
+- Firmy STRIKTNĚ oddělené: součty, %, dlužníci, exporty vždy za jednu firmu (nebo „Vše“ jedné firmy). Název skupiny (group_label) nesmí sdílet dvě firmy – hlídá Rust (check_group_label v add/update_contract) i formuláře (groupLabelConflict).
+- Výběr firmy/sekce: hodnota = název sekce | firmSelection(firma) | 'all'; filtrovat VŽDY přes selectionMatches().
+- Stavové štítky VÝHRADNĚ přes StatusPill (StatusUI.jsx): zelená = OK/dostupné (Uhrazeno, Aktivní, Volné), oranžová = pozor, červená = problém, šedá = neaktivní (Ukončeno, Obsazeno).
+- Barvy typů předmětů jen z CSS proměnných `--asset-<typ>-bg/header/accent/border/strong` (assetTypeStyle). Byt zelená, komerční fialová, reklama oranžová, parkování modrá, ostatní tyrkysová. Ikony z ASSET_TYPES (🏠 🏢 📢 🅿️ 📄).
+- Barvy firem jen přes firmColors(color, theme) – žádné natvrdo psané barvy firem.
+- Velikost písma = zoom celé appky (`--ui-zoom`). Jednotky vh/vw psát VŽDY jako `calc(NNvh / var(--ui-zoom, 1))`; souřadnice myši dělit uiZoom.
+- Tmavý režim: žádné natvrdo bílé pozadí s textem z var(--text*) (v dark nečitelné) – používat var(--bg)/var(--bg2). Vedlejší text var(--text2)/var(--text3), ne opacity < 0.8.
+- Úpravy velkých souborů skriptem: hledat anchor až od začátku konkrétní render funkce (stejné bloky jsou v DetailPanel víckrát).
 - `reqwest::blocking` uvnitř async Tauri commandu = deadlock.
 - Payments.jsx: pořadí const arrow funkcí je kritické (temporal dead zone).
 
@@ -98,6 +116,8 @@ Subjekty (11) jsou VÝHRADNĚ v tabulce `subjects` (asset_type: commercial / res
 - Zálohy za měsíc přes getMonthDeposits(c, yr, mo, contracts). Smlouva začínající uprostřed měsíce na předmětu, který 1. den měsíce držela jiná smlouva, účtuje zálohy až od dalšího měsíce (jinak dvojí zálohy v měsíci předávky).
 - Navazující smlouvy: renewContracts (AppContext) + RenewContractsDialog. Pořadí: záloha → stará smlouva archived s koncem = den před novým začátkem → nová smlouva se stejným předmětem, skupinou a nastavením; zálohy/paušál/parking v aktuálně platné výši, dodatky se nekopírují, rentTotal = 0. Skupinové platby navazují přes group_label.
 - Smlouvy: záložky Platné (aktivní + ukončené s budoucím koncem) / Ukončené.
+- Po splatnosti: dueDateFor(c, y, m) z pole due_day („15. den v měsíci“ měsíčně, „30. 4.“ ročně; „Dle vystavené faktury“ = neurčuje se); overdueDays() zobrazit v Platbách, na kartách firem a v detailu nájemce.
+- Skupinové platby: v DB jedna platba na skupinu (contract_id NULL + group_label). Detail smlouvy ve skupině ukazuje jen PODÍL (platba × předpis místa / předpis skupiny v měsíci) – nic se nerozděluje v DB.
 - Uložené platby se nikdy zpětně nemění. Základní pole smlouvy platí pro celou historii, dodatky jen od data účinnosti.
 
 ## 6. Design
@@ -105,6 +125,8 @@ Subjekty (11) jsou VÝHRADNĚ v tabulce `subjects` (asset_type: commercial / res
 --bg #ffffff, --bg2 #F0FDF4, --accent #12654A. Sidebar gradient linear-gradient(155deg, #0A3D2B, #12654A, #1A8A62, #0E5540).
 Platba uhrazena/neuhrazena/částečná: #16A34A / #DC2626 / #D97706. Toast error/warning/success: #991B1B / #92400E / #166534.
 Ikona: tmavě zelený kruh #0A3D2B, bílé R (Georgia bold), tři zelené tečky #4ade80 vpravo (opacity 100/65/35 %).
+Firmy (sytá paleta, utils FIRM_PALETTE): MCB bordó #7A1029, BP modrá #2563EB, MCZ fialová #9333EA, JT tyrkysová #0D9488, JCB oranžová #EA580C, OST břidlicová #475569.
+Styl (v1.3): karty barevné podle TYPU předmětu + proužek a zkratka FIRMY vlevo; uvnitř bílé rámečky (nájemce, platnost/nájem) s 1.5px čarami. Detaily = plný barevný pás + 4 klíčové údaje + kontrastní záložky (neaktivní tmavý text na světlém, aktivní bílý na barvě). Hlavička stránky = karta s ikonou sekce (`.page-header data-icon` / `data-type`) a čísly. Ondra nechce „prázdný vzdušný“ minimalismus – chce přehledné, výrazné, barevné.
 
 ## 7. Pavel – read-only sync (mimo repo, NEMĚNIT bez souhlasu)
 
@@ -137,10 +159,12 @@ Pravidla:
 
 - Bug batch (říjen 2026) – VYŘEŠENO ve v1.2.2: ukončení smlouvy k datu (platby nemizí), poměrné krácení nájmu, fix ročních plateb v detailu smlouvy, víceměsíční platby v detailu jako jedna položka. Bug 3 (385 %) = stará data z doby před v1.0.0 (AutoWallis, STRADE) – opraveno ručně v appce.
 - v1.2.3: navazující smlouvy (hromadné prodloužení), záložky Platné/Ukončené ve Smlouvách, zálohy při předávce uprostřed měsíce, zachování pořadí smluv po prodloužení.
+- v1.3.0: firmy METROPOLE CZ, JIHOTANK, JIHOTANK CB se striktním oddělením; barvy a zkratky firem; strom firma → sekce/budova (Platby, Dokumenty, Revize, Provozní náklady, horní lišta, Export); karty firem a Nejbližší termíny na Dashboardu; Kalendář; po splatnosti; podíl na platbě skupiny; detaily se záložkami; jednotné štítky, barvy typů a hlavičky; velikost písma; kontrast + tmavý režim; Kanban filtr firem; PDF v barvách firem.
+- Nápady na později: hromadná valorizace a import z banky NE (Ondra nechce); upomínky PDF NE.
 - localStorage pro currentUser; správa subjektů v Settings UI.
 - Odložené: sdružování parkovacích stání (group_label) – částečně implementováno.
 
 ## 11. Údržba tohoto souboru
 
 Na konci každé větší session navrhni úpravu CLAUDE.md (nová pravidla, poučení, verze). Zapisuj jen po odsouhlasení.
-Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 7. 10. 2026: v1.2.3).
+Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 13. 10. 2026: v1.3.0).
