@@ -88,24 +88,24 @@ export default function Contracts({ activeSubject, onOpen }) {
         key={c.id} 
         className="card card-interactive"
         style={{ 
-          cursor: 'pointer', marginBottom: 0, opacity: isArchived ? 0.6 : 1, padding: 0, overflow: 'hidden', borderRadius: 12,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-          background: cardBg, 
-          border: `1px solid ${isArchived ? 'var(--border)' : cardBorderColor}`,
+          cursor: 'pointer', marginBottom: 0, opacity: isArchived ? 0.6 : 1, padding: 0, overflow: 'hidden', borderRadius: 14,
+          boxShadow: '0 3px 12px rgba(0,0,0,0.08)',
+          background: cardBg,
+          border: `1.5px solid ${isArchived ? 'var(--border)' : cardBorderColor}`,
           // Barevný proužek firmy (pronajímatele) – JIHOTANK vs. JIHOTANK CB na první pohled
           borderLeft: `5px solid ${getFirm && getFirm(c.assetSubject) ? firmColors(getFirm(c.assetSubject).color, theme).mid : 'var(--border)'}`,
         }} 
         onClick={() => onOpen(c.id)}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: headerBg, borderBottom: `1px solid ${isArchived ? 'var(--border)' : cardBorderColor}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <FirmBadge firm={getFirm ? getFirm(c.assetSubject) : null} size={22} />
-            <span style={{ fontSize: 13 }}>{icon}</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', background: headerBg, borderBottom: `1.5px solid ${isArchived ? 'var(--border)' : cardBorderColor}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <FirmBadge firm={getFirm ? getFirm(c.assetSubject) : null} size={24} />
+            <span style={{ fontSize: 16 }}>{icon}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: accentColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.1px' }}>
                 {c.assetUnit || 'Neznámý předmět'}
               </div>
-              <div style={{ fontSize: 11, color: accentColor, opacity: 0.7, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: accentColor, opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {c.assetSubject || ''}
               </div>
             </div>
@@ -115,41 +115,41 @@ export default function Contracts({ activeSubject, onOpen }) {
           </div>
         </div>
 
-        <div style={{ padding: 14 }}>
-          <div style={{ padding: '8px 10px', background: 'var(--bg)', borderRadius: 8, border: `1px solid ${innerBorderColor}`, marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 3 }}>Nájemce</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.tenantName || 'Neznámý'}</div>
+        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ padding: '9px 12px', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${innerBorderColor}` }}>
+            <div style={{ fontSize: 10, color: accentColor, textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.6px', marginBottom: 2 }}>Nájemce</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.tenantName || 'Neznámý'}</div>
           </div>
 
           {(() => {
             const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(c.assetSubject) === g.val)?.isVatPayer ?? true)
             const showDph = (c.assetType === 'commercial' || c.assetType === 'ads' || c.assetType === 'parking') && isDphSubject
             return (
-              <div style={{ display: 'grid', gridTemplateColumns: c.totalDeposit > 0 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 0 }}>
-                <div style={{ padding: '8px 14px', borderRight: `1px solid ${innerBorderColor}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: c.totalDeposit > 0 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 0, background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${innerBorderColor}` }}>
+                <div style={{ padding: '9px 12px', borderRight: `1.5px solid ${innerBorderColor}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
                     <span style={{ fontSize: 11 }}>🗓️</span>
-                    <div style={{ fontSize: 10.5, color: 'var(--text2)' }}>Platnost do</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)' }}>Platnost do</div>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.end || 'Neurčito'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{c.end || 'Neurčito'}</div>
                   {!isArchived && isEndingSoon && <div style={{ fontSize: 10, color: 'var(--amber-t)', fontWeight: 600, marginTop: 2 }}>Končí za {c.daysLeft} dní</div>}
                   {!isArchived && isExpired && <div style={{ fontSize: 10, color: 'var(--red-t)', fontWeight: 600, marginTop: 2 }}>Propadlá ({Math.abs(c.daysLeft)} dní)</div>}
                 </div>
-                <div style={{ padding: '8px 14px', textAlign: 'center', borderRight: c.totalDeposit > 0 ? `1px solid ${innerBorderColor}` : 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, justifyContent: 'center' }}>
+                <div style={{ padding: '9px 12px', textAlign: 'center', borderRight: c.totalDeposit > 0 ? `1.5px solid ${innerBorderColor}` : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3, justifyContent: 'center' }}>
                     <span style={{ fontSize: 11 }}>💰</span>
-                    <div style={{ fontSize: 10.5, color: 'var(--text2)' }}>{{ 'Čtvrtletně': 'Čtvrtletní nájem', 'Pololetně': 'Pololetní nájem', 'Ročně': 'Roční nájem' }[c.paymentFrequency] || 'Měsíční nájem'}</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)' }}>{{ 'Čtvrtletně': 'Čtvrtletní nájem', 'Pololetně': 'Pololetní nájem', 'Ročně': 'Roční nájem' }[c.paymentFrequency] || 'Měsíční nájem'}</div>
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: showDph ? 'var(--price-netto)' : 'var(--text)' }}>{((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: showDph ? 'var(--price-netto)' : 'var(--text)' }}>{((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč</div>
                   {showDph && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>bez DPH</div>}
                 </div>
                 {c.totalDeposit > 0 && (
-                  <div style={{ padding: '8px 14px', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, justifyContent: 'flex-end' }}>
+                  <div style={{ padding: '9px 12px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3, justifyContent: 'flex-end' }}>
                       <span style={{ fontSize: 11 }}>⚡</span>
-                      <div style={{ fontSize: 10.5, color: 'var(--text2)' }}>Zálohy celkem</div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)' }}>Zálohy celkem</div>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: showDph ? 'var(--price-netto)' : 'var(--text)' }}>{c.totalDeposit.toLocaleString('cs-CZ')} Kč</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: showDph ? 'var(--price-netto)' : 'var(--text)' }}>{c.totalDeposit.toLocaleString('cs-CZ')} Kč</div>
                     {showDph && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>bez DPH</div>}
                   </div>
                 )}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, assetTypeStyle, parseDate } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
@@ -43,7 +43,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [customTagInput, setCustomTagInput] = useState('')
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [contractTab, setContractTab] = useState('overview') // záložka detailu smlouvy
-  useEffect(() => { setContractTab('overview') }, [id])
+  const [assetTab, setAssetTab] = useState('overview')       // záložka detailu předmětu
+  useEffect(() => { setContractTab('overview'); setAssetTab('overview') }, [id])
   const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
   const [renewFor, setRenewFor] = useState(null) // smlouva, ze které se zakládají navazující smlouvy
   const [closing, setClosing] = useState(false)
@@ -1086,18 +1087,69 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
     return (
       <div style={{ padding: '24px 32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: -20, position: 'relative', zIndex: 2 }}>
-          {!isReadOnly && <button className="btn btn-sm" onClick={handleEditClick}>Upravit</button>}
-        </div>
+        {/* ── Pás v barvě typu předmětu + záložky ── */}
+        {(() => {
+          const ts = assetTypeStyle(a.type)
+          const isFreeNow = !activeContract && a.status === 'free'
+          const aFirm = getFirm ? getFirm(a.subject) : null
+          const tabs = [{ id: 'overview', label: 'Přehled' }, { id: 'contracts', label: 'Smlouvy' }, { id: 'docs', label: 'Dokumenty' }]
+          return (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ background: ts.strong, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 26, flexShrink: 0 }}>{ts.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ts.label}{aFirm ? ` · ${aFirm.name}` : ''}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.unit}</div>
+                </div>
+                <StatusPill kind={isFreeNow ? 'free' : 'occupied'} text={isFreeNow ? 'Volné k pronájmu' : 'Obsazeno'} style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }} />
+                {!isReadOnly && (
+                  <button onClick={handleEditClick} style={{ background: '#fff', color: ts.strong, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
+                )}
+              </div>
+              {/* Záložky – neaktivní tmavý text na světlém, aktivní bílý text na barvě typu */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12, paddingBottom: 2, borderBottom: '1px solid var(--border)' }}>
+                {tabs.map(tb => {
+                  const on = assetTab === tb.id
+                  return (
+                    <button key={tb.id} onClick={() => setAssetTab(tb.id)} style={{
+                      padding: '8px 18px', borderRadius: '10px 10px 0 0', fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
+                      background: on ? ts.strong : 'var(--bg2)', color: on ? '#fff' : 'var(--text)',
+                      border: `1px solid ${on ? ts.strong : 'var(--border)'}`, borderBottom: 'none', marginBottom: -3,
+                    }}>{tb.label}</button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: 4 }}>{a.subject}</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{a.unit}</div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            <StatusPill kind={!activeContract && a.status === 'free' ? 'free' : 'occupied'} text={!activeContract && a.status === 'free' ? 'Volné k pronájmu' : 'Obsazeno'} />
-          </div>
-        </div>
+        {/* Záložka Smlouvy – všechny smlouvy na předmětu (aktuální i historie) */}
+        {assetTab === 'contracts' && (() => {
+          const list = contracts.filter(x => x.assetId === a.id)
+            .sort((p, q) => (parseDate(q.start)?.getTime() || 0) - (parseDate(p.start)?.getTime() || 0))
+          if (list.length === 0) return <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Na tomto předmětu zatím není žádná smlouva.</div>
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {list.map(x => {
+                const tn = tenants.find(tt => tt.id === x.tenantId)
+                const ev = getEffectiveValuesToday(x)
+                const st = contractStatus(x)
+                return (
+                  <div key={x.id} onClick={() => onOpen('contract', x.id)} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 10, cursor: 'pointer' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tn ? tn.name : '—'}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>{x.start || '?'} – {x.end || 'neurčito'}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap' }}>{x.paymentFrequency === 'Zahrnuto v nájemném' ? 'zahrnuto' : `${(ev.rent + ev.parking + ev.flatFee).toLocaleString('cs-CZ')} Kč`}</div>
+                    <StatusPill kind={st.kind} text={st.text} size="sm" />
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
 
+        {assetTab === 'overview' && (<>
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-body">
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 12 }}>Parametry objektu</div>
@@ -1142,8 +1194,12 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           </div>
         </div>
 
-        {renderDocsSection(a.subject)}
+        </>)}
 
+        {/* Záložka Dokumenty */}
+        {assetTab === 'docs' && renderDocsSection(a.subject)}
+
+        {assetTab === 'overview' && (<>
         {a.type === 'parking' && (
           <div className="card" style={{ marginTop: 16 }}>
             <div className="card-body">
@@ -1200,6 +1256,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             🗑 Přesunout do koše
           </button>
         </div>}
+        </>)}
 
       </div>
     )

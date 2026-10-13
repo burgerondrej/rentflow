@@ -240,6 +240,8 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --asset-ads-bg:         #FFF8F0; --asset-ads-header:         #FEF0DF; --asset-ads-accent:         #C2410C; --asset-ads-border:         #FBD38D;
   --asset-parking-bg:     #F0F7FF; --asset-parking-header:     #E0F0FE; --asset-parking-accent:     #0B509E; --asset-parking-border:     #90CDF4;
   --asset-ostatni-bg:     #F0FDFA; --asset-ostatni-header:     #CCFBF1; --asset-ostatni-accent:     #0F766E; --asset-ostatni-border:     #99F6E4;
+  /* Plná barva typu (pás v detailu, bílé písmo) */
+  --asset-residential-strong: #0F6E56; --asset-commercial-strong: #5B21B6; --asset-ads-strong: #C2410C; --asset-parking-strong: #0B509E; --asset-ostatni-strong: #0F766E;
 }
 [data-theme='dark'] {
   --kanban-longterm-bg: #1e1b4b; --kanban-longterm-border: #3730a3; --kanban-longterm-color: #a5b4fc; --kanban-longterm-header: rgba(165,180,252,0.08);
@@ -256,6 +258,7 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --asset-ads-bg:         #2a1d12; --asset-ads-header:         #36251a; --asset-ads-accent:         #f0b27a; --asset-ads-border:         rgba(240,178,122,0.32);
   --asset-parking-bg:     #171f2c; --asset-parking-header:     #1c2838; --asset-parking-accent:     #7ab4e8; --asset-parking-border:     rgba(122,180,232,0.32);
   --asset-ostatni-bg:     #172220; --asset-ostatni-header:     #1e2e2a; --asset-ostatni-accent:     #5ec8bc; --asset-ostatni-border:     rgba(94,200,188,0.32);
+  --asset-residential-strong: #1E7A55; --asset-commercial-strong: #6A4BB0; --asset-ads-strong: #B4541E; --asset-parking-strong: #2A5D9E; --asset-ostatni-strong: #1C7A72;
 }
 
 /* ═══════════════════════════════════════════════════════════

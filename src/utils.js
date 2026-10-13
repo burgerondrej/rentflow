@@ -29,7 +29,7 @@ export function assetTypeStyle(type) {
   const t = ASSET_TYPES[type] ? type : 'ostatni'
   return {
     bg: `var(--asset-${t}-bg)`, header: `var(--asset-${t}-header)`,
-    accent: `var(--asset-${t}-accent)`, border: `var(--asset-${t}-border)`,
+    accent: `var(--asset-${t}-accent)`, border: `var(--asset-${t}-border)`, strong: `var(--asset-${t}-strong)`,
     icon: ASSET_TYPES[t].icon, label: ASSET_TYPES[t].label,
   }
 }
