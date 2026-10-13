@@ -72,7 +72,7 @@ export default function AssetForm({ type, onClose }) {
     parking:     'linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%)',
     ostatni:     'linear-gradient(135deg, #0f766e 0%, #0d9488 60%, #14b8a6 100%)',
   }
-  const ASSET_ICON = { residential: '🏠', commercial: '🏢', ads: '🪧', parking: '🅿️', ostatni: '📄' }
+  const ASSET_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', ostatni: '📄' }
   const ASSET_SUB  = {
     residential: 'Bytový fond – obytná jednotka',
     commercial:  'Komerční prostory',

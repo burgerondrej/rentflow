@@ -234,12 +234,12 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --kanban-done-bg:     #F9FAFB; --kanban-done-border:     #E5E7EB; --kanban-done-color:     #374151; --kanban-done-header:     rgba(55,65,81,0.04);
   --kanban-card-bg:     #ffffff; --kanban-card-border:     #E2E8F0;
 
-  /* Asset karty – světlý režim */
-  --asset-residential-bg: #F4FCF6; --asset-residential-header: #E6F6EB; --asset-residential-accent: #0F6E56; --asset-residential-border: rgba(15,110,86,0.12);
-  --asset-commercial-bg:  #F0F7FF; --asset-commercial-header:  #E0F0FE; --asset-commercial-accent:  #0B509E; --asset-commercial-border:  rgba(11,80,158,0.12);
-  --asset-ads-bg:         #FFF5FA; --asset-ads-header:         #FCE8F3; --asset-ads-accent:         #9D174D; --asset-ads-border:         rgba(157,23,77,0.12);
-  --asset-parking-bg:     #F8F5FF; --asset-parking-header:     #F1EBFE; --asset-parking-accent:     #5B21B6; --asset-parking-border:     rgba(91,33,182,0.12);
-  --asset-ostatni-bg:     #F0FDFA; --asset-ostatni-header:     #CCFBF1; --asset-ostatni-accent:     #0F766E; --asset-ostatni-border:     rgba(15,118,110,0.12);
+  /* Typy předmětů nájmu – JEDNA sada pro celou aplikaci (Smlouvy, Předměty, detaily) – světlý režim */
+  --asset-residential-bg: #F4FCF6; --asset-residential-header: #E6F6EB; --asset-residential-accent: #0F6E56; --asset-residential-border: #BBF7D0;
+  --asset-commercial-bg:  #F8F5FF; --asset-commercial-header:  #F1EBFE; --asset-commercial-accent:  #5B21B6; --asset-commercial-border:  #D6BCFA;
+  --asset-ads-bg:         #FFF8F0; --asset-ads-header:         #FEF0DF; --asset-ads-accent:         #C2410C; --asset-ads-border:         #FBD38D;
+  --asset-parking-bg:     #F0F7FF; --asset-parking-header:     #E0F0FE; --asset-parking-accent:     #0B509E; --asset-parking-border:     #90CDF4;
+  --asset-ostatni-bg:     #F0FDFA; --asset-ostatni-header:     #CCFBF1; --asset-ostatni-accent:     #0F766E; --asset-ostatni-border:     #99F6E4;
 }
 [data-theme='dark'] {
   --kanban-longterm-bg: #1e1b4b; --kanban-longterm-border: #3730a3; --kanban-longterm-color: #a5b4fc; --kanban-longterm-header: rgba(165,180,252,0.08);
@@ -250,12 +250,12 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --kanban-done-bg:     #161817; --kanban-done-border:     #2a2d2c; --kanban-done-color:     #9ca3af; --kanban-done-header:     rgba(156,163,175,0.06);
   --kanban-card-bg:     #1d201f; --kanban-card-border:     #2a2d2c;
 
-  /* Asset karty – tmavý režim */
-  --asset-residential-bg: #182218; --asset-residential-header: #1e2e1e; --asset-residential-accent: #5ecb8a; --asset-residential-border: rgba(94,203,138,0.18);
-  --asset-commercial-bg:  #171f2c; --asset-commercial-header:  #1c2838; --asset-commercial-accent:  #7ab4e8; --asset-commercial-border:  rgba(122,180,232,0.18);
-  --asset-ads-bg:         #271a20; --asset-ads-header:         #32202a; --asset-ads-accent:         #e8a0c0; --asset-ads-border:         rgba(232,160,192,0.18);
-  --asset-parking-bg:     #1e1828; --asset-parking-header:     #261e34; --asset-parking-accent:     #b8a8e8; --asset-parking-border:     rgba(184,168,232,0.18);
-  --asset-ostatni-bg:     #172220; --asset-ostatni-header:     #1e2e2a; --asset-ostatni-accent:     #5ec8bc; --asset-ostatni-border:     rgba(94,200,188,0.18);
+  /* Typy předmětů nájmu – tmavý režim (stejné barevné rodiny jako světlý) */
+  --asset-residential-bg: #182218; --asset-residential-header: #1e2e1e; --asset-residential-accent: #5ecb8a; --asset-residential-border: rgba(94,203,138,0.32);
+  --asset-commercial-bg:  #1e1828; --asset-commercial-header:  #261e34; --asset-commercial-accent:  #b8a8e8; --asset-commercial-border:  rgba(184,168,232,0.32);
+  --asset-ads-bg:         #2a1d12; --asset-ads-header:         #36251a; --asset-ads-accent:         #f0b27a; --asset-ads-border:         rgba(240,178,122,0.32);
+  --asset-parking-bg:     #171f2c; --asset-parking-header:     #1c2838; --asset-parking-accent:     #7ab4e8; --asset-parking-border:     rgba(122,180,232,0.32);
+  --asset-ostatni-bg:     #172220; --asset-ostatni-header:     #1e2e2a; --asset-ostatni-accent:     #5ec8bc; --asset-ostatni-border:     rgba(94,200,188,0.32);
 }
 
 /* ═══════════════════════════════════════════════════════════

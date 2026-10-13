@@ -4,6 +4,7 @@ import { save } from '@tauri-apps/api/dialog'
 import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
+import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
@@ -588,13 +589,11 @@ export default function Payments() {
   }
   // Stav řádku: výrazný levý pruh + jemný nádech + štítek se symbolem (čitelné i bez rozlišení barev)
   const ROW_STATUS = {
-    ok:   { color: '#16A34A', bg: 'rgba(22,163,74,0.07)',  bgH: 'rgba(22,163,74,0.14)',  label: '✓ Uhrazeno' },
-    part: { color: '#D97706', bg: 'rgba(217,119,6,0.09)',  bgH: 'rgba(217,119,6,0.17)',  label: '◐ Částečně' },
-    bad:  { color: '#DC2626', bg: 'rgba(220,38,38,0.07)',  bgH: 'rgba(220,38,38,0.14)',  label: '✕ Neuhrazeno' },
+    ok:   { kind: 'paid',    color: STATUS.paid.color,    bg: 'rgba(22,163,74,0.07)',  bgH: 'rgba(22,163,74,0.14)' },
+    part: { kind: 'partial', color: STATUS.partial.color, bg: 'rgba(217,119,6,0.09)',  bgH: 'rgba(217,119,6,0.17)' },
+    bad:  { kind: 'unpaid',  color: STATUS.unpaid.color,  bg: 'rgba(220,38,38,0.07)',  bgH: 'rgba(220,38,38,0.14)' },
   }
-  const StatusPill = ({ st }) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '5px 11px', borderRadius: 999, background: st.color, color: '#fff', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', letterSpacing: '0.2px' }}>{st.label}</span>
-  )
+  const StatusPill = ({ st }) => <UiStatusPill kind={st.kind} />
   // Štítek stavu + případně "po splatnosti X dní" (jen pokud jde splatnost určit)
   const StatusCell = ({ st, od }) => (
     <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>

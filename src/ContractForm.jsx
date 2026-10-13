@@ -6,7 +6,7 @@ import { parseDate, getCurrentAssetContract, isEndingArchived, firmOf } from './
 const CONTRACT_TYPES = [
   { id: 'residential', icon: '🏠', label: 'Bytová jednotka',   sub: 'Obytný prostor',        gradient: 'linear-gradient(135deg, #166534 0%, #16a34a 60%, #22c55e 100%)' },
   { id: 'commercial',  icon: '🏢', label: 'Komerční prostor',  sub: 'Obchodní / kancelářský', gradient: 'linear-gradient(135deg, #3730a3 0%, #4f46e5 50%, #6d28d9 100%)' },
-  { id: 'ads',         icon: '🪧', label: 'Reklamní plocha',   sub: 'Billboard / reklama',    gradient: 'linear-gradient(135deg, #c2410c 0%, #ea580c 60%, #f97316 100%)' },
+  { id: 'ads',         icon: '📢', label: 'Reklamní plocha',   sub: 'Billboard / reklama',    gradient: 'linear-gradient(135deg, #c2410c 0%, #ea580c 60%, #f97316 100%)' },
   { id: 'parking',     icon: '🅿️', label: 'Parkovací stání',  sub: 'Parkování',              gradient: 'linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%)' },
   { id: 'ostatni',     icon: '📄', label: 'Ostatní',           sub: 'Interní / skupinové',    gradient: 'linear-gradient(135deg, #0f766e 0%, #0d9488 60%, #14b8a6 100%)' },
 ]
@@ -83,7 +83,7 @@ export default function ContractForm({ onClose }) {
       if (!groupedAssets[a.subject]) groupedAssets[a.subject] = []
       groupedAssets[a.subject].push(a)
     })
-    const typeIcon = { residential: '🏠', commercial: '🏢', ads: '🪧', parking: '🅿️', ostatni: '📄' }
+    const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', ostatni: '📄' }
     return Object.entries(groupedAssets).map(([subject, assetsInGroup]) => {
       const needsSub = assetsInGroup.some(a => a.type === 'parking' || a.type === 'ads')
       if (needsSub) {

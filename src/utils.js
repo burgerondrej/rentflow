@@ -12,6 +12,28 @@ export const PERIOD_LEN = { 'Čtvrtletně': 3, 'Pololetně': 6, 'Ročně': 12 }
 // ─────────────────────────────────────────
 export const SUBJECT_SEP = ' – '
 
+// ─────────────────────────────────────────
+// TYPY PŘEDMĚTŮ NÁJMU – jedna sada barev a ikon pro celou aplikaci
+// Barvy jsou CSS proměnné ze styles.css (--asset-<typ>-bg/header/accent/border), takže fungují i v tmavém režimu.
+// ─────────────────────────────────────────
+export const ASSET_TYPES = {
+  residential: { icon: '🏠', label: 'Bytová jednotka' },
+  commercial:  { icon: '🏢', label: 'Komerční prostor' },
+  ads:         { icon: '📢', label: 'Reklamní plocha' },
+  parking:     { icon: '🅿️', label: 'Parkovací stání' },
+  ostatni:     { icon: '📄', label: 'Ostatní' },
+}
+
+/** Barvy typu předmětu jako CSS proměnné: { bg, header, accent, border, icon, label } */
+export function assetTypeStyle(type) {
+  const t = ASSET_TYPES[type] ? type : 'ostatni'
+  return {
+    bg: `var(--asset-${t}-bg)`, header: `var(--asset-${t}-header)`,
+    accent: `var(--asset-${t}-accent)`, border: `var(--asset-${t}-border)`,
+    icon: ASSET_TYPES[t].icon, label: ASSET_TYPES[t].label,
+  }
+}
+
 export function firmOf(subject) {
   const s = subject || ''
   const i = s.indexOf(SUBJECT_SEP)

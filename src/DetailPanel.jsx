@@ -8,6 +8,7 @@ import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { open as shellOpen } from '@tauri-apps/api/shell'
+import { StatusPill, contractStatus } from './StatusUI.jsx'
 
 
 const TYPE_META = {
@@ -383,7 +384,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                         <div style={{ fontSize: 11, color: 'var(--text3)' }}>skupina zaplatila {Math.round(Number(gp.amount)).toLocaleString('cs-CZ')} Kč{gp.date ? ` · přijato ${gp.date}` : ''}</div>
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 900, color: col, whiteSpace: 'nowrap' }}>{share.toLocaleString('cs-CZ')} Kč</div>
-                      <span style={{ background: col, color: '#fff', fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 999, whiteSpace: 'nowrap' }}>{full ? '✓ Uhrazeno' : '◐ Částečně'}</span>
+                      <StatusPill kind={full ? 'paid' : 'partial'} size="sm" />
                     </div>
                   )
                 })}
@@ -681,9 +682,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 {(() => {
                   const typeIcon  = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', ostatni: '📄' }
                   const typeLabel = { residential: 'Bytová jednotka', commercial: 'Komerční prostor', ads: 'Reklamní plocha', parking: 'Parkovací stání', ostatni: 'Ostatní' }
-                  const typeColor = { residential: '#166534', commercial: '#5B21B6', ads: '#C2410C', parking: '#0B509E', ostatni: '#0F766E' }
-                  const typeBg    = { residential: '#F0FDF4', commercial: '#F5F3FF', ads: '#FFF7ED', parking: '#EFF6FF', ostatni: '#F0FDFA' }
-                  const typeBdr   = { residential: '#BBF7D0', commercial: '#DDD6FE', ads: '#FED7AA', parking: '#BFDBFE', ostatni: '#99F6E4' }
+                  // Barvy typu předmětu – jedna sada pro celou aplikaci (styles.css, i tmavý režim)
+                  const typeColor = { residential: 'var(--asset-residential-accent)', commercial: 'var(--asset-commercial-accent)', ads: 'var(--asset-ads-accent)', parking: 'var(--asset-parking-accent)', ostatni: 'var(--asset-ostatni-accent)' }
+                  const typeBg    = { residential: 'var(--asset-residential-bg)', commercial: 'var(--asset-commercial-bg)', ads: 'var(--asset-ads-bg)', parking: 'var(--asset-parking-bg)', ostatni: 'var(--asset-ostatni-bg)' }
+                  const typeBdr   = { residential: 'var(--asset-residential-border)', commercial: 'var(--asset-commercial-border)', ads: 'var(--asset-ads-border)', parking: 'var(--asset-parking-border)', ostatni: 'var(--asset-ostatni-border)' }
                   const displayItems = []
                   const seenGroups = new Set()
                   for (const c of activeContracts) {
@@ -1092,7 +1094,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: 4 }}>{a.subject}</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{a.unit}</div>
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            <span className={`badge ${!activeContract && a.status === 'free' ? 'badge-green' : 'badge-gray'}`}>{!activeContract && a.status === 'free' ? 'Volné k pronájmu' : 'Pronajato'}</span>
+            <StatusPill kind={!activeContract && a.status === 'free' ? 'free' : 'occupied'} text={!activeContract && a.status === 'free' ? 'Volné k pronájmu' : 'Obsazeno'} />
           </div>
         </div>
 
@@ -1894,9 +1896,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                   <div style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cSubj || '—'}</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a ? a.unit : 'Neznámý předmět'}</div>
                 </div>
-                <span style={{ background: c.status === 'active' ? '#16A34A' : 'rgba(255,255,255,0.25)', color: '#fff', fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 999, flexShrink: 0 }}>
-                  {c.status === 'active' ? 'Aktivní' : 'Ukončeno'}
-                </span>
+                {(() => { const st = contractStatus(c); return <StatusPill kind={st.kind} text={st.text} style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }} /> })()}
                 {!isReadOnly && (
                   <button onClick={handleEditClick} style={{ background: '#fff', color: fc.mid, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
                 )}

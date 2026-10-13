@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { FirmPicker, useObjectFirms } from '../FirmUI.jsx'
 import { useApp } from '../AppContext.jsx'// ── Pomocná komponenta: selector subjektů ────────────────────────────────────
+import { StatusPill } from '../StatusUI.jsx'
 function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt' }) {
   const cols = subjects.length <= 5 ? 'repeat(auto-fill, minmax(160px, 1fr))' : 'repeat(3, 1fr)'
   return (
@@ -182,12 +183,7 @@ export default function Maintenance() {
                     {r.nextDate ? r.nextDate.toLocaleDateString('cs-CZ') : '—'}
                   </td>
                   <td style={{ padding: '18px 24px', textAlign: 'right' }}>
-                    <span style={{ 
-                      padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                      background: r.status.bg, color: r.status.color, border: `1px solid ${r.status.color}40`
-                    }}>
-                      {r.status.label}
-                    </span>
+                    <StatusPill kind={{ 'Propadlé': 'revExpired', 'Blíží se': 'revSoon', 'V pořádku': 'revOk' }[r.status.label] || 'ended'} text={{ 'Propadlé': '🔧 Propadlá', 'Blíží se': '🔧 Blíží se', 'V pořádku': '🔧 V pořádku' }[r.status.label] || r.status.label} />
                     <button onClick={() => deleteRevision(r.id)} style={{ marginLeft: 12, background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer' }}>🗑️</button>
                   </td>
                 </tr>

@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDate, firmOf, firmColors, selectionMatches } from '../utils.js'
+import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDate, firmOf, firmColors, selectionMatches, assetTypeStyle } from '../utils.js'
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 import { FirmBadge } from '../FirmUI.jsx'
+import { StatusPill, contractStatus } from '../StatusUI.jsx'
 
 export default function Contracts({ activeSubject, onOpen }) {
   const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme } = useApp()
@@ -77,33 +78,10 @@ export default function Contracts({ activeSubject, onOpen }) {
     // Ukončená smlouva, jejíž poslední den nájmu teprve přijde
     const isEndingLater = isArchived && isEndingArchived(c)
 
-    let cardBg = 'var(--bg2)' 
-    let headerBg = 'rgba(0,0,0,0.03)'
-    let accentColor = 'var(--text2)'
-    let icon = '📄'
-    let cardBorderColor = 'var(--border)' 
-    let innerBorderColor = 'rgba(0,0,0,0.05)' 
-
-    if (c.assetType === 'residential') { 
-      cardBg = '#F4FCF6'; headerBg = '#E6F6EB'; accentColor = '#0F6E56'; icon = '🏠'
-      cardBorderColor = '#BBF7D0'; innerBorderColor = '#81E6D9' 
-    }
-    if (c.assetType === 'commercial') { 
-      cardBg = '#F8F5FF'; headerBg = '#F1EBFE'; accentColor = '#5B21B6'; icon = '🏢'
-      cardBorderColor = '#D6BCFA'; innerBorderColor = '#D6BCFA' 
-    }
-    if (c.assetType === 'ads') { 
-      cardBg = '#FFF8F0'; headerBg = '#FEF0DF'; accentColor = '#C2410C'; icon = '📢'
-      cardBorderColor = '#FBD38D'; innerBorderColor = '#FBD38D' 
-    }
-    if (c.assetType === 'parking') { 
-      cardBg = '#F0F7FF'; headerBg = '#E0F0FE'; accentColor = '#0B509E'; icon = '🅿️'
-      cardBorderColor = '#90CDF4'; innerBorderColor = '#90CDF4' 
-    }
-    if (c.assetType === 'ostatni') { 
-      cardBg = '#F0FDFA'; headerBg = '#CCFBF1'; accentColor = '#0F766E'; icon = '📄'
-      cardBorderColor = '#99F6E4'; innerBorderColor = '#99F6E4' 
-    }
+    // Barvy podle typu předmětu – jedna sada pro celou aplikaci (styles.css)
+    const ts = assetTypeStyle(c.assetType)
+    const cardBg = ts.bg, headerBg = ts.header, accentColor = ts.accent, icon = ts.icon
+    const cardBorderColor = ts.border, innerBorderColor = ts.border
 
     return (
       <div 
@@ -133,14 +111,12 @@ export default function Contracts({ activeSubject, onOpen }) {
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
-            <div className={`badge ${isEndingLater ? 'badge-amber' : isArchived ? 'badge-gray' : isEndingSoon ? 'badge-amber' : isExpired ? 'badge-red' : 'badge-green'}`} style={{ marginBottom: 0, fontSize: 10.5 }}>
-              {isEndingLater ? `Končí ${c.end}` : isArchived ? 'Ukončeno' : isEndingSoon ? `Končí za ${c.daysLeft} dní` : isExpired ? 'Propadlá' : 'Aktivní'}
-            </div>
+            {(() => { const st = contractStatus(c); return <StatusPill kind={st.kind} text={st.text} size="sm" /> })()}
           </div>
         </div>
 
         <div style={{ padding: 14 }}>
-          <div style={{ padding: '8px 10px', background: '#FFFFFF', borderRadius: 8, border: `1px solid ${innerBorderColor}`, marginBottom: 12 }}>
+          <div style={{ padding: '8px 10px', background: 'var(--bg)', borderRadius: 8, border: `1px solid ${innerBorderColor}`, marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 3 }}>Nájemce</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.tenantName || 'Neznámý'}</div>
           </div>

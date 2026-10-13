@@ -3,6 +3,7 @@ import { useApp } from '../AppContext.jsx'
 import AssetForm from '../AssetForm.jsx'
 import { getCurrentAssetContract, isContractOccupying, selectionMatches, firmOf, firmColors } from '../utils.js'
 import { FirmBadge } from '../FirmUI.jsx'
+import { StatusPill } from '../StatusUI.jsx'
 
 
 // Sekce pro bytové jednotky
@@ -88,9 +89,9 @@ export default function Assets({ type, activeSubject, onOpen }) {
     let cardBg = 'var(--bg2)', headerBg = 'rgba(0,0,0,0.03)', accentColor = 'var(--text2)', icon = '📄', cardBorder = 'var(--border)'
     if (asset.type === 'residential') { cardBg = 'var(--asset-residential-bg)'; headerBg = 'var(--asset-residential-header)'; accentColor = 'var(--asset-residential-accent)'; cardBorder = 'var(--asset-residential-border)'; icon = '🏠' }
     if (asset.type === 'commercial')  { cardBg = 'var(--asset-commercial-bg)';  headerBg = 'var(--asset-commercial-header)';  accentColor = 'var(--asset-commercial-accent)';  cardBorder = 'var(--asset-commercial-border)';  icon = '🏢' }
-    if (asset.type === 'ads')         { cardBg = 'var(--asset-ads-bg)';         headerBg = 'var(--asset-ads-header)';         accentColor = 'var(--asset-ads-accent)';         cardBorder = 'var(--asset-ads-border)';         icon = '🪧' }
+    if (asset.type === 'ads')         { cardBg = 'var(--asset-ads-bg)';         headerBg = 'var(--asset-ads-header)';         accentColor = 'var(--asset-ads-accent)';         cardBorder = 'var(--asset-ads-border)';         icon = '📢' }
     if (asset.type === 'parking')     { cardBg = 'var(--asset-parking-bg)';     headerBg = 'var(--asset-parking-header)';     accentColor = 'var(--asset-parking-accent)';     cardBorder = 'var(--asset-parking-border)';     icon = '🅿️' }
-    if (asset.type === 'ostatni')     { cardBg = 'var(--asset-ostatni-bg)';     headerBg = 'var(--asset-ostatni-header)';     accentColor = 'var(--asset-ostatni-accent)';     cardBorder = 'var(--asset-ostatni-border)';     icon = '📋' }
+    if (asset.type === 'ostatni')     { cardBg = 'var(--asset-ostatni-bg)';     headerBg = 'var(--asset-ostatni-header)';     accentColor = 'var(--asset-ostatni-accent)';     cardBorder = 'var(--asset-ostatni-border)';     icon = '📄' }
 
     const dh = handlers(asset.id)
     return (
@@ -119,9 +120,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
               {asset.unit}
             </div>
           </div>
-          <div style={{ marginBottom: 0, flexShrink: 0, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: isFree ? '#DCFCE7' : '#FEE2E2', color: isFree ? '#166534' : '#991B1B', border: `1px solid ${isFree ? '#86EFAC' : '#FECACA'}` }}>
-            {isFree ? 'Volné' : 'Obsazeno'}
-          </div>
+          <StatusPill kind={isFree ? 'free' : 'occupied'} size="sm" />
         </div>
         <div style={{ padding: 14 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -328,7 +327,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
         : type === 'parking'
         ? renderFormatSections([...new Set(filtered.map(a => a.format).filter(Boolean))], '🅿️')
         : type === 'ads'
-        ? renderFormatSections([...new Set(filtered.map(a => a.format).filter(Boolean))], '🪧')
+        ? renderFormatSections([...new Set(filtered.map(a => a.format).filter(Boolean))], '📢')
         : (
           // Komerční / ostatní: sekce po firmách (striktně odděleno)
           [...new Set(filtered.map(a => firmOf(a.subject)))].sort((x, y) => firmIndex(x) - firmIndex(y)).map(firmName => {
