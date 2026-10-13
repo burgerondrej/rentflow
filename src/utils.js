@@ -316,6 +316,37 @@ export function isEndingArchived(c) {
 }
 
 /**
+ * Datum splatnosti za měsíc (y, m) podle pole dueDay; null = nelze určit (např. "Dle vystavené faktury").
+ * - "15. den v měsíci" (měsíční smlouvy) → 15. den daného měsíce
+ * - "30. 4." (roční smlouvy) → toto datum v platebním okně, do kterého měsíc patří
+ */
+export function dueDateFor(c, y, m) {
+  const s = (c?.dueDay || '').trim()
+  const freq = c?.paymentFrequency || 'Měsíčně'
+  let mm = s.match(/^(\d{1,2})\.\s*den/)
+  if (mm && (PERIOD_LEN[freq] || 1) === 1) {
+    const dim = new Date(y, m + 1, 0).getDate()
+    return new Date(y, m, Math.min(parseInt(mm[1]), dim))
+  }
+  mm = s.match(/^(\d{1,2})\.\s*(\d{1,2})\.?$/)
+  if (mm && freq === 'Ročně') {
+    const [wy, wm] = getPeriodMonthKeys(c, y, m)[0].split('-').map(Number)
+    let dt = new Date(wy, parseInt(mm[2]) - 1, parseInt(mm[1]))
+    if (dt < new Date(wy, wm, 1)) dt = new Date(wy + 1, parseInt(mm[2]) - 1, parseInt(mm[1]))
+    return dt
+  }
+  return null
+}
+
+/** Počet dní po splatnosti za měsíc (y, m); 0 = není po splatnosti / nelze určit. */
+export function overdueDays(c, y, m) {
+  const due = dueDateFor(c, y, m)
+  if (!due) return 0
+  const t = new Date(); t.setHours(0, 0, 0, 0)
+  return t > due ? Math.floor((t - due) / 86400000) : 0
+}
+
+/**
  * Platební okno (klíče "RRRR-M") víceměsíční smlouvy, do kterého patří refYear/refMonth.
  * Měsíčně → jen daný měsíc.
  */

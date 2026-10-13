@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
@@ -283,6 +283,24 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const renderPaymentsSection = (contract) => {
     const contractPayments = payments.filter(p => p.contractId === contract.id)
 
+    // Smlouva ve skupině: platby skupiny se ukládají jednou na celou skupinu (bez contractId).
+    // Tady jen ZOBRAZÍME podíl tohoto předmětu = platba × (předpis předmětu / předpis skupiny v měsíci).
+    const MONTHS_GS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
+    const groupShareRows = !contract.groupLabel ? [] : payments
+      .filter(p => p.groupLabel === contract.groupLabel && p.paymentType !== 'deposit' && p.month)
+      .map(gp => {
+        const [y, m] = gp.month.split('-').map(Number)
+        const members = contracts.filter(x => x.groupLabel === contract.groupLabel && isContractBillable(x) && isContractInMonth(x, y, m))
+        if (!members.some(x => x.id === contract.id)) return null
+        const groupTotal = members.reduce((s, x) => s + getMonthRent(x, y, m), 0)
+        const mine = getMonthRent(contract, y, m)
+        const share = groupTotal > 0 ? Math.round(Number(gp.amount) * mine / groupTotal) : 0
+        const full = !!gp.agreed || Number(gp.amount) >= groupTotal - 0.01
+        return { gp, y, m, share, full }
+      })
+      .filter(Boolean)
+      .sort((a, b) => (b.y * 12 + b.m) - (a.y * 12 + a.m))
+
     // Čtvrtletní/pololetní/roční smlouvy: měsíční řádky jedné úhrady (stejné platební okno,
     // datum a typ) se zobrazí jako jedna položka. Data v DB zůstávají po měsících.
     const freqPaymentLabel = { 'Čtvrtletně': 'Čtvrtletní platba', 'Pololetně': 'Pololetní platba', 'Ročně': 'Roční platba' }[contract.paymentFrequency]
@@ -349,6 +367,29 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               <button className="btn" style={{ width: '100%', background: '#22C55E', color: '#fff', border: 'none' }} onClick={handleAddPaymentClick}>Uložit platbu</button>
             </div>
           )}
+          {groupShareRows.length > 0 && (
+            <div style={{ marginBottom: contractPayments.length > 0 ? 14 : 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>
+                <span style={{ fontSize: 10, background: '#EDE9FE', color: '#6D28D9', padding: '2px 7px', borderRadius: 8, fontWeight: 800, marginRight: 6 }}>🔗 {contract.groupLabel}</span>
+                podíl na platbě skupiny podle nájemného
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {groupShareRows.map(({ gp, y, m, share, full }) => {
+                  const col = full ? '#16A34A' : '#D97706'
+                  return (
+                    <div key={gp.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: `inset 5px 0 0 ${col}` }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{MONTHS_GS[m]} {y}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>skupina zaplatila {Math.round(Number(gp.amount)).toLocaleString('cs-CZ')} Kč{gp.date ? ` · přijato ${gp.date}` : ''}</div>
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: col, whiteSpace: 'nowrap' }}>{share.toLocaleString('cs-CZ')} Kč</div>
+                      <span style={{ background: col, color: '#fff', fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 999, whiteSpace: 'nowrap' }}>{full ? '✓ Uhrazeno' : '◐ Částečně'}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {contractPayments.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {paymentItems.map(item => {
@@ -393,7 +434,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 )
               })}
             </div>
-          ) : (
+          ) : groupShareRows.length === 0 && (
             <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Zatím neevidujeme žádné platby k této smlouvě.</div>
           )}
         </div>

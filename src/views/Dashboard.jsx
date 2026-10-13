@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, contractSubject, firmColors, firmOf, firmSelection } from '../utils.js'
+import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, contractSubject, firmColors, firmOf, firmSelection, getPeriodMonthKeys, overdueDays } from '../utils.js'
 import { FirmBadge } from '../FirmUI.jsx'
 
 export default function Dashboard({ onNav, onOpen }) {
@@ -117,6 +117,27 @@ export default function Dashboard({ onNav, onOpen }) {
     }
     return { exp, rec, n: cs.length }
   }
+  // Počet neuhrazených položek po splatnosti za aktuální měsíc (smlouvy / skupiny firmy)
+  const firmOverdue = (firmName) => {
+    const y = today.getFullYear(), m = today.getMonth(), key = `${y}-${m}`
+    const cs = contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
+      isContractInMonth(c, y, m) && firmOf(contractSubject(c, assets)) === firmName)
+    let n = 0
+    const seen = new Set()
+    for (const c of cs) {
+      if (c.groupLabel) {
+        if (seen.has(c.groupLabel)) continue
+        seen.add(c.groupLabel)
+        const paid = payments.some(p => p.groupLabel === c.groupLabel && p.month === key && p.paymentType !== 'deposit')
+        if (!paid && overdueDays(c, y, m) > 0) n++
+      } else {
+        const keys = getPeriodMonthKeys(c, y, m)
+        const paid = payments.some(p => p.contractId === c.id && p.paymentType !== 'deposit' && keys.includes(p.month))
+        if (!paid && overdueDays(c, y, m) > 0) n++
+      }
+    }
+    return n
+  }
   const firmCards = firms.map(f => {
     const months = [-5, -4, -3, -2, -1, 0].map(o => {
       const d = new Date(today.getFullYear(), today.getMonth() + o, 1)
@@ -126,7 +147,7 @@ export default function Dashboard({ onNav, onOpen }) {
     const cur = months[months.length - 1]
     const ending = activeContracts.filter(c => firmOf(contractSubject(c, assets)) === f.name && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
       (() => { const e = parseDate(c.end); return e && e >= today && (e - today) / 86400000 <= 60 })()).length
-    return { firm: f, months, cur, unpaid: Math.max(0, cur.exp - cur.rec), ending }
+    return { firm: f, months, cur, unpaid: Math.max(0, cur.exp - cur.rec), ending, overdue: firmOverdue(f.name) }
   }).filter(x => x.cur.n > 0)
   const openFirmPayments = (f) => {
     const secs = f.sections.filter(s => contracts.some(c => contractSubject(c, assets) === s))
@@ -173,7 +194,7 @@ export default function Dashboard({ onNav, onOpen }) {
       {/* 0. KARTY FIREM – kliknutím do Plateb dané firmy */}
       {firmCards.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14, marginBottom: 28 }}>
-          {firmCards.map(({ firm: f, months, cur, unpaid, ending }) => {
+          {firmCards.map(({ firm: f, months, cur, unpaid, ending, overdue }) => {
             const c = firmColors(f.color, theme)
             const pct = cur.pct ?? 1
             const r = 19, circ = 2 * Math.PI * r
@@ -205,6 +226,9 @@ export default function Dashboard({ onNav, onOpen }) {
                     <span key={i} style={{ flex: 1, height: Math.max(3, Math.round((m.pct ?? 0) * 26)), borderRadius: 3, background: i === months.length - 1 ? c.mid : c.mid + '55' }} />
                   ))}
                 </div>
+                {overdue > 0 && (
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: '#DC2626', marginBottom: 3 }}>⚠ {overdue} po splatnosti</div>
+                )}
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: ending ? '#D97706' : 'var(--text3)' }}>
                   {ending ? `${ending} ${ending === 1 ? 'smlouva končí' : ending < 5 ? 'smlouvy končí' : 'smluv končí'} do 60 dní` : 'Žádná smlouva brzy nekončí'}
                 </div>

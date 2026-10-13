@@ -3,7 +3,7 @@ import { useApp } from '../AppContext.jsx'
 import { save } from '@tauri-apps/api/dialog'
 import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
-import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
+import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
@@ -594,6 +594,13 @@ export default function Payments() {
   }
   const StatusPill = ({ st }) => (
     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '5px 11px', borderRadius: 999, background: st.color, color: '#fff', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', letterSpacing: '0.2px' }}>{st.label}</span>
+  )
+  // Štítek stavu + případně "po splatnosti X dní" (jen pokud jde splatnost určit)
+  const StatusCell = ({ st, od }) => (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+      <StatusPill st={st} />
+      {od > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: '#DC2626', whiteSpace: 'nowrap' }}>⚠ po splatnosti {od} {od === 1 ? 'den' : od < 5 ? 'dny' : 'dní'}</span>}
+    </span>
   )
   const sectionLabelOf = (subject) => { const i = subject.indexOf(' – '); return i >= 0 ? subject.slice(i + 3) : subject }
 
@@ -1613,7 +1620,7 @@ export default function Payments() {
                             </td>
                             <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
-                              <StatusPill st={gst} />
+                              <StatusCell st={gst} od={isPaid && !isPartial ? 0 : overdueDays(members[0], selectedYear, selectedMonth)} />
                               {isPaid ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                                   {!isReadOnly && (
@@ -1767,7 +1774,7 @@ export default function Payments() {
                           </td>
                           <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
-                            <StatusPill st={rst} />
+                            <StatusCell st={rst} od={rowAllPaid ? 0 : overdueDays(c, selectedYear, selectedMonth)} />
                             {isPaid ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                                 {!isReadOnly && (

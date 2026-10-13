@@ -10,6 +10,7 @@ import Payments from './views/Payments.jsx'
 import Maintenance from './views/Maintenance.jsx'
 import Export from './views/Export.jsx'
 import Kanban from './views/Kanban.jsx'
+import Calendar from './views/Calendar.jsx'
 import Trash from './views/Trash.jsx' 
 import { Docs, Alerts } from './views/DocsAlerts.jsx'
 import History from './views/History.jsx'
@@ -228,6 +229,7 @@ function AppInner() {
     maintenance: () => <Maintenance />, 
     export: () => <Export />, 
     kanban: () => <Kanban />, 
+    calendar: () => <Calendar onNav={handleNav} onOpen={(type, id) => openDetail(type, id)} />,
     docs: () => <Docs />, 
     alerts: () => <Alerts />, 
     trash: () => <Trash />, 
