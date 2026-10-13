@@ -3,6 +3,7 @@ import { useApp } from '../AppContext.jsx'
 import TenantForm from '../TenantForm.jsx'
 import { firmOf, tenantRentsByFirm } from '../utils.js'
 import { FirmRentSummary } from '../FirmUI.jsx'
+import { StatusPill } from '../StatusUI.jsx'
 
 // 26 výrazných tmavých barev — každé písmeno abecedy dostane svou vlastní
 const LETTER_COLORS = [
@@ -100,7 +101,13 @@ export default function Tenants({ onOpen }) {
 
   const renderCard = (t) => {
     const accent = getAccentColor(t.name)
-    const initials = t.initials || (t.name || '??').substring(0, 2).toUpperCase()
+    // Iniciály: první písmena prvních dvou slov (bez právní formy firmy)
+    const initials = (() => {
+      if (t.initials) return t.initials
+      const words = (t.name || '').replace(/,|s\.\s*r\.\s*o\.|a\.\s*s\.|spol\./gi, ' ').trim().split(/\s+/).filter(Boolean)
+      if (words.length === 0) return '??'
+      return ((words[0][0] || '') + (words[1]?.[0] || words[0][1] || '')).toUpperCase()
+    })()
     const activeContracts = contracts.filter(c => c.tenantId === t.id && c.status === 'active')
     const hasActive = activeContracts.length > 0
     // Měsíční nájem STRIKTNĚ po firmách (pronajímatelích)
@@ -139,26 +146,24 @@ export default function Tenants({ onOpen }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px 10px' }}>
           {/* Avatar */}
           <div style={{
-            width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-            background: accent,
-            boxShadow: `0 4px 12px ${accent}55`,
-          }} />
+            width: 46, height: 46, borderRadius: 13, flexShrink: 0,
+            background: accent, color: '#fff', fontSize: 16, fontWeight: 800, letterSpacing: '0.5px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 4px 12px ${accent}55`, textShadow: '0 1px 2px rgba(0,0,0,0.25)',
+          }}>{initials}</div>
           {/* Jméno + status */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {t.name}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: hasActive ? '#22C55E' : '#DC2626', flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: hasActive ? '#16A34A' : '#DC2626', fontWeight: 600 }}>
-                {activeContracts.length === 0
-                  ? 'Žádná aktivní smlouva'
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+              <StatusPill size="sm" kind={hasActive ? 'active' : 'ended'} text={activeContracts.length === 0
+                  ? 'Bez aktivní smlouvy'
                   : activeContracts.length === 1
                     ? '1 aktivní smlouva'
                     : activeContracts.length < 5
                       ? `${activeContracts.length} aktivní smlouvy`
-                      : `${activeContracts.length} aktivních smluv`}
-              </span>
+                      : `${activeContracts.length} aktivních smluv`} />
             </div>
           </div>
         </div>

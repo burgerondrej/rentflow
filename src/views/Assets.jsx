@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import AssetForm from '../AssetForm.jsx'
-import { getCurrentAssetContract, isContractOccupying, selectionMatches, firmOf, firmColors, assetTypeStyle } from '../utils.js'
+import { getCurrentAssetContract, isContractOccupying, selectionMatches, firmOf, firmColors, assetTypeStyle, getEffectiveValuesToday } from '../utils.js'
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
 
@@ -86,12 +86,10 @@ export default function Assets({ type, activeSubject, onOpen }) {
     const currentTenant = activeContract ? tenants.find(t => t.id === activeContract.tenantId) : null
     const isFree = !activeContract && asset.status !== 'occupied'
 
-    let cardBg = 'var(--bg2)', headerBg = 'rgba(0,0,0,0.03)', accentColor = 'var(--text2)', icon = '📄', cardBorder = 'var(--border)'
-    if (asset.type === 'residential') { cardBg = 'var(--asset-residential-bg)'; headerBg = 'var(--asset-residential-header)'; accentColor = 'var(--asset-residential-accent)'; cardBorder = 'var(--asset-residential-border)'; icon = '🏠' }
-    if (asset.type === 'commercial')  { cardBg = 'var(--asset-commercial-bg)';  headerBg = 'var(--asset-commercial-header)';  accentColor = 'var(--asset-commercial-accent)';  cardBorder = 'var(--asset-commercial-border)';  icon = '🏢' }
-    if (asset.type === 'ads')         { cardBg = 'var(--asset-ads-bg)';         headerBg = 'var(--asset-ads-header)';         accentColor = 'var(--asset-ads-accent)';         cardBorder = 'var(--asset-ads-border)';         icon = '📢' }
-    if (asset.type === 'parking')     { cardBg = 'var(--asset-parking-bg)';     headerBg = 'var(--asset-parking-header)';     accentColor = 'var(--asset-parking-accent)';     cardBorder = 'var(--asset-parking-border)';     icon = '🅿️' }
-    if (asset.type === 'ostatni')     { cardBg = 'var(--asset-ostatni-bg)';     headerBg = 'var(--asset-ostatni-header)';     accentColor = 'var(--asset-ostatni-accent)';     cardBorder = 'var(--asset-ostatni-border)';     icon = '📄' }
+    // Barvy a ikona typu – jedna sada pro celou aplikaci (styles.css)
+    const ts = assetTypeStyle(asset.type)
+    const cardBg = ts.bg, headerBg = ts.header, accentColor = ts.accent, icon = ts.icon, cardBorder = ts.border
+    const aFirm = getFirm ? getFirm(asset.subject) : null
 
     const dh = handlers(asset.id)
     return (
@@ -104,82 +102,65 @@ export default function Assets({ type, activeSubject, onOpen }) {
         onClick={() => onOpen(asset.id)}
         className="card card-interactive"
         style={{
-          cursor: 'grab', marginBottom: 0, padding: 0, overflow: 'hidden', borderRadius: 12,
-          border: `1px solid ${cardBorder}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          cursor: 'grab', marginBottom: 0, padding: 0, overflow: 'hidden', borderRadius: 14,
+          border: `1.5px solid ${cardBorder}`, boxShadow: '0 3px 12px rgba(0,0,0,0.08)',
           borderLeft: `5px solid ${getFirm && getFirm(asset.subject) ? firmColors(getFirm(asset.subject).color, theme).mid : cardBorder}`,
           background: cardBg, transition: 'opacity 0.15s',
           opacity: isDragging ? 0.5 : 1,
           userSelect: 'none',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: headerBg, borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <span style={{ fontSize: 13, cursor: 'grab', opacity: 0.4 }}>⠿</span>
-            <span style={{ fontSize: 13 }}>{icon}</span>
-            <div style={{ fontSize: 14, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', background: headerBg, borderBottom: `1.5px solid ${cardBorder}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <span style={{ fontSize: 13, cursor: 'grab', opacity: 0.5 }}>⠿</span>
+            <FirmBadge firm={aFirm} size={24} />
+            <span style={{ fontSize: 16 }}>{icon}</span>
+            <div style={{ fontSize: 15, fontWeight: 800, color: accentColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.1px' }}>
               {asset.unit}
             </div>
           </div>
           <StatusPill kind={isFree ? 'free' : 'occupied'} size="sm" />
         </div>
-        <div style={{ padding: 14 }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            {asset.size && <span className="badge" style={{ background: 'rgba(255,255,255,0.7)', color: 'var(--text)', border: '1px solid rgba(0,0,0,0.05)' }}>{asset.size}</span>}
-            {asset.floor && <span className="badge" style={{ background: 'rgba(255,255,255,0.7)', color: 'var(--text)', border: '1px solid rgba(0,0,0,0.05)' }}>{asset.floor}</span>}
-            {asset.format && <span className="badge" style={{ background: 'rgba(255,255,255,0.7)', color: 'var(--text)', border: '1px solid rgba(0,0,0,0.05)' }}>{asset.format}</span>}
+        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {(asset.size || asset.floor || asset.format) && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[asset.size, asset.floor, asset.format].filter(Boolean).map((v, i) => (
+                <span key={i} style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text)', background: 'var(--bg)', border: `1.5px solid ${cardBorder}`, borderRadius: 8, padding: '3px 9px' }}>{v}</span>
+              ))}
+            </div>
+          )}
+          {/* Nájemce / volné */}
+          <div style={{ padding: '9px 12px', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${cardBorder}` }}>
+            <div style={{ fontSize: 10, color: accentColor, textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.6px', marginBottom: 2 }}>{isFree ? 'Stav' : conf.tenantLabel}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: isFree ? '#16A34A' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {isFree ? 'Volné k pronájmu' : (currentTenant ? currentTenant.name : 'Neznámý')}
+            </div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.subject}</div>
           </div>
-          <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: 12 }}>
-            {isFree ? (
-              <div style={{ fontSize: 12.5, color: 'var(--text2)', fontStyle: 'italic' }}>{asset.subject}</div>
-            ) : (
-              <>
-                {/* Nájemce – vždy celá šířka */}
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text2)' }}>{conf.tenantLabel}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {currentTenant ? currentTenant.name : 'Neznámý'}
-                  </div>
-                </div>
-                {/* Finanční řádek */}
-                {(() => {
-                  const isCommercial = asset.type === 'commercial'
-                  const isResidential = asset.type === 'residential'
-                  const deposit = Number(activeContract?.deposit || 0)
-                  const depositWater = Number(activeContract?.depositWater || 0)
-                  // Komerční zálohy = energie + voda (oboje bez DPH)
-                  const totalDeposit = isCommercial ? deposit + depositWater : deposit
-                  const showDeposit = isResidential
-                    ? deposit > 0
-                    : isCommercial
-                      ? totalDeposit > 0
-                      : false
-                  const cols = showDeposit ? '1fr 1fr' : '1fr'
-                  return (
-                    <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8 }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: 'var(--text2)' }}>
-                          {conf.priceLabel}{isCommercial ? ' bez DPH' : ''}
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                          {activeContract ? `${((activeContract.rent || 0) + (activeContract.parking || 0)).toLocaleString('cs-CZ')} Kč` : '—'}
-                        </div>
-                      </div>
-                      {showDeposit && (
-                        <div>
-                          <div style={{ fontSize: 11, color: 'var(--text2)' }}>
-                            {isCommercial ? 'Zálohy bez DPH' : 'Zálohy energií'}
-                          </div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                            {totalDeposit.toLocaleString('cs-CZ')} Kč
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })()}
-              </>
-            )}
-          </div>
+          {/* Platnost, nájem, zálohy – aktuálně platné hodnoty (dodatky) */}
+          {!isFree && activeContract && (() => {
+            const ev = getEffectiveValuesToday(activeContract)
+            const isCommercial = asset.type === 'commercial'
+            const isResidential = asset.type === 'residential'
+            const totalDeposit = isCommercial ? ev.deposit + ev.depositWater : ev.deposit
+            const showDeposit = (isResidential || isCommercial) && totalDeposit > 0
+            const included = activeContract.paymentFrequency === 'Zahrnuto v nájemném'
+            const cell = (label, emoji, value, align, last) => (
+              <div style={{ padding: '9px 12px', textAlign: align, borderRight: last ? 'none' : `1.5px solid ${cardBorder}` }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 3 }}>{emoji} {label}</div>
+                {value}
+              </div>
+            )
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: showDeposit ? '1fr 1fr 1fr' : '1fr 1fr', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${cardBorder}` }}>
+                {cell('Platnost do', '🗓️', <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{activeContract.end || 'Neurčito'}</div>, 'left', false)}
+                {cell(conf.priceLabel + (isCommercial ? ' bez DPH' : ''), '💰',
+                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)' }}>{included ? 'zahrnuto' : `${(ev.rent + ev.parking + ev.flatFee).toLocaleString('cs-CZ')} Kč`}</div>, 'center', !showDeposit)}
+                {showDeposit && cell(isCommercial ? 'Zálohy bez DPH' : 'Zálohy energií', '⚡',
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{totalDeposit.toLocaleString('cs-CZ')} Kč</div>, 'right', true)}
+              </div>
+            )
+          })()}
         </div>
       </div>
     )
