@@ -59,7 +59,7 @@ export default function TenantForm({ onClose }) {
   return (
     <>
       <div className="overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, backdropFilter: 'blur(3px)' }} />
-      <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--bg)', borderRadius: 16, width: '100%', maxWidth: 500, zIndex: 1001, boxShadow: '0 32px 64px -12px rgba(0,0,0,0.25)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--bg)', borderRadius: 16, width: '100%', maxWidth: 500, zIndex: 1001, boxShadow: '0 32px 64px -12px rgba(0,0,0,0.25)', maxHeight: 'calc(92vh / var(--ui-zoom, 1))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Gradient header */}
         <div style={{ background: 'linear-gradient(135deg, #0A3D2B 0%, #12654A 50%, #1A8A62 100%)', padding: '22px 28px 20px', flexShrink: 0 }}>

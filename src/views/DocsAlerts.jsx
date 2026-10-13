@@ -435,7 +435,7 @@ export function Docs() {
       {/* ── FORMULÁŘ NAHRÁNÍ ─────────────────────────────────────── */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--bg)', width: 440, borderRadius: 16, padding: 32, boxShadow: '0 20px 40px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: 'var(--bg)', width: 440, borderRadius: 16, padding: 32, boxShadow: '0 20px 40px rgba(0,0,0,0.2)', maxHeight: 'calc(90vh / var(--ui-zoom, 1))', overflowY: 'auto' }}>
             <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 24, color: 'var(--text)' }}>Nahrát dokument</div>
 
             <div style={{ marginBottom: 16 }}>
@@ -516,7 +516,7 @@ export function Docs() {
           onClick={closePreview}
         >
           <div
-            style={{ background: 'var(--bg)', borderRadius: 20, boxShadow: '0 32px 80px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column', width: '82vw', height: '88vh', maxWidth: 1100 }}
+            style={{ background: 'var(--bg)', borderRadius: 20, boxShadow: '0 32px 80px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column', width: 'calc(82vw / var(--ui-zoom, 1))', height: 'calc(88vh / var(--ui-zoom, 1))', maxWidth: 1100 }}
             onClick={e => e.stopPropagation()}
           >
             <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 14, background: 'var(--bg2)', flexShrink: 0 }}>

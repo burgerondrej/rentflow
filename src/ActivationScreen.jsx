@@ -31,7 +31,7 @@ export default function ActivationScreen({ onActivated }) {
 
   return (
     <div style={{
-      width: '100vw', height: '100vh',
+      width: 'calc(100vw / var(--ui-zoom, 1))', height: 'calc(100vh / var(--ui-zoom, 1))',
       background: 'linear-gradient(155deg, #0A3D2B 0%, #12654A 40%, #1A8A62 72%, #0E5540 100%)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: 'DM Sans, sans-serif',

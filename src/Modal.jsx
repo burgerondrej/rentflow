@@ -10,7 +10,7 @@ export default function Modal({ title, onClose, children, width = 520 }) {
       <div style={{
         position: 'fixed', top: '50%', left: '50%',
         transform: 'translate(-50%, -50%)',
-        width, maxWidth: '95vw', maxHeight: '90vh',
+        width, maxWidth: 'calc(95vw / var(--ui-zoom, 1))', maxHeight: 'calc(90vh / var(--ui-zoom, 1))',
         background: 'var(--bg)', borderRadius: 'var(--rl)',
         boxShadow: '0 16px 48px rgba(0,0,0,.22)',
         zIndex: 401, display: 'flex', flexDirection: 'column',

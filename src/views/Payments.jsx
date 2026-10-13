@@ -63,7 +63,7 @@ function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose,
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 420, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', animation: 'modalIn 0.18s ease' }}>
+      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 420, maxHeight: 'calc(80vh / var(--ui-zoom, 1))', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', animation: 'modalIn 0.18s ease' }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Vybrat uhrazené měsíce</div>
         <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
           {contract.tenantName && <span style={{ fontWeight: 600, color: 'var(--text2)' }}>{contract.tenantName}</span>}
@@ -2012,7 +2012,7 @@ export default function Payments() {
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
             onClick={() => setDetailContract(null)}>
-            <div style={{ background: 'var(--bg)', width: 580, maxHeight: '88vh', borderRadius: 20, boxShadow: '0 30px 60px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+            <div style={{ background: 'var(--bg)', width: 580, maxHeight: 'calc(88vh / var(--ui-zoom, 1))', borderRadius: 20, boxShadow: '0 30px 60px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
               onClick={e => e.stopPropagation()}>
 
               {/* Hlavička */}

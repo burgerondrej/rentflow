@@ -56,6 +56,20 @@ function AppInner() {
     }, 0)
   }
   const [sbWidth, setSbWidth] = useState(252)
+
+  // Velikost písma = zvětšení celé aplikace (100 / 115 / 130 %), pamatuje se zvlášť pro každého uživatele.
+  // Výšky a šířky ve vh/vw jsou v CSS kompenzované přes --ui-zoom, aby se rozložení nerozbilo.
+  const ZOOM_LEVELS = [1, 1.15, 1.3]
+  const zoomKey = `rentflow_zoom_${currentUser || 'default'}`
+  const readZoom = (key) => { try { const z = Number(localStorage.getItem(key)); return ZOOM_LEVELS.includes(z) ? z : 1 } catch { return 1 } }
+  const [uiZoom, setUiZoom] = useState(() => readZoom(zoomKey))
+  useEffect(() => { setUiZoom(readZoom(zoomKey)) }, [zoomKey])
+  useEffect(() => {
+    document.documentElement.style.zoom = String(uiZoom)
+    document.documentElement.style.setProperty('--ui-zoom', String(uiZoom))
+    try { localStorage.setItem(zoomKey, String(uiZoom)) } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uiZoom])
   const [subject, setSubject] = useState('all')
   const [detail, setDetail] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -145,10 +159,11 @@ function AppInner() {
 
   const handleResizeStart = useCallback((e) => {
     const startX = e.clientX, startW = sbWidth
-    const onMove = (ev) => setSbWidth(Math.max(180, Math.min(380, startW + ev.clientX - startX)))
+    // Souřadnice myši jsou ve zvětšených pixelech → přepočet na CSS pixely
+    const onMove = (ev) => setSbWidth(Math.max(180, Math.min(380, startW + (ev.clientX - startX) / uiZoom)))
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp)
-  }, [sbWidth])
+  }, [sbWidth, uiZoom])
 
   const openDetail = (type, id) => setDetail({ type, id })
 
@@ -350,6 +365,15 @@ function AppInner() {
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+            {/* Velikost písma */}
+            <div title="Velikost písma" style={{ display: 'flex', alignItems: 'center', gap: 2, border: '1px solid var(--border)', borderRadius: 9, padding: 2, background: 'var(--bg)' }}>
+              {[[1, 12, '100 %'], [1.15, 14.5, '115 %'], [1.3, 17, '130 %']].map(([z, fs, lbl]) => (
+                <button key={z} onClick={() => setUiZoom(z)} title={`Písmo ${lbl}`} style={{
+                  width: 30, height: 28, borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: fs, fontWeight: 800, lineHeight: 1,
+                  background: uiZoom === z ? 'var(--accent)' : 'transparent', color: uiZoom === z ? '#fff' : 'var(--text)',
+                }}>A</button>
+              ))}
+            </div>
             {/* Dark mode toggle */}
             <button
               className="btn btn-sm"

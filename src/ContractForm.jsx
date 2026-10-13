@@ -949,7 +949,7 @@ export default function ContractForm({ onClose }) {
       <div style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
         background: 'var(--bg)', borderRadius: 16, width: '100%', maxWidth: 560,
-        zIndex: 1001, boxShadow: '0 32px 64px -12px rgba(0,0,0,0.25)', maxHeight: '92vh',
+        zIndex: 1001, boxShadow: '0 32px 64px -12px rgba(0,0,0,0.25)', maxHeight: 'calc(92vh / var(--ui-zoom, 1))',
         display: 'flex', flexDirection: 'column', overflow: 'hidden'
       }}>
         {/* Gradient header */}

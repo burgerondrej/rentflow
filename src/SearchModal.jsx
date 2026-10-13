@@ -37,7 +37,7 @@ export default function SearchModal({ onClose, onOpenTenant, onOpenContract, onN
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.32)', zIndex: 200 }} onClick={onClose} />
       <div style={{
         position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)',
-        width: 545, maxWidth: '95vw', background: 'var(--bg)',
+        width: 545, maxWidth: 'calc(95vw / var(--ui-zoom, 1))', background: 'var(--bg)',
         borderRadius: 'var(--rl)', overflow: 'hidden',
         boxShadow: '0 8px 36px rgba(0,0,0,.18)', zIndex: 201,
       }} onClick={e => e.stopPropagation()}>

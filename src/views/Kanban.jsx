@@ -105,7 +105,7 @@ export default function Kanban() {
   const ckForStatus = (s) => COLUMNS.find(c => c.id === s)?.cssKey || 'todo'
 
   return (
-    <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column', width: '100%' }}>
+    <div style={{ height: 'calc(100vh / var(--ui-zoom, 1) - 120px)', display: 'flex', flexDirection: 'column', width: '100%' }}>
       <div className="page-header" style={{ marginBottom: 24, flexShrink: 0 }}>
         <div>
           <div className="page-title">Operativní Kanban</div>
@@ -218,7 +218,7 @@ export default function Kanban() {
         const ck = ckForStatus(formData.status)
         return (
           <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div className="modal-card" style={{ background: 'var(--kanban-card-bg)', width: 560, borderRadius: 18, boxShadow: '0 28px 56px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            <div className="modal-card" style={{ background: 'var(--kanban-card-bg)', width: 560, borderRadius: 18, boxShadow: '0 28px 56px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 'calc(90vh / var(--ui-zoom, 1))' }}>
               <div style={{ padding: '18px 22px', borderBottom: `1px solid var(--kanban-card-border)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `var(--kanban-${ck}-header)` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{formMode === 'add' ? '✏️ Nový úkol' : '✏️ Upravit úkol'}</span>

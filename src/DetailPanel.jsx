@@ -2630,7 +2630,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           className={closing ? 'modal-card-out' : 'modal-card'}
           style={{
             pointerEvents: 'all',
-            width: 'min(900px, 94vw)', maxHeight: '90vh',
+            width: 'min(900px, calc(94vw / var(--ui-zoom, 1)))', maxHeight: 'calc(90vh / var(--ui-zoom, 1))',
             background: 'var(--bg)', borderRadius: 22,
             display: 'flex', flexDirection: 'column',
             boxShadow: '0 32px 80px rgba(0,0,0,0.3)',

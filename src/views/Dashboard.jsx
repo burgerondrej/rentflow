@@ -166,7 +166,7 @@ export default function Dashboard({ onNav, onOpen }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', zIndex: 2000 }} onClick={() => setExpandedGroup(null)}>
           <div style={{ background: `var(--dash-${expandedGroup.colorVar}-bg)`, border: `2px solid var(--dash-${expandedGroup.colorVar}-border)`,
-            borderRadius: 16, padding: 28, width: 520, maxHeight: '80vh',
+            borderRadius: 16, padding: 28, width: 520, maxHeight: 'calc(80vh / var(--ui-zoom, 1))',
             boxShadow: '0 20px 50px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', animation: 'modalIn 0.18s ease' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

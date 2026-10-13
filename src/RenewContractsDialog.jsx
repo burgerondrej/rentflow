@@ -90,7 +90,7 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
       onClick={e => { if (e.target === e.currentTarget && !saving) onClose() }}>
-      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 820, maxWidth: '94vw', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', animation: 'modalIn 0.18s ease' }}>
+      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 820, maxWidth: 'calc(94vw / var(--ui-zoom, 1))', maxHeight: 'calc(88vh / var(--ui-zoom, 1))', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', animation: 'modalIn 0.18s ease' }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>🔁 Navazující smlouvy</div>
         <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 18 }}>
           Nájemce: <span style={{ fontWeight: 600, color: 'var(--text2)' }}>{tenant?.name || '—'}</span>
