@@ -4,7 +4,7 @@ import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDat
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill, contractStatus } from '../StatusUI.jsx'
-import { useNewShortcut } from '../shortcuts.js'
+import { useNewShortcut, peekContractsFilter, clearContractsFilter } from '../shortcuts.js'
 
 export default function Contracts({ activeSubject, onOpen }) {
   const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme } = useApp()
@@ -12,6 +12,14 @@ export default function Contracts({ activeSubject, onOpen }) {
   const [showForm, setShowForm] = useState(false)
   useNewShortcut(() => setShowForm(true)) // Ctrl+N
   const [tab, setTab] = useState('valid') // 'valid' = platné (vč. ukončených s budoucím koncem) | 'ended' = ukončené
+  // Filtr končících smluv: all | 30 | 60 | 90 | expired (z menu přijde „30“)
+  const [endFilter, setEndFilter] = useState(() => peekContractsFilter() || 'all')
+  useEffect(() => {
+    clearContractsFilter()
+    const onReq = (e) => { setEndFilter(e.detail || 'all'); setTab('valid'); clearContractsFilter() }
+    window.addEventListener('rf-contracts-filter', onReq)
+    return () => window.removeEventListener('rf-contracts-filter', onReq)
+  }, [])
   const [cardOrder, setCardOrder] = useState(() => {
     try { const s = localStorage.getItem('rf_contract_order'); return s ? JSON.parse(s) : null } catch { return null }
   })
@@ -73,6 +81,12 @@ export default function Contracts({ activeSubject, onOpen }) {
   const validCount = filtered.filter(c => isValid(c) && selectionMatches(activeSubject, c.assetSubject)).length
   const endedCount = filtered.filter(c => !isValid(c) && selectionMatches(activeSubject, c.assetSubject)).length
   const endTs = (c) => parseDate(c.end)?.getTime() || 0
+  // Končící = platná smlouva bez navazující smlouvy; „Do N dní“ zahrnuje i propadlé (stejně jako červený odznak v menu)
+  const isEnding = (c) => isValid(c) && !hasSuccessor(c, contracts) && c.daysLeft !== null
+  const endMatch = (c, f = endFilter) => f === 'all' ? true
+    : f === 'expired' ? isEnding(c) && c.status === 'active' && c.daysLeft < 0
+    : isEnding(c) && c.daysLeft <= Number(f)
+  const endCount = (f) => filtered.filter(c => selectionMatches(activeSubject, c.assetSubject) && endMatch(c, f)).length
 
   const renderCard = (c, isArchived = false) => {
     const isEndingSoon = c.daysLeft !== null && c.daysLeft <= 60 && c.daysLeft >= 0
@@ -169,10 +183,7 @@ export default function Contracts({ activeSubject, onOpen }) {
         <div>
           <div className="page-title">Smlouvy</div>
           <div className="page-sub">
-            {validCount} platných · {endedCount} ukončených{(() => {
-              const soon = filtered.filter(c => isValid(c) && !hasSuccessor(c, contracts) && c.daysLeft !== null && c.daysLeft >= 0 && c.daysLeft <= 30 && selectionMatches(activeSubject, c.assetSubject)).length
-              return soon ? ` · ${soon} končí do 30 dní` : ''
-            })()}
+            {validCount} platných · {endedCount} ukončených{endCount('30') ? ` · ${endCount('30')} končí do 30 dní` : ''}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -201,13 +212,42 @@ export default function Contracts({ activeSubject, onOpen }) {
         </div>
       </div>
 
+      {tab === 'valid' && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '-8px 0 18px' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: 2 }}>Končící</span>
+          {[
+            { id: 'all', label: 'Vše', tone: 'gray' },
+            { id: '30', label: '⚠ Do 30 dní', tone: 'red' },
+            { id: '60', label: 'Do 60 dní', tone: 'amber' },
+            { id: '90', label: 'Do 90 dní', tone: 'amber' },
+            { id: 'expired', label: 'Propadlé', tone: 'red' },
+          ].map(ch => {
+            const on = endFilter === ch.id
+            const n = ch.id === 'all' ? validCount : endCount(ch.id)
+            return (
+              <button key={ch.id} type="button" className="btn btn-sm" onClick={() => setEndFilter(ch.id)}
+                title={ch.id === 'all' || ch.id === 'expired' ? '' : 'Vč. propadlých; bez smluv, které už mají navazující smlouvu'}
+                style={on ? { background: `var(--tone-${ch.tone}-text)`, borderColor: `var(--tone-${ch.tone}-text)`, color: 'var(--bg)', fontWeight: 800 }
+                          : { background: `var(--tone-${ch.tone}-bg)`, borderColor: `var(--tone-${ch.tone}-border)`, color: `var(--tone-${ch.tone}-text)`, fontWeight: 700 }}>
+                {ch.label} <span style={{ opacity: 0.85 }}>({n})</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 40, marginTop: 10 }}>
+        {tab === 'valid' && endFilter !== 'all' && endCount(endFilter) === 0 && (
+          <div style={{ padding: 28, textAlign: 'center', fontSize: 14, fontWeight: 700, color: 'var(--tone-green-text)', background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 14 }}>
+            ✓ Žádné smlouvy v tomto výběru
+          </div>
+        )}
         {subjects.map(subject => {
           if (!selectionMatches(activeSubject, subject)) return null
 
           const allInSubject = filtered.filter(c => c.assetSubject === subject)
           // Záložka Platné: aktivní (řazení tažením) + ukončené s budoucím koncem; Ukončené: od nejnovějšího konce
-          const subjectContracts = allInSubject.filter(c => tab === 'valid' ? isValid(c) : !isValid(c))
+          const subjectContracts = allInSubject.filter(c => tab === 'valid' ? isValid(c) && endMatch(c) : !isValid(c))
           if (subjectContracts.length === 0) return null
           const activeInSubject = tab === 'valid' ? getOrdered(subjectContracts.filter(c => c.status === 'active')) : []
           const archivedInSubject = subjectContracts.filter(c => c.status !== 'active')

@@ -1055,7 +1055,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             {activeContracts.length === 0 ? (
               <div style={{ fontSize: 13, color: 'var(--text3)' }}>Tento kontakt aktuálně nic nepronajímá.</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {(() => {
                   const typeIcon  = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', ostatni: '📄' }
                   const typeLabel = { residential: 'Bytová jednotka', commercial: 'Komerční prostor', ads: 'Reklamní plocha', parking: 'Parkovací stání', ostatni: 'Ostatní' }
@@ -1075,7 +1075,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                       displayItems.push({ kind: 'single', contract: c })
                     }
                   }
-                  return displayItems.map((item, idx) => {
+                  const renderItem = (item, idx) => {
                     if (item.kind === 'group') {
                       const totalRent = item.contracts.reduce((s, c) => s + effectiveToday(c).rent, 0)
                       const firstC = item.contracts[0]
@@ -1086,11 +1086,11 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                       const groupIcon = groupAssetType === 'ads' ? '📢' : groupAssetType === 'commercial' ? '🏢' : '🅿️'
                       const groupTypeLabel = groupAssetType === 'ads' ? 'Skupina reklamních ploch' : groupAssetType === 'commercial' ? 'Skupina komerčních prostor' : 'Skupina parkovacích stání'
                       return (
-                        <div key={item.label} style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, overflow: 'hidden' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #BFDBFE' }}>
+                        <div key={item.label} style={{ background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)', borderRadius: 14, overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--tone-blue-border)' }}>
                             <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{groupIcon}</div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 14, fontWeight: 800, color: '#0B509E' }}>{item.label}</div>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--tone-blue-text)' }}>{item.label}</div>
                               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{groupTypeLabel} · {item.contracts.length} smluv</div>
                             </div>
                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -1104,11 +1104,11 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                               const asset = assets.find(a => a.id === c.assetId)
                               const rent = effectiveToday(c).rent
                               return (
-                                <div key={c.id} style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.6)', borderRadius: 8, cursor: 'pointer', border: '1px solid #BFDBFE' }}
+                                <div key={c.id} style={{ padding: '6px 10px', background: 'var(--bg)', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--tone-blue-border)' }}
                                   onClick={() => onOpen('contract', c.id)}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0B509E' }}>{asset?.unit || '?'}</div>
+                                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-blue-text)' }}>{asset?.unit || '?'}</div>
                                       {(c.start || c.end) && <div style={{ fontSize: 10.5, color: 'var(--text3)' }}>{c.start || '—'} → {c.end || 'neurčito'}</div>}
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
@@ -1245,6 +1245,38 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                       </div>
                     </div>
                   )
+                  }
+                  // Rozdělení podle pronajímatele: blok každé firmy s pruhem v barvě firmy a měsíčním součtem
+                  const firmRows = tenantRentsByFirm(activeContracts, assets, firms)
+                  const byFirm = []
+                  for (const item of displayItems) {
+                    const c0 = item.kind === 'group' ? item.contracts[0] : item.contract
+                    const fname = firmOf(contractSubject(c0, assets))
+                    let b = byFirm.find(x => x.name === fname)
+                    if (!b) { b = { name: fname, items: [], n: 0 }; byFirm.push(b) }
+                    b.items.push(item)
+                    b.n += item.kind === 'group' ? item.contracts.length : 1
+                  }
+                  const firmIdx = (n) => { const k = (firms || []).findIndex(f => f.name === n); return k < 0 ? 999 : k }
+                  byFirm.sort((a, b) => firmIdx(a.name) - firmIdx(b.name))
+                  return byFirm.map(b => {
+                    const f = (firms || []).find(x => x.name === b.name) || { name: b.name, short: b.name.slice(0, 3).toUpperCase(), color: 'slate' }
+                    const fc = firmColors(f.color, theme)
+                    const fr = firmRows.find(r => r.name === b.name)
+                    const sumTxt = fr ? (fr.dph > 0 ? `${Math.round(fr.dph).toLocaleString('cs-CZ')} Kč bez DPH / měs.` : '') + (fr.dph > 0 && fr.noDph > 0 ? ' + ' : '') + (fr.noDph > 0 ? `${Math.round(fr.noDph).toLocaleString('cs-CZ')} Kč / měs.` : '') : ''
+                    return (
+                      <div key={b.name} style={{ border: `1.5px solid ${fc.mid}55`, borderRadius: 16, overflow: 'hidden', background: 'var(--bg)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: fc.bg, borderLeft: `7px solid ${fc.mid}`, borderBottom: `1.5px solid ${fc.mid}55` }}>
+                          <FirmBadge firm={f} size={28} />
+                          <div style={{ fontSize: 14.5, fontWeight: 800, color: fc.txt }}>{b.name}</div>
+                          <div style={{ fontSize: 12, color: fc.sub, fontWeight: 600 }}>{b.n} {b.n === 1 ? 'smlouva' : b.n < 5 ? 'smlouvy' : 'smluv'}</div>
+                          {sumTxt && <div style={{ marginLeft: 'auto', fontSize: 13.5, fontWeight: 900, color: fc.mid, whiteSpace: 'nowrap' }}>{sumTxt}</div>}
+                        </div>
+                        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {b.items.map(renderItem)}
+                        </div>
+                      </div>
+                    )
                   })
                   })()
                 }

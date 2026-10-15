@@ -445,6 +445,16 @@ export default function Payments() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedYear, setSelectedYear]   = useState(new Date().getFullYear())
   const [showPicker, setShowPicker]       = useState(false)
+  // Plovoucí přepínač měsíců: ukáže se, jen když horní přepínač odjede z obrazovky
+  const monthSwitchRef = useRef(null)
+  const [topSwitchVisible, setTopSwitchVisible] = useState(true)
+  useEffect(() => {
+    const el = monthSwitchRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => setTopSwitchVisible(e.isIntersecting), { threshold: 0 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
   const [activeSub, setActiveSub]     = useState(subjects[0] || '')
   const activeSubRef = useRef(subjects[0] || '')
   const handleSubChange = useCallback((sub) => { activeSubRef.current = sub; setActiveSub(sub) }, [])
@@ -698,20 +708,24 @@ export default function Payments() {
     setPeriodPicker(null)
   }
 
+  // Přepínání měsíců – jedna implementace pro horní přepínač, plovoucí pilulku i šipky ← → (nejdřív leden 2026)
+  const goPrevMonth = () => {
+    if (selectedYear === 2026 && selectedMonth === 0) return
+    if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1) } else setSelectedMonth(m => m - 1)
+  }
+  const goNextMonth = () => {
+    if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1) } else setSelectedMonth(m => m + 1)
+  }
   // Šipky ← → = předchozí / další měsíc (ne při psaní do pole, ani když je otevřený dialog nebo detail)
   useEffect(() => {
     const onKey = (e) => {
       if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.ctrlKey || e.altKey || e.metaKey || isTyping() || isOverlayOpen()) return
       e.preventDefault()
-      if (e.key === 'ArrowLeft') {
-        if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1) } else setSelectedMonth(m => m - 1)
-      } else {
-        if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1) } else setSelectedMonth(m => m + 1)
-      }
+      if (e.key === 'ArrowLeft') goPrevMonth(); else goNextMonth()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedMonth])
+  }, [selectedMonth, selectedYear])
 
   const subContracts = contractsForSub(activeSub)
   // Filtr řádků Přehledu: stejná logika stavu jako řádky tabulky (skupina / jednotlivá smlouva vč. záloh u bytů)
@@ -1315,12 +1329,8 @@ export default function Payments() {
           <div className="page-title">Evidence plateb</div>
           <div className="page-sub">Přehled plateb za {monthLabel}</div>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--bg)', padding: '6px 16px', borderRadius: 12, border: '1.5px solid var(--border)' }}>
-          <button className="btn btn-sm" onClick={() => {
-            if (selectedYear === 2026 && selectedMonth === 0) return
-            if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1) }
-            else setSelectedMonth(m => m - 1)
-          }}>◀</button>
+        <div ref={monthSwitchRef} style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--bg)', padding: '6px 16px', borderRadius: 12, border: '1.5px solid var(--border)' }}>
+          <button className="btn btn-sm" onClick={goPrevMonth}>◀</button>
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowPicker(v => !v)} style={{
               minWidth: 160, textAlign: 'center', fontWeight: 800, fontSize: 15, color: 'var(--text)',
@@ -1369,10 +1379,7 @@ export default function Payments() {
               </>
             )}
           </div>
-          <button className="btn btn-sm" onClick={() => {
-            if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1) }
-            else setSelectedMonth(m => m + 1)
-          }}>▶</button>
+          <button className="btn btn-sm" onClick={goNextMonth}>▶</button>
         </div>
       </div>
 
@@ -2254,6 +2261,40 @@ export default function Payments() {
           </DialogShell>
         )
       })()}
+
+      {/* ── Plovoucí přepínač měsíců (sticky dole). Na konci stránky zůstane pod posledním řádkem, nic nepřekryje. ── */}
+      <div style={{ position: 'sticky', bottom: 14, zIndex: 60, display: 'flex', justifyContent: 'center', pointerEvents: 'none', marginTop: 24,
+        opacity: topSwitchVisible ? 0 : 1, transform: topSwitchVisible ? 'translateY(12px)' : 'none', transition: 'opacity 0.2s, transform 0.2s' }}>
+        {(() => {
+          const now = new Date()
+          const isNow = selectedYear === now.getFullYear() && selectedMonth === now.getMonth()
+          const strip = [-1, 0, 1].map(o => { const d = new Date(selectedYear, selectedMonth + o, 1); return { y: d.getFullYear(), m: d.getMonth(), o } })
+          const circle = { width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.16)', color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+          return (
+            <div style={{ pointerEvents: topSwitchVisible ? 'none' : 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px',
+              background: 'linear-gradient(155deg, #0A3D2B, #12654A 55%, #1A8A62)', color: '#fff', borderRadius: 999,
+              boxShadow: '0 14px 34px rgba(0,0,0,0.30), 0 0 0 1px rgba(255,255,255,0.08) inset' }}>
+              <button type="button" style={circle} onClick={goPrevMonth} title="Předchozí měsíc (←)">‹</button>
+              {strip.map(t => (
+                <button key={t.o} type="button" onClick={() => { setSelectedYear(t.y); setSelectedMonth(t.m) }}
+                  disabled={t.y < 2026}
+                  style={t.o === 0
+                    ? { border: 'none', background: 'transparent', color: '#fff', fontWeight: 800, fontSize: 14.5, minWidth: 128, padding: '0 6px', cursor: 'default' }
+                    : { border: 'none', background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.80)', fontWeight: 700, fontSize: 11.5, borderRadius: 999, padding: '5px 9px', cursor: t.y < 2026 ? 'default' : 'pointer', opacity: t.y < 2026 ? 0.3 : 1 }}>
+                  {t.o === 0 ? `${MONTHS[t.m]} ${t.y}` : MONTHS[t.m].slice(0, 3)}
+                </button>
+              ))}
+              <button type="button" style={circle} onClick={goNextMonth} title="Další měsíc (→)">›</button>
+              {!isNow && (
+                <button type="button" onClick={() => { setSelectedYear(now.getFullYear()); setSelectedMonth(now.getMonth()) }}
+                  style={{ border: 'none', background: '#4ade80', color: '#0A3D2B', fontWeight: 800, fontSize: 12, borderRadius: 999, padding: '7px 12px', cursor: 'pointer', marginLeft: 2 }}>
+                  Dnes
+                </button>
+              )}
+            </div>
+          )
+        })()}
+      </div>
     </div>
   )
 }

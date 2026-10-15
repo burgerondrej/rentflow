@@ -34,3 +34,9 @@ let pendingPayFilter = null
 export const setPaymentsFilterOnOpen = (v) => { pendingPayFilter = v }
 export const peekPaymentsFilter = () => pendingPayFilter
 export const clearPaymentsFilter = () => { pendingPayFilter = null }
+
+// Filtr Smluv („končí do 30 dní“) předaný z menu – i když jsou Smlouvy už otevřené (událost rf-contracts-filter)
+let pendingContractsFilter = null
+export const requestContractsFilter = (v) => { pendingContractsFilter = v; window.dispatchEvent(new CustomEvent('rf-contracts-filter', { detail: v })) }
+export const peekContractsFilter = () => pendingContractsFilter
+export const clearContractsFilter = () => { pendingContractsFilter = null }
