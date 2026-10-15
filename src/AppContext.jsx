@@ -118,6 +118,17 @@ export function AppProvider({ children }) {
         if (tr) setTrash(tr)
         if (l) setLogs(l)
         if (oc) setOperationalCosts(oc)
+        // Oznámení o automatickém prodloužení smluv (Rust je provede při startu a zapíše do historie) – každé jen jednou
+        try {
+          const seen = new Set(JSON.parse(localStorage.getItem('rf_seen_autorenew') || '[]'))
+          const fresh = (l || []).filter(x => x.action === 'Automatické prodloužení' && !seen.has(x.id))
+          if (fresh.length) {
+            const items = fresh.map(x => (x.detail || '').replace(/^Automaticky prodloužena smlouva: /, '').replace(/ \[[^\]]*\]$/, ''))
+            setTimeout(() => showToast(`🔁 Automaticky prodlouženo (${fresh.length}): ${items.join(' · ')}`, 'success'), 1500)
+            fresh.forEach(x => seen.add(x.id))
+            localStorage.setItem('rf_seen_autorenew', JSON.stringify([...seen].slice(-200)))
+          }
+        } catch { /* ignore */ }
 
         setSplashStatus('Načítám konfiguraci…')
         const [subj, objs, objFirms] = await Promise.all([

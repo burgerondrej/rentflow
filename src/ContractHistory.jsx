@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useApp } from './AppContext.jsx'
 
-const ACTION_TONE = { 'Přidání': 'green', 'Úprava': 'blue', 'Smazání': 'red', 'Archivace': 'amber', 'Obnova': 'violet' }
+const ACTION_TONE = { 'Přidání': 'green', 'Úprava': 'blue', 'Smazání': 'red', 'Archivace': 'amber', 'Obnova': 'violet', 'Automatické prodloužení': 'violet' }
 
 /**
  * Historie změn smlouvy – záznamy z historie změn (logs), které se týkají smlouvy:

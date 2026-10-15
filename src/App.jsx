@@ -435,7 +435,7 @@ function AppInner() {
               <span>Přihlášen jako <strong>Pavel</strong> — režim pouze ke čtení. Žádné změny nelze uložit.</span>
               {(() => {
                 // Stáří dat: poslední změna, kterou Ondra uložil (log je součástí synchronizované DB)
-                const last = (logs || []).find(l => l.user && l.user !== 'Pavel')
+                const last = (logs || []).find(l => l.user && l.user !== 'Pavel' && l.user !== 'Systém')
                 return last ? <span style={{ marginLeft: 'auto', fontWeight: 700, whiteSpace: 'nowrap' }}>🕒 Data k poslední změně: {last.timestamp}{last.user ? ` (${last.user})` : ''}</span> : null
               })()}
             </div>

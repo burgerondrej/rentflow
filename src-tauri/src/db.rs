@@ -254,10 +254,24 @@ impl Database {
                     end_date.year() + years_add, end_date.month(), end_date.day()
                 ).unwrap_or(end_date);
                 let new_end_str = format!("{}. {}. {}", new_end.day(), new_end.month(), new_end.year());
-                let _ = self.conn.execute(
+                let changed = self.conn.execute(
                     "UPDATE contracts SET end_date=?1, auto_renewal_type=CASE WHEN auto_renewal_type='once_2y' THEN NULL ELSE auto_renewal_type END WHERE id=?2",
                     rusqlite::params![new_end_str, c.id],
-                );
+                ).unwrap_or(0);
+                // Záznam do historie změn (zobrazí se i v Historii smlouvy a jako oznámení po spuštění)
+                if changed > 0 {
+                    let unit: String = self.conn.query_row("SELECT unit FROM assets WHERE id = ?1", params![c.asset_id], |r| r.get(0))
+                        .unwrap_or_else(|_| "?".to_string());
+                    let tenant: String = self.conn.query_row("SELECT name FROM tenants WHERE id = ?1", params![c.tenant_id], |r| r.get(0))
+                        .unwrap_or_else(|_| "?".to_string());
+                    let how = match renewal.as_str() {
+                        "repeat_5y" => "o 5 let, opakovaně",
+                        "once_2y" => "jednorázově o 2 roky",
+                        _ => "o 2 roky, opakovaně",
+                    };
+                    let _ = self.add_log("Systém", "Automatické prodloužení", "Smlouvy",
+                        &format!("Automaticky prodloužena smlouva: {} – {} z {} do {} ({}) [{}]", unit, tenant, c.end, new_end_str, how, c.id));
+                }
             }
         }
         let _ = self.conn.execute("ALTER TABLE contracts ADD COLUMN energy_settlements TEXT DEFAULT '[]'", []);
