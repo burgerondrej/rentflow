@@ -28,3 +28,9 @@ export function useNewShortcut(handler) {
     return () => window.removeEventListener('rf-new', fn)
   }, [])
 }
+
+// Filtr Plateb předaný z jiné obrazovky (karta firmy → „po splatnosti“). Čte se při otevření Plateb, maže po připojení.
+let pendingPayFilter = null
+export const setPaymentsFilterOnOpen = (v) => { pendingPayFilter = v }
+export const peekPaymentsFilter = () => pendingPayFilter
+export const clearPaymentsFilter = () => { pendingPayFilter = null }

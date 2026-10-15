@@ -66,6 +66,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [amendForm, setAmendForm] = useState(false)
   const [amendData, setAmendData] = useState({ effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '' })
   const [depYear, setDepYear] = useState(() => new Date().getFullYear())
+  const [settleEdit, setSettleEdit] = useState(null) // { type: 'doplatek'|'preplatek', amount } – vyúčtování záloh za depYear
 
   // Helper: vrátí platné finanční hodnoty smlouvy k dnešnímu datu (respektuje amendments)
   // Přesunuto do src/utils.js jako getEffectiveValuesToday — používáme aliasem pro zpětnou kompatibilitu
@@ -307,7 +308,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginTop: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'var(--tone-blue-soft)', borderBottom: '1px solid var(--tone-blue-border)' }}>
           <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--tone-blue-text)', flex: 1 }}>💧 Zálohy {depYear} – podklad pro vyúčtování</span>
-          <select className="btn btn-sm" value={depYear} onChange={e => setDepYear(Number(e.target.value))} style={{ cursor: 'pointer' }}>
+          <select className="btn btn-sm" value={depYear} onChange={e => { setDepYear(Number(e.target.value)); setSettleEdit(null) }} style={{ cursor: 'pointer' }}>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
@@ -331,6 +332,49 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           </table>
         )}
         {!tracked && <div style={{ padding: '6px 12px', fontSize: 11.5, color: 'var(--text3)' }}>Platby záloh se u této smlouvy neevidují – zobrazen jen předpis.</div>}
+        {/* Výsledek vyúčtování za rok (contract.energySettlements: kladná = doplatek, záporná = přeplatek) */}
+        {months.length > 0 && (() => {
+          const list = contract.energySettlements || []
+          const cur = list.find(s => Number(s.year) === depYear)
+          const save = async (next) => {
+            await updateContract(contract.id, { ...contract, energySettlements: next })
+            setSettleEdit(null)
+            showToast(`Vyúčtování ${depYear} uloženo.`, 'success')
+          }
+          if (settleEdit) {
+            const amt = Number(String(settleEdit.amount).replace(',', '.'))
+            const ok = !isNaN(amt) && amt >= 0
+            return (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg2)' }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>Vyúčtování {depYear}:</span>
+                <select className="btn btn-sm" value={settleEdit.type} onChange={e => setSettleEdit({ ...settleEdit, type: e.target.value })} style={{ cursor: 'pointer' }}>
+                  <option value="doplatek">Doplatek (nájemce doplácí)</option>
+                  <option value="preplatek">Přeplatek (vracíme nájemci)</option>
+                </select>
+                <input type="number" min={0} className="btn btn-sm" style={{ width: 120, cursor: 'text', textAlign: 'right' }} placeholder="Kč"
+                  value={settleEdit.amount} onChange={e => setSettleEdit({ ...settleEdit, amount: e.target.value })} />
+                <button className="btn btn-sm btn-primary" disabled={!ok} style={{ opacity: ok ? 1 : 0.5 }}
+                  onClick={() => save([...list.filter(s => Number(s.year) !== depYear), { year: depYear, amount: settleEdit.type === 'doplatek' ? amt : -amt }])}>Uložit</button>
+                <button className="btn btn-sm" onClick={() => setSettleEdit(null)}>Zrušit</button>
+              </div>
+            )
+          }
+          const v = cur ? Number(cur.amount) : null
+          return (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 12px', borderTop: '1px solid var(--border)', fontSize: 12.5 }}>
+              <span style={{ color: 'var(--text2)', flex: 1 }}>
+                Vyúčtování {depYear}:{' '}
+                {v === null ? <span style={{ color: 'var(--text3)' }}>nezapsáno</span>
+                  : <b style={{ color: v > 0 ? '#DC2626' : '#16A34A' }}>{v > 0 ? '▲ doplatek' : '▼ přeplatek'} {Math.abs(v).toLocaleString('cs-CZ')} Kč</b>}
+              </span>
+              {!isReadOnly && <button className="btn btn-sm btn-tone-blue" style={{ fontWeight: 700 }}
+                onClick={() => setSettleEdit({ type: v !== null && v < 0 ? 'preplatek' : 'doplatek', amount: v !== null ? String(Math.abs(v)) : '' })}>
+                {v === null ? '+ Zapsat vyúčtování' : '✏️ Upravit'}</button>}
+              {!isReadOnly && v !== null && <button className="btn btn-sm btn-tone-red" title="Smazat vyúčtování"
+                onClick={() => save(list.filter(s => Number(s.year) !== depYear))}>✕</button>}
+            </div>
+          )
+        })()}
       </div>
     )
   }

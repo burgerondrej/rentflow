@@ -444,22 +444,24 @@ function genDepositReport(contracts, payments, assets, tenants, subjectFilter, s
       prevAsset = r.c.assetId
       const period = r.from === r.to ? `${r.from + 1}/${year}` : `${r.from + 1}–${r.to + 1}/${year}`
       const diff = r.tracked ? `<span style="color:${r.diff < 0 ? '#DC2626' : r.diff > 0 ? '#16A34A' : '#1a1a1a'}">${r.diff > 0 ? '+' : ''}${fmtCzk(r.diff)}</span>` : '<span style="color:#999">neevidováno</span>'
+      const st = (r.c.energySettlements || []).find(x => Number(x.year) === year)
+      const settle = st ? `<span style="color:${Number(st.amount) > 0 ? '#DC2626' : '#16A34A'}">${Number(st.amount) > 0 ? 'doplatek' : 'přeplatek'} ${fmtCzk(Math.abs(Number(st.amount)))}</span>` : '<span style="color:#999">—</span>'
       return `<tr${first ? '' : ' style="background:#FFFBEB"'}>
         <td>${first ? `<strong>${r.asset?.unit || '—'}</strong>` : '<span style="color:#999;padding-left:10px">↳</span>'}</td>
         <td>${t?.name || '—'}</td><td>${period}</td>
         <td class="amount">${fmtCzk(r.exp)}</td>${hasWater ? `<td class="amount">${r.water > 0 ? fmtCzk(r.water) : '—'}</td>` : ''}
-        <td class="amount">${r.tracked ? fmtCzk(r.paid) : '—'}</td><td class="amount">${diff}</td>
+        <td class="amount">${r.tracked ? fmtCzk(r.paid) : '—'}</td><td class="amount">${diff}</td><td class="amount">${settle}</td>
       </tr>`
     }).join('')
     sectionsHtml += `
       <div class="section">
         <div class="section-title" style="${f ? `color:${f.txt};background:${f.bg};border-left:5px solid ${f.mid}` : ''}">${firmChip(f)}${subject}</div>
         <table>
-          <thead><tr><th>Předmět</th><th>Nájemce</th><th>Období</th><th style="text-align:right">Zálohy předpis</th>${hasWater ? '<th style="text-align:right">Voda předpis</th>' : ''}<th style="text-align:right">Zaplaceno</th><th style="text-align:right">Rozdíl</th></tr></thead>
+          <thead><tr><th>Předmět</th><th>Nájemce</th><th>Období</th><th style="text-align:right">Zálohy předpis</th>${hasWater ? '<th style="text-align:right">Voda předpis</th>' : ''}<th style="text-align:right">Zaplaceno</th><th style="text-align:right">Rozdíl</th><th style="text-align:right">Vyúčtování</th></tr></thead>
           <tbody>${body}</tbody>
           <tfoot><tr style="font-weight:700;background:#F8F8F8"><td colspan="3" style="padding:8px 10px">Součet sekce</td>
             <td class="amount">${fmtCzk(sub.exp)}</td>${hasWater ? `<td class="amount">${fmtCzk(sub.water)}</td>` : ''}<td class="amount">${fmtCzk(sub.paid)}</td>
-            <td class="amount" style="color:${sub.diff < 0 ? '#DC2626' : '#16A34A'}">${sub.diff > 0 ? '+' : ''}${fmtCzk(sub.diff)}</td></tr></tfoot>
+            <td class="amount" style="color:${sub.diff < 0 ? '#DC2626' : '#16A34A'}">${sub.diff > 0 ? '+' : ''}${fmtCzk(sub.diff)}</td><td></td></tr></tfoot>
         </table>
       </div>`
   })

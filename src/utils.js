@@ -544,3 +544,17 @@ export function getLastPayDate() {
 export function setLastPayDate(iso) {
   try { if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) localStorage.setItem(LAST_PAY_KEY, iso) } catch { /* ignore */ }
 }
+
+/**
+ * Poslední den pro výpověď / jednání o prodloužení: konec smlouvy − 1 den − výpovědní lhůta (měsíce).
+ * Stejný výpočet jako ve formuláři smlouvy. null = bez konce nebo bez lhůty.
+ */
+export function noticeDeadline(c) {
+  const end = parseDate(c?.end)
+  const months = parseInt(c?.terminationMonths)
+  if (!end || !months || months <= 0) return null
+  const dayBefore = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1)
+  const target = new Date(dayBefore.getFullYear(), dayBefore.getMonth() - months, 1)
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+  return new Date(target.getFullYear(), target.getMonth(), Math.min(dayBefore.getDate(), lastDay))
+}

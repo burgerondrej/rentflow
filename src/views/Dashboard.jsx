@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import DialogShell from '../DialogShell.jsx'
+import { setPaymentsFilterOnOpen } from '../shortcuts.js'
 import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, getPeriodMonthKeys, overdueDays } from '../utils.js'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
@@ -152,7 +153,8 @@ export default function Dashboard({ onNav, onOpen }) {
       (() => { const e = parseDate(c.end); return e && e >= today && (e - today) / 86400000 <= 60 })()).length
     return { firm: f, months, cur, unpaid: Math.max(0, cur.exp - cur.rec), ending, overdue: firmOverdue(f.name) }
   }).filter(x => x.cur.n > 0)
-  const openFirmPayments = (f) => {
+  const openFirmPayments = (f, filter) => {
+    setPaymentsFilterOnOpen(filter || null)
     const secs = f.sections.filter(s => contracts.some(c => contractSubject(c, assets) === s))
     if (setNavSelection) setNavSelection(secs.length > 1 ? firmSelection(f.name) : (secs[0] || firmSelection(f.name)))
     if (onNav) onNav('payments')
@@ -225,7 +227,8 @@ export default function Dashboard({ onNav, onOpen }) {
                   ))}
                 </div>
                 {overdue > 0 && (
-                  <div style={{ fontSize: 11.5, fontWeight: 800, color: '#DC2626', marginBottom: 3 }}>⚠ {overdue} po splatnosti</div>
+                  <div title="Otevřít Platby jen s položkami po splatnosti" onClick={e => { e.stopPropagation(); openFirmPayments(f, 'overdue') }}
+                    style={{ fontSize: 11.5, fontWeight: 800, color: '#DC2626', marginBottom: 3, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>⚠ {overdue} po splatnosti ➔</div>
                 )}
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: ending ? '#D97706' : 'var(--text3)' }}>
                   {ending ? `${ending} ${ending === 1 ? 'smlouva končí' : ending < 5 ? 'smlouvy končí' : 'smluv končí'} do 60 dní` : 'Žádná smlouva brzy nekončí'}

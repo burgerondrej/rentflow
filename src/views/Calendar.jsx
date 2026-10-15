@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
-import { parseDate, contractSubject, firmOf, firmColors, isContractBillable } from '../utils.js'
+import { parseDate, contractSubject, firmOf, firmColors, isContractBillable, noticeDeadline } from '../utils.js'
 
 // ─────────────────────────────────────────
 // KALENDÁŘ – konce smluv, revize, termíny úkolů (bez splatností)
@@ -12,6 +12,7 @@ const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec
 const DOW = ['Po','Út','St','Čt','Pá','So','Ne']
 const TYPES = {
   contract: { icon: '📄', label: 'Konce smluv' },
+  notice:   { icon: '✉️', label: 'Termíny výpovědi' },
   revision: { icon: '🔧', label: 'Revize' },
   task:     { icon: '✅', label: 'Úkoly' },
 }
@@ -31,6 +32,15 @@ export function buildCalendarEvents({ contracts = [], assets = [], tenants = [],
     const t = tenants.find(x => x.id === c.tenantId)
     events.push({ type: 'contract', date: d, firm: firmOf(contractSubject(c, assets)), title: `Konec smlouvy: ${a?.unit || '—'}`, sub: t?.name || '', onClick: () => onOpen && onOpen('contract', c.id) })
   })
+  // Poslední den pro výpověď / jednání o prodloužení (jen aktivní smlouvy s výpovědní lhůtou)
+  contracts.filter(c => c.status === 'active' && c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
+    const d = noticeDeadline(c)
+    if (!d) return
+    const a = assets.find(x => x.id === c.assetId)
+    const t = tenants.find(x => x.id === c.tenantId)
+    events.push({ type: 'notice', date: d, firm: firmOf(contractSubject(c, assets)), title: `Termín výpovědi: ${a?.unit || '—'}`,
+      sub: `${t?.name || ''} · smlouva končí ${c.end} (lhůta ${c.terminationMonths} měs.)`, onClick: () => onOpen && onOpen('contract', c.id) })
+  })
   revisions.forEach(r => {
     const last = parseDate(r.lastDate)
     if (!last) return
@@ -47,7 +57,7 @@ export function buildCalendarEvents({ contracts = [], assets = [], tenants = [],
   return events
 }
 
-export const CALENDAR_TYPE_ICON = { contract: '📄', revision: '🔧', task: '✅' }
+export const CALENDAR_TYPE_ICON = { contract: '📄', notice: '✉️', revision: '🔧', task: '✅' }
 
 export default function Calendar({ onOpen, onNav }) {
   const { contracts = [], assets = [], tenants = [], revisions = [], tasks = [], firms = [], theme } = useApp()
@@ -55,7 +65,7 @@ export default function Calendar({ onOpen, onNav }) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [firmFilter, setFirmFilter] = useState('all')
-  const [typeOn, setTypeOn] = useState({ contract: true, revision: true, task: true })
+  const [typeOn, setTypeOn] = useState({ contract: true, notice: true, revision: true, task: true })
 
   // ── Události ──
   const events = buildCalendarEvents({ contracts, assets, tenants, revisions, tasks, firms, firmOfObject, onOpen, onNav })

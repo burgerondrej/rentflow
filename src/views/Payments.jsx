@@ -4,7 +4,7 @@ import { save } from '@tauri-apps/api/dialog'
 import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import DialogShell from '../DialogShell.jsx'
-import { isTyping, isOverlayOpen } from '../shortcuts.js'
+import { isTyping, isOverlayOpen, peekPaymentsFilter, clearPaymentsFilter } from '../shortcuts.js'
 import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
@@ -479,7 +479,8 @@ export default function Payments() {
   }, [subjectsWithContracts.join('\0')])
   const [detailContract, setDetailContract] = useState(null)
   const [activeTab, setActiveTab]           = useState('overview')
-  const [rowFilter, setRowFilter]           = useState('all') // all | unpaid | overdue
+  const [rowFilter, setRowFilter]           = useState(() => peekPaymentsFilter() || 'all') // all | unpaid | overdue
+  useEffect(() => { clearPaymentsFilter() }, [])
   const [pendingPayment, setPendingPayment] = useState(null)   // { contract, tenantName, paymentType }
   const [periodPicker, setPeriodPicker]     = useState(null)   // { contract, preselectedKeys }
   const [combinedModal, setCombinedModal]   = useState(null)   // { contract, tenantName, rentAmount, depositAmount }
