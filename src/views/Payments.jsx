@@ -716,6 +716,41 @@ export default function Payments() {
   const goNextMonth = () => {
     if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1) } else setSelectedMonth(m => m + 1)
   }
+  // Pilulka přepínače měsíců – jedna podoba nahoře v hlavičce i plovoucí dole (top = klik na měsíc otevře výběr)
+  const renderMonthPill = (top) => {
+    const now = new Date()
+    const isNow = selectedYear === now.getFullYear() && selectedMonth === now.getMonth()
+    const strip = [-1, 0, 1].map(o => { const d = new Date(selectedYear, selectedMonth + o, 1); return { y: d.getFullYear(), m: d.getMonth(), o } })
+    const circle = { width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.16)', color: '#fff', fontSize: 17, fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px',
+        background: 'linear-gradient(155deg, #0A3D2B, #12654A 55%, #1A8A62)', color: '#fff', borderRadius: 999,
+        boxShadow: top ? '0 6px 18px rgba(10,61,43,0.25)' : '0 14px 34px rgba(0,0,0,0.30), 0 0 0 1px rgba(255,255,255,0.08) inset' }}>
+        <button type="button" style={{ ...circle, opacity: selectedYear === 2026 && selectedMonth === 0 ? 0.35 : 1 }} onClick={goPrevMonth} title="Předchozí měsíc (←)">‹</button>
+        {strip.map(t => t.o === 0 ? (
+          <button key={t.o} type="button" onClick={top ? () => setShowPicker(v => !v) : undefined} title={top ? 'Vybrat měsíc a rok' : undefined}
+            style={{ border: 'none', background: top ? 'rgba(255,255,255,0.10)' : 'transparent', color: '#fff', fontWeight: 800, fontSize: 15, minWidth: 136,
+              padding: '6px 12px', borderRadius: 999, cursor: top ? 'pointer' : 'default', whiteSpace: 'nowrap' }}>
+            {MONTHS[t.m]} {t.y}{top ? <span style={{ fontSize: 10, marginLeft: 6, opacity: 0.75 }}>▾</span> : null}
+          </button>
+        ) : (
+          <button key={t.o} type="button" onClick={() => { if (t.y >= 2026) { setSelectedYear(t.y); setSelectedMonth(t.m) } }} disabled={t.y < 2026}
+            style={{ border: 'none', background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.82)', fontWeight: 700, fontSize: 11.5, borderRadius: 999,
+              padding: '5px 9px', cursor: t.y < 2026 ? 'default' : 'pointer', opacity: t.y < 2026 ? 0.3 : 1 }}>
+            {MONTHS[t.m].slice(0, 3)}
+          </button>
+        ))}
+        <button type="button" style={circle} onClick={goNextMonth} title="Další měsíc (→)">›</button>
+        {!isNow && (
+          <button type="button" onClick={() => { setSelectedYear(now.getFullYear()); setSelectedMonth(now.getMonth()) }} title="Skok na aktuální měsíc"
+            style={{ border: 'none', background: '#4ade80', color: '#0A3D2B', fontWeight: 800, fontSize: 12, borderRadius: 999, padding: '7px 12px', cursor: 'pointer', marginLeft: 2 }}>
+            Dnes
+          </button>
+        )}
+      </div>
+    )
+  }
+
   // Šipky ← → = předchozí / další měsíc (ne při psaní do pole, ani když je otevřený dialog nebo detail)
   useEffect(() => {
     const onKey = (e) => {
@@ -1329,24 +1364,14 @@ export default function Payments() {
           <div className="page-title">Evidence plateb</div>
           <div className="page-sub">Přehled plateb za {monthLabel}</div>
         </div>
-        <div ref={monthSwitchRef} style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--bg)', padding: '6px 16px', borderRadius: 12, border: '1.5px solid var(--border)' }}>
-          <button className="btn btn-sm" onClick={goPrevMonth}>◀</button>
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowPicker(v => !v)} style={{
-              minWidth: 160, textAlign: 'center', fontWeight: 800, fontSize: 15, color: 'var(--text)',
-              background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8,
-              transition: 'background 0.15s',
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg2)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              {monthLabel} ▾
-            </button>
+        {/* Přepínač měsíců – stejná „pilulka“ jako plovoucí dole; klik na měsíc = výběr měsíce/roku */}
+        <div ref={monthSwitchRef} style={{ position: 'relative', flexShrink: 0 }}>
+          {renderMonthPill(true)}
             {showPicker && (
               <>
                 <div onClick={() => setShowPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
                 <div style={{
-                  position: 'absolute', top: '110%', left: '50%', transform: 'translateX(-50%)',
+                  position: 'absolute', top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)',
                   background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 14,
                   boxShadow: '0 12px 40px rgba(0,0,0,0.18)', zIndex: 1000, padding: 16, minWidth: 260,
                 }}>
@@ -1378,8 +1403,6 @@ export default function Payments() {
                 </div>
               </>
             )}
-          </div>
-          <button className="btn btn-sm" onClick={goNextMonth}>▶</button>
         </div>
       </div>
 
@@ -2265,35 +2288,7 @@ export default function Payments() {
       {/* ── Plovoucí přepínač měsíců (sticky dole). Na konci stránky zůstane pod posledním řádkem, nic nepřekryje. ── */}
       <div style={{ position: 'sticky', bottom: 14, zIndex: 60, display: 'flex', justifyContent: 'center', pointerEvents: 'none', marginTop: 24,
         opacity: topSwitchVisible ? 0 : 1, transform: topSwitchVisible ? 'translateY(12px)' : 'none', transition: 'opacity 0.2s, transform 0.2s' }}>
-        {(() => {
-          const now = new Date()
-          const isNow = selectedYear === now.getFullYear() && selectedMonth === now.getMonth()
-          const strip = [-1, 0, 1].map(o => { const d = new Date(selectedYear, selectedMonth + o, 1); return { y: d.getFullYear(), m: d.getMonth(), o } })
-          const circle = { width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.16)', color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }
-          return (
-            <div style={{ pointerEvents: topSwitchVisible ? 'none' : 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px',
-              background: 'linear-gradient(155deg, #0A3D2B, #12654A 55%, #1A8A62)', color: '#fff', borderRadius: 999,
-              boxShadow: '0 14px 34px rgba(0,0,0,0.30), 0 0 0 1px rgba(255,255,255,0.08) inset' }}>
-              <button type="button" style={circle} onClick={goPrevMonth} title="Předchozí měsíc (←)">‹</button>
-              {strip.map(t => (
-                <button key={t.o} type="button" onClick={() => { setSelectedYear(t.y); setSelectedMonth(t.m) }}
-                  disabled={t.y < 2026}
-                  style={t.o === 0
-                    ? { border: 'none', background: 'transparent', color: '#fff', fontWeight: 800, fontSize: 14.5, minWidth: 128, padding: '0 6px', cursor: 'default' }
-                    : { border: 'none', background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.80)', fontWeight: 700, fontSize: 11.5, borderRadius: 999, padding: '5px 9px', cursor: t.y < 2026 ? 'default' : 'pointer', opacity: t.y < 2026 ? 0.3 : 1 }}>
-                  {t.o === 0 ? `${MONTHS[t.m]} ${t.y}` : MONTHS[t.m].slice(0, 3)}
-                </button>
-              ))}
-              <button type="button" style={circle} onClick={goNextMonth} title="Další měsíc (→)">›</button>
-              {!isNow && (
-                <button type="button" onClick={() => { setSelectedYear(now.getFullYear()); setSelectedMonth(now.getMonth()) }}
-                  style={{ border: 'none', background: '#4ade80', color: '#0A3D2B', fontWeight: 800, fontSize: 12, borderRadius: 999, padding: '7px 12px', cursor: 'pointer', marginLeft: 2 }}>
-                  Dnes
-                </button>
-              )}
-            </div>
-          )
-        })()}
+        <div style={{ pointerEvents: topSwitchVisible ? 'none' : 'auto' }}>{renderMonthPill(false)}</div>
       </div>
     </div>
   )
