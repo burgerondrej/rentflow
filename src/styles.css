@@ -32,6 +32,14 @@
   --dash-item-bg: rgba(255,255,255,0.8); --dash-item-border: rgba(0,0,0,0.1);
   --dash-inner-bg: #fff; --dash-inner-border: #E2E8F0;
   --dash-cur-bg: #F4FCF6; --dash-cur-border: #4ade80; --dash-cur-badge-bg: #4ade80; --dash-cur-badge-color: #166534; --dash-cur-label: #166534;
+
+  /* Tónovaná tlačítka a boxy (Uhradit / Upravit / Zrušit, souhrny) – bg = tlačítko, soft = podklad boxu */
+  --tone-green-bg: #ffffff; --tone-green-soft: #F0FDF4; --tone-green-border: #86EFAC; --tone-green-text: #166534;
+  --tone-amber-bg: #ffffff; --tone-amber-soft: #FFFBEB; --tone-amber-border: #FCD34D; --tone-amber-text: #B45309;
+  --tone-red-bg:   #ffffff; --tone-red-soft:   #FEF2F2; --tone-red-border:   #FECACA; --tone-red-text:   #991B1B;
+  --tone-blue-bg:  #ffffff; --tone-blue-soft:  #EFF6FF; --tone-blue-border:  #BFDBFE; --tone-blue-text:  #1E40AF;
+  --tone-gray-bg:  #ffffff; --tone-gray-soft:  #F3F4F6; --tone-gray-border:  #D1D5DB; --tone-gray-text:  #4B5563;
+  --tone-violet-bg: #ffffff; --tone-violet-soft: #F5F3FF; --tone-violet-border: #C4B5FD; --tone-violet-text: #5B21B6;
 }
 
 [data-theme='dark'] {
@@ -59,6 +67,13 @@
   --dash-item-bg: rgba(255,255,255,0.04); --dash-item-border: rgba(255,255,255,0.07);
   --dash-inner-bg: rgba(255,255,255,0.03); --dash-inner-border: rgba(255,255,255,0.08);
   --dash-cur-bg: #182420; --dash-cur-border: #1e5c3a; --dash-cur-badge-bg: #1e5c3a; --dash-cur-badge-color: #7ddba8; --dash-cur-label: #7ddba8;
+
+  --tone-green-bg: #182420; --tone-green-soft: #16211c; --tone-green-border: #1e5c3a; --tone-green-text: #7ddba8;
+  --tone-amber-bg: #251e17; --tone-amber-soft: #221b14; --tone-amber-border: #6b4a12; --tone-amber-text: #f5bf8a;
+  --tone-red-bg:   #251c1c; --tone-red-soft:   #221a1a; --tone-red-border:   #5c2626; --tone-red-text:   #f4a0a0;
+  --tone-blue-bg:  #181f28; --tone-blue-soft:  #161c24; --tone-blue-border:  #1e4a6e; --tone-blue-text:  #7ab8e0;
+  --tone-gray-bg:  #262a2d; --tone-gray-soft:  #1e2022; --tone-gray-border:  #3a4047; --tone-gray-text:  #b4bcc4;
+  --tone-violet-bg: #241c30; --tone-violet-soft: #1e1828; --tone-violet-border: #5a2a8e; --tone-violet-text: #c4a8f0;
 }
 
 * { box-sizing: border-box; }
@@ -95,6 +110,14 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .btn-primary { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
 .btn-primary:hover { background: var(--accent) !important; opacity: .88 !important; transform: translateY(-1px); }
 .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+.btn-tone-green { background: var(--tone-green-bg); color: var(--tone-green-text); border-color: var(--tone-green-border); }
+.btn-tone-amber { background: var(--tone-amber-bg); color: var(--tone-amber-text); border-color: var(--tone-amber-border); }
+.btn-tone-red   { background: var(--tone-red-bg);   color: var(--tone-red-text);   border-color: var(--tone-red-border); }
+.btn-tone-blue  { background: var(--tone-blue-bg);  color: var(--tone-blue-text);  border-color: var(--tone-blue-border); }
+.btn-tone-green:hover { background: var(--tone-green-soft); border-color: var(--tone-green-text); }
+.btn-tone-amber:hover { background: var(--tone-amber-soft); border-color: var(--tone-amber-text); }
+.btn-tone-red:hover   { background: var(--tone-red-soft);   border-color: var(--tone-red-text); }
+.btn-tone-blue:hover  { background: var(--tone-blue-soft);  border-color: var(--tone-blue-text); }
 
 /* Badges */
 .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; display: inline-flex; white-space: nowrap; }

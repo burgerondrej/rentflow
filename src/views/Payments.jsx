@@ -558,7 +558,7 @@ export default function Payments() {
   const getDepositStatus = (c, key) => {
     const [yr, mo] = key.split('-').map(Number)
     const payment = getDepositPayment(c.id, key)
-    const expected = getMonthDeposits(c, yr, mo, contracts).deposit
+    const expected = getMonthDeposits(c, yr, mo).deposit
     if (!payment) return { status: 'unpaid', payment: null, remaining: expected }
     if (Number(payment.amount) < expected - 0.01) return { status: 'partial', payment, remaining: expected - Number(payment.amount) }
     return { status: 'paid', payment, remaining: 0 }
@@ -795,7 +795,7 @@ export default function Payments() {
     } else {
       if (isBytovySub(getContractSubject(contract))) {
         const tenant = tenants.find(t => t.id === contract.tenantId)
-        const ev = { ...getEffectiveValues(contract, selectedYear, selectedMonth), ...getMonthDeposits(contract, selectedYear, selectedMonth, contracts) }
+        const ev = { ...getEffectiveValues(contract, selectedYear, selectedMonth), ...getMonthDeposits(contract, selectedYear, selectedMonth) }
         const rentTotal = getMonthRentParking(contract, selectedYear, selectedMonth)
         const depositAmt = ev.deposit
         const existingRent = getPayment(contract.id, monthKey, 'rent')
@@ -1011,7 +1011,6 @@ export default function Payments() {
       // pastMonths = všechny kromě aktuálního (pro "historické dluhy" sekci)
       const pastMonths = allReportMonths.slice(0, -1)
 
-      console.log('[Report] selectedYear:', selectedYear, 'selectedMonth:', selectedMonth)
 
       // Sestavení dat per subjekt
       const subjectData = subjectsWithContracts.map(subName => {
@@ -1399,9 +1398,9 @@ export default function Payments() {
           <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text)' }}>{subExpected.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text3)' }}>Kč</span></div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{selectionLabel(activeSub)} · {monthLabel}</div>
         </div>
-        <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 14, padding: '16px 20px' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Uhrazeno</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#166534' }}>{subReceived.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500 }}>Kč</span></div>
+        <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 14, padding: '16px 20px' }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--tone-green-text)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Uhrazeno</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--tone-green-text)' }}>{subReceived.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500 }}>Kč</span></div>
           <div style={{ fontSize: 11, color: '#4ADE80', marginTop: 4 }}>{subPercent}% z předpisu subjektu</div>
         </div>
         <div style={{ background: subRemaining > 0 ? '#FEF2F2' : '#F0FDF4', border: `1px solid ${subRemaining > 0 ? '#FECACA' : '#BBF7D0'}`, borderRadius: 14, padding: '16px 20px' }}>
@@ -1591,8 +1590,8 @@ export default function Payments() {
                             <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: isPaid ? '#16A34A' : '#DC2626' }}>
                               {(() => {
                                 const isComm = getAssetForContract(members[0])?.type === 'commercial'
-                                const dep  = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth, contracts).deposit, 0)
-                                const depW = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth, contracts).depositWater, 0)
+                                const dep  = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth).deposit, 0)
+                                const depW = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth).depositWater, 0)
                                 if (!isComm || (dep === 0 && depW === 0)) return <span style={{ color: 'var(--text3)', fontWeight: 400 }}>—</span>
                                 return (
                                   <>
@@ -1623,12 +1622,12 @@ export default function Payments() {
                               {isPaid ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                                   {!isReadOnly && (
-                                    <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment: groupPayment, monthLabel: formatMonthKey(monthKey), tenantName: tenant?.name || '' }) }} className="btn btn-sm"
-                                      style={{ background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, minWidth: 'unset', padding: '4px 8px' }}
+                                    <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment: groupPayment, monthLabel: formatMonthKey(monthKey), tenantName: tenant?.name || '' }) }} className="btn btn-sm btn-tone-amber"
+                                      style={{ fontWeight: 700, borderRadius: 8, minWidth: 'unset', padding: '4px 8px' }}
                                       title="Upravit částku">✏️</button>
                                   )}
-                                  <button onClick={handleGroupToggle} className="btn btn-sm"
-                                    style={{ background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
+                                  <button onClick={handleGroupToggle} className="btn btn-sm btn-tone-red"
+                                    style={{ fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
                                     Zrušit
                                   </button>
                                 </div>
@@ -1639,14 +1638,14 @@ export default function Payments() {
                                   </div>
                                   <div style={{ fontSize: 10, color: '#D97706', marginBottom: 4 }}>Zbývá: {(groupTotal - Number(groupPayment.amount)).toLocaleString('cs-CZ')} Kč</div>
                                   {!isReadOnly && (
-                                    <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment: groupPayment, monthLabel: formatMonthKey(monthKey), tenantName: tenant?.name || '' }) }} className="btn btn-sm"
-                                      style={{ background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                    <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment: groupPayment, monthLabel: formatMonthKey(monthKey), tenantName: tenant?.name || '' }) }} className="btn btn-sm btn-tone-amber"
+                                      style={{ fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                       title="Upravit částku">✏️ Upravit</button>
                                   )}
                                 </div>
                               ) : (
-                                <button onClick={handleGroupToggle} className="btn btn-sm"
-                                  style={{ background: '#fff', color: '#166534', borderColor: '#86EFAC', fontWeight: 800, minWidth: 110, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
+                                <button onClick={handleGroupToggle} className="btn btn-sm btn-tone-green"
+                                  style={{ fontWeight: 800, minWidth: 110, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
                                   + Zapsat úhradu
                                 </button>
                               )}
@@ -1662,7 +1661,7 @@ export default function Payments() {
                       const asset    = getAssetForContract(c)
                       const freq     = c.paymentFrequency || 'Měsíčně'
                       const isMultiMonth = freq === 'Čtvrtletně' || freq === 'Pololetně' || freq === 'Ročně'
-                      const ev       = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth, contracts) }
+                      const ev       = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth) }
                       const rs       = isMultiMonth
                         ? { status: isPeriodPaid(c, selectedYear, selectedMonth) ? 'paid' : 'unpaid', payment: getPayment(c.id, monthKey) || null, remaining: effPeriodRent(c) }
                         : getRentStatus(c, monthKey)
@@ -1777,17 +1776,17 @@ export default function Payments() {
                             {isPaid ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                                 {!isReadOnly && (
-                                  <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment, monthLabel: formatMonthKey(monthKey), tenantName: getTenantForContract(c)?.name || '' }) }} className="btn btn-sm"
-                                    style={{ background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, minWidth: 'unset', padding: '4px 8px' }}
+                                  <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment, monthLabel: formatMonthKey(monthKey), tenantName: getTenantForContract(c)?.name || '' }) }} className="btn btn-sm btn-tone-amber"
+                                    style={{ fontWeight: 700, borderRadius: 8, minWidth: 'unset', padding: '4px 8px' }}
                                     title="Upravit nájem">✏️</button>
                                 )}
                                 {!isReadOnly && depPaymentRow && (
-                                  <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment: depPaymentRow, monthLabel: formatMonthKey(monthKey), tenantName: (getTenantForContract(c)?.name || '') + ' (zálohy)' }) }} className="btn btn-sm"
-                                    style={{ background: '#fff', color: '#1E40AF', borderColor: '#BFDBFE', fontWeight: 700, borderRadius: 8, minWidth: 'unset', padding: '4px 8px' }}
+                                  <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment: depPaymentRow, monthLabel: formatMonthKey(monthKey), tenantName: (getTenantForContract(c)?.name || '') + ' (zálohy)' }) }} className="btn btn-sm btn-tone-blue"
+                                    style={{ fontWeight: 700, borderRadius: 8, minWidth: 'unset', padding: '4px 8px' }}
                                     title="Upravit zálohy">✏️💧</button>
                                 )}
-                                <button onClick={(e) => handleToggle(e, c, payment)} className="btn btn-sm"
-                                  style={{ background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
+                                <button onClick={(e) => handleToggle(e, c, payment)} className="btn btn-sm btn-tone-red"
+                                  style={{ fontWeight: 800, minWidth: 96, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
                                   Zrušit
                                 </button>
                               </div>
@@ -1798,14 +1797,14 @@ export default function Payments() {
                                 </div>
                                 <div style={{ fontSize: 10, color: '#D97706', marginBottom: 4 }}>Zbývá: {remaining.toLocaleString('cs-CZ')} Kč</div>
                                 {!isReadOnly && (
-                                  <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment, monthLabel: formatMonthKey(monthKey), tenantName: getTenantForContract(c)?.name || '' }) }} className="btn btn-sm"
-                                    style={{ background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                  <button onClick={(e) => { e.stopPropagation(); setEditAmountModal({ payment, monthLabel: formatMonthKey(monthKey), tenantName: getTenantForContract(c)?.name || '' }) }} className="btn btn-sm btn-tone-amber"
+                                    style={{ fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                     title="Upravit částku">✏️ Upravit</button>
                                 )}
                               </div>
                             ) : (
-                              <button onClick={(e) => handleToggle(e, c, payment)} className="btn btn-sm"
-                                style={{ background: '#fff', color: '#166534', borderColor: '#86EFAC', fontWeight: 800, minWidth: 110, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
+                              <button onClick={(e) => handleToggle(e, c, payment)} className="btn btn-sm btn-tone-green"
+                                style={{ fontWeight: 800, minWidth: 110, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
                                 + Zapsat úhradu
                               </button>
                             )}
@@ -1839,9 +1838,9 @@ export default function Payments() {
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ background: '#F0FDF4', padding: '14px 16px', borderRadius: 12, border: '1px solid #BBF7D0' }}>
-                  <div style={{ fontSize: 10, color: '#166534', textTransform: 'uppercase', fontWeight: 800, marginBottom: 4 }}>Uhrazeno</div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: '#166534' }}>{subReceived.toLocaleString('cs-CZ')} Kč</div>
+                <div style={{ background: 'var(--tone-green-soft)', padding: '14px 16px', borderRadius: 12, border: '1px solid var(--tone-green-border)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--tone-green-text)', textTransform: 'uppercase', fontWeight: 800, marginBottom: 4 }}>Uhrazeno</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--tone-green-text)' }}>{subReceived.toLocaleString('cs-CZ')} Kč</div>
                 </div>
                 <div style={{ background: subRemaining > 0 ? '#FEF2F2' : '#F0FDF4', padding: '14px 16px', borderRadius: 12, border: subRemaining > 0 ? '1px solid #FECACA' : '1px solid #BBF7D0' }}>
                   <div style={{ fontSize: 10, color: subRemaining > 0 ? '#991B1B' : '#166534', textTransform: 'uppercase', fontWeight: 800, marginBottom: 4 }}>Dosud neuhrazeno</div>
@@ -1927,9 +1926,9 @@ export default function Payments() {
             </span>
           </div>
           {debtors.length === 0 ? (
-            <div style={{ padding: 60, textAlign: 'center', background: '#F0FDF4', borderRadius: 16, border: '1px solid #BBF7D0' }}>
+            <div style={{ padding: 60, textAlign: 'center', background: 'var(--tone-green-soft)', borderRadius: 16, border: '1px solid var(--tone-green-border)' }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>🎉</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#166534' }}>Všichni zaplatili!</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--tone-green-text)' }}>Všichni zaplatili!</div>
               <div style={{ fontSize: 13, color: '#4ADE80', marginTop: 4 }}>Za {monthLabel} je vše uhrazeno napříč celým portfoliem.</div>
             </div>
           ) : (
@@ -2001,7 +2000,7 @@ export default function Payments() {
         const history = contractHistory(c.id)
         const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️' }
         const isResidential = asset?.type === 'residential'
-        const ev            = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth, contracts) }
+        const ev            = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth) }
         const rentTotal     = getMonthRentParking(c, selectedYear, selectedMonth)
         const depositAmt    = ev.deposit
         const rentPayment    = getPayment(c.id, monthKey, 'rent') || (!isResidential && getPayment(c.id, monthKey))
@@ -2066,9 +2065,9 @@ export default function Payments() {
                           )}
                           {!isReadOnly && (
                             <div style={{ display: 'flex', gap: 6 }}>
-                              <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                              <button className="btn btn-sm btn-tone-amber" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                 onClick={() => setEditAmountModal({ payment: rentPayment, monthLabel: monthLabel, tenantName: tenant?.name || '' })}>✏️ Upravit</button>
-                              <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                              <button className="btn btn-sm btn-tone-red" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                 onClick={() => deletePayment(rentPayment.id)}>Zrušit</button>
                             </div>
                           )}
@@ -2106,9 +2105,9 @@ export default function Payments() {
                             )}
                             {!isReadOnly && (
                               <div style={{ display: 'flex', gap: 6 }}>
-                                <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                <button className="btn btn-sm btn-tone-amber" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                   onClick={() => setEditAmountModal({ payment: depositPayment, monthLabel: monthLabel, tenantName: tenant?.name || '' })}>✏️ Upravit</button>
-                                <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                <button className="btn btn-sm btn-tone-red" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                   onClick={() => deletePayment(depositPayment.id)}>Zrušit</button>
                               </div>
                             )}
@@ -2158,9 +2157,9 @@ export default function Payments() {
                               )}
                               {!isReadOnly && (
                                 <div style={{ display: 'flex', gap: 6 }}>
-                                  <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                  <button className="btn btn-sm btn-tone-amber" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                     onClick={() => setEditAmountModal({ payment: commPayment, monthLabel: monthLabel, tenantName: tenant?.name || '' })}>✏️ Upravit</button>
-                                  <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                  <button className="btn btn-sm btn-tone-red" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                     onClick={() => deletePayment(commPayment.id)}>Zrušit</button>
                                 </div>
                               )}
@@ -2199,9 +2198,9 @@ export default function Payments() {
                                 )}
                                 {!isReadOnly && (
                                   <div style={{ display: 'flex', gap: 6 }}>
-                                    <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#D97706', borderColor: '#FCD34D', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                    <button className="btn btn-sm btn-tone-amber" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                       onClick={() => setEditAmountModal({ payment: commDepPayment, monthLabel: monthLabel, tenantName: (tenant?.name || '') + ' (zálohy)' })}>✏️ Upravit</button>
-                                    <button className="btn btn-sm" style={{ flex: 1, background: '#fff', color: '#991B1B', borderColor: '#FECACA', fontWeight: 700, borderRadius: 8, fontSize: 11 }}
+                                    <button className="btn btn-sm btn-tone-red" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                       onClick={() => deletePayment(commDepPayment.id)}>Zrušit</button>
                                   </div>
                                 )}
@@ -2242,10 +2241,10 @@ export default function Payments() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {history.map(p => (
-                      <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 13px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 9 }}>
+                      <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 13px', background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 9 }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>{formatMonthKey(p.month)}</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-green-text)' }}>{formatMonthKey(p.month)}</div>
                             {p.paymentType === 'deposit' && (
                               <span style={{ fontSize: 10, background: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>zálohy</span>
                             )}
@@ -2260,7 +2259,7 @@ export default function Payments() {
                           {!isReadOnly && (
                             <button
                               onClick={() => setEditAmountModal({ payment: p, monthLabel: formatMonthKey(p.month), tenantName: tenant?.name || '' })}
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, border: '1px solid #BBF7D0', background: '#fff', cursor: 'pointer', color: '#166534', fontSize: 12, flexShrink: 0 }}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, border: '1px solid var(--tone-green-border)', background: 'var(--tone-green-bg)', cursor: 'pointer', color: 'var(--tone-green-text)', fontSize: 12, flexShrink: 0 }}
                               title="Upravit částku"
                             >✏️</button>
                           )}

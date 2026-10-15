@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { FirmPicker } from '../FirmUI.jsx'
-import { selectionMatches, contractSubject } from '../utils.js'
+import { selectionMatches, contractSubject, isContractOccupying } from '../utils.js'
+import { StatusPill, contractStatus } from '../StatusUI.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
@@ -385,8 +386,7 @@ export function Docs() {
                   const contractKey = c.id
                   const contractCollapsed = collapsedContracts.has(contractKey)
                   const label = formatContractLabel(c)
-                  const statusColor = c.status === 'active' ? '#16A34A' : c.status === 'expired' ? '#DC2626' : '#D97706'
-                  const statusLabel = c.status === 'active' ? 'aktivní' : c.status === 'expired' ? 'vypršela' : c.status
+                  const st = contractStatus(c)
 
                   return (
                     <div key={c.id} style={{ borderTop: '1px solid var(--border)' }}>
@@ -402,7 +402,7 @@ export function Docs() {
                       >
                         <span style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1 }}>{contractCollapsed ? '▶' : '▼'}</span>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1 }}>📄 {label}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: statusColor, background: statusColor + '18', padding: '2px 7px', borderRadius: 10 }}>{statusLabel}</span>
+                        <StatusPill kind={st.kind} text={st.text} size="sm" />
                         <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>{docs.length} {docs.length === 1 ? 'soubor' : docs.length < 5 ? 'soubory' : 'souborů'}</span>
                       </button>
 
@@ -582,8 +582,8 @@ export function Alerts() {
   // Sběr všech upozornění do jednoho pole
   const alertsList = []
 
-  // A) KONČÍCÍ SMLOUVY (méně než 60 dnů)
-  contracts.filter(c => c.status === 'active').forEach(c => {
+  // A) KONČÍCÍ SMLOUVY (méně než 60 dnů) – platné vč. ukončených s budoucím koncem
+  contracts.filter(c => isContractOccupying(c)).forEach(c => {
     const d = parseDate(c.end)
     if (d) {
       const diff = Math.round((d - today) / (1000 * 60 * 60 * 24))

@@ -246,9 +246,8 @@ export function getMonthRent(c, year, month) {
 /**
  * Zálohy (energie, voda) za měsíc – nekrátí se, hodnota k 1. dni měsíce.
  * V měsíci předávky platí plné zálohy odcházející i nový nájemce (krátí se jen nájem + parking).
- * allContracts se nepoužívá (zachováno kvůli volajícím).
  */
-export function getMonthDeposits(c, year, month, allContracts = []) {
+export function getMonthDeposits(c, year, month) {
   const v = getEffectiveValues(c, year, month)
   return { deposit: v.deposit, depositWater: v.depositWater }
 }

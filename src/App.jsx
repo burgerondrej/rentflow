@@ -19,7 +19,7 @@ import SettingsPanel from './SettingsPanel.jsx'
 import UpdateDialog from './UpdateDialog.jsx'
 import ActivationScreen from './ActivationScreen.jsx'
 import { FirmPickerButton, FirmBadge } from './FirmUI.jsx'
-import { contractSubject, selectionMatches, parseDate } from './utils.js'
+import { contractSubject, selectionMatches, parseDate, isContractOccupying } from './utils.js'
 import { invoke } from '@tauri-apps/api/tauri'
 
 function AppWithActivation() {
@@ -176,7 +176,7 @@ function AppInner() {
     // Hledání v nájemnících (jméno, email, ico)
     tenants.forEach(t => {
       if ((t.name && t.name.toLowerCase().includes(q)) || (t.email && t.email.toLowerCase().includes(q)) || (t.ico && t.ico.includes(q))) {
-        const tFirms = [...new Set(contracts.filter(c => c.tenantId === t.id && c.status === 'active').map(c => getFirm && getFirm(contractSubject(c, assets))).filter(Boolean))]
+        const tFirms = [...new Set(contracts.filter(c => c.tenantId === t.id && isContractOccupying(c)).map(c => getFirm && getFirm(contractSubject(c, assets))).filter(Boolean))]
         results.push({ id: t.id, type: 'tenant', label: 'Nájemce', text: t.name, firms: tFirms })
       }
     })
@@ -356,11 +356,11 @@ function AppInner() {
               onChange={setSubject}
               sections={subjects.filter(s => assets.some(a => a.subject === s) || contracts.some(c => contractSubject(c, assets) === s))}
               getStat={(sel) => {
-                // Aktivní smlouvy ve výběru + kolik z nich končí do 60 dní
+                // Platné smlouvy ve výběru + kolik z nich končí do 60 dní
                 const today = new Date(); today.setHours(0, 0, 0, 0)
-                const act = contracts.filter(c => c.status === 'active' && selectionMatches(sel, contractSubject(c, assets)))
+                const act = contracts.filter(c => isContractOccupying(c) && selectionMatches(sel, contractSubject(c, assets)))
                 const ending = act.filter(c => { const e = parseDate(c.end); return e && e >= today && (e - today) / 86400000 <= 60 }).length
-                return { count: `${act.length} sml.`, text: ending > 0 ? `${ending} brzy končí` : `${act.length} aktivních smluv`, tone: ending > 0 ? 'warn' : 'muted' }
+                return { count: `${act.length} sml.`, text: ending > 0 ? `${ending} brzy končí` : `${act.length} platných smluv`, tone: ending > 0 ? 'warn' : 'muted' }
               }}
             />
           </div>

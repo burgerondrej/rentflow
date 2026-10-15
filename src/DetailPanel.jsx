@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, assetTypeStyle, parseDate, overdueDays } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
@@ -449,7 +449,11 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const renderTenant = () => {
     const t = tenants.find(x => x.id === id)
     if (!t) return <div style={{ padding: '24px 32px' }}>Nájemce nenalezen.</div>
-    const activeContracts = contracts.filter(c => c.tenantId === id && c.status === 'active')
+    // Platné smlouvy (aktivní + ukončené s budoucím koncem)
+    const activeContracts = contracts.filter(c => c.tenantId === id && isContractOccupying(c))
+    // Smlouvy účtované v aktuálním měsíci (vč. ukončené v tomto měsíci, bez smluv začínajících později)
+    const nowT = new Date()
+    const monthContracts = contracts.filter(c => c.tenantId === id && isContractBillable(c) && isContractInMonth(c, nowT.getFullYear(), nowT.getMonth()))
 
     let defaultSubject = billingGroups.find(g => !g.isVatPayer)?.val || ''
     if (activeContracts.length > 0) {
@@ -607,7 +611,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           const y = now.getFullYear(), m = now.getMonth(), key = `${y}-${m}`
           let unpaid = 0, overdue = 0
           const seenG = new Set()
-          activeContracts.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
+          monthContracts.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
             let paid
             if (c.groupLabel) {
               if (seenG.has(c.groupLabel)) return
@@ -638,7 +642,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                   <div style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>{isCompany ? `Firma${t.ico ? ` · IČ ${t.ico}` : ''}` : t.tenantType ? 'Fyzická osoba' : 'Nájemce'}</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
                 </div>
-                <StatusPill kind={activeContracts.length ? 'active' : 'ended'} text={activeContracts.length ? `${activeContracts.length} ${activeContracts.length === 1 ? 'aktivní smlouva' : activeContracts.length < 5 ? 'aktivní smlouvy' : 'aktivních smluv'}` : 'Bez aktivní smlouvy'} style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }} />
+                <StatusPill kind={activeContracts.length ? 'active' : 'ended'} text={activeContracts.length ? `${activeContracts.length} ${activeContracts.length === 1 ? 'platná smlouva' : activeContracts.length < 5 ? 'platné smlouvy' : 'platných smluv'}` : 'Bez platné smlouvy'} style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }} />
                 {!isReadOnly && (
                   <button onClick={handleEditClick} style={{ background: '#fff', color: '#12654A', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
                 )}
@@ -646,7 +650,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
                 {kv('Telefon', t.phone || '—')}
                 {kv('E-mail', t.email || '—')}
-                {kv('Tento měsíc', unpaid ? `✕ ${unpaid} neuhrazeno` : activeContracts.length ? '✓ Vše uhrazeno' : '—', unpaid ? '#DC2626' : activeContracts.length ? '#16A34A' : null)}
+                {kv('Tento měsíc', unpaid ? `✕ ${unpaid} neuhrazeno` : monthContracts.length ? '✓ Vše uhrazeno' : '—', unpaid ? '#DC2626' : monthContracts.length ? '#16A34A' : null)}
                 {kv('Po splatnosti', overdue ? `⚠ ${overdue}` : '0', overdue ? '#DC2626' : null)}
               </div>
               {/* Záložky – neaktivní tmavý text na světlém, aktivní bílý text na zelené */}
@@ -740,7 +744,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           const y = now.getFullYear(), m = now.getMonth(), key = `${y}-${m}`
           const items = []
           const seenG = new Set()
-          activeContracts.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
+          monthContracts.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
             const subj = contractSubject(c, assets)
             if (c.groupLabel) {
               if (seenG.has(c.groupLabel)) return
@@ -819,7 +823,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {tenantTab === 'contracts' && (
         <div className="card">
           <div className="card-body">
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 12 }}>Aktivní smlouvy ({activeContracts.length})</div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 12 }}>Platné smlouvy ({activeContracts.length})</div>
             {activeContracts.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <FirmRentSummary rows={tenantRentsByFirm(activeContracts, assets, firms)} large />
@@ -2750,8 +2754,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const getSubtitle = () => {
     if (type === 'tenant') {
       const t = tenants.find(x => x.id === id)
-      const ac = contracts.filter(c => c.tenantId === id && c.status === 'active')
-      return ac.length > 0 ? `${ac.length} aktivní smlouva` : 'Žádná aktivní smlouva'
+      const ac = contracts.filter(c => c.tenantId === id && isContractOccupying(c))
+      return ac.length > 0 ? `${ac.length} ${ac.length === 1 ? 'platná smlouva' : ac.length < 5 ? 'platné smlouvy' : 'platných smluv'}` : 'Žádná platná smlouva'
     }
     if (type === 'asset') {
       const a = assets.find(x => x.id === id); return a?.subject || ''

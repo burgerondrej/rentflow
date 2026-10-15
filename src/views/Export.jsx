@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import { save } from '@tauri-apps/api/dialog'
-import { getEffectiveValuesToday } from '../utils.js'
+import { getEffectiveValuesToday, getEffectiveValues, getMonthRentParking, getMonthDeposits, isContractBillable, isContractInMonth, isContractOccupying, parseDate, PERIOD_LEN } from '../utils.js'
 import { FirmPickerButton } from '../FirmUI.jsx'
 import { contractSubject, selectionMatches, selectionLabel, firmColors } from '../utils.js'
 
@@ -55,7 +55,7 @@ function firmChip(f) {
 }
 
 function fmtCzk(v) {
-  return Number(v || 0).toLocaleString('cs-CZ') + ' Kč'
+  return Math.round(Number(v || 0)).toLocaleString('cs-CZ') + ' Kč'
 }
 
 function today() {
@@ -71,6 +71,14 @@ function daysLeft(dateStr) {
   return diff
 }
 
+// Aktuální částky smlouvy přepočtené na měsíc (čtvrtletní/pololetní/roční smlouvy mají v DB částku za období)
+function monthlyToday(c) {
+  const ev = getEffectiveValuesToday(c)
+  const n = PERIOD_LEN[c.paymentFrequency] || 1
+  const rent = ev.rent / n, parking = ev.parking / n, flatFee = ev.flatFee / n
+  return { ...ev, rent, parking, flatFee, total: rent + parking + flatFee }
+}
+
 function urgencyClass(days) {
   if (days === null) return ''
   if (days <= 30) return 'badge badge-red'
@@ -81,7 +89,8 @@ function urgencyClass(days) {
 // ── GENERÁTORY HTML ──────────────────────────────────────────────────────────
 
 function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjectOrder, fi) {
-  const activeContracts = contracts.filter(c => c.status === 'active')
+  // Platné smlouvy (aktivní + ukončené s budoucím koncem)
+  const activeContracts = contracts.filter(c => isContractOccupying(c))
   // Výběr: vše / firma ("Vše") / sekce – vždy podle skutečného pronajímatele smlouvy
   const subjects = subjectOrder.filter(s => selectionMatches(subjectFilter, s))
 
@@ -92,10 +101,7 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
     const subjectContracts = activeContracts.filter(c => contractSubject(c, assets) === subject)
     if (subjectContracts.length === 0) return
 
-    const subTotal = subjectContracts.reduce((s, c) => {
-      const ev = getEffectiveValuesToday(c)
-      return s + ev.rent + ev.parking + ev.flatFee
-    }, 0)
+    const subTotal = subjectContracts.reduce((s, c) => s + monthlyToday(c).total, 0)
     const f = fi(subject)
     const fk = f ? f.name : subject
     firmTotals[fk] = { f, total: (firmTotals[fk]?.total || 0) + subTotal }
@@ -103,11 +109,11 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
     const rows = subjectContracts.map(c => {
       const a = assets.find(x => x.id === c.assetId)
       const t = tenants.find(x => x.id === c.tenantId)
-      const ev = getEffectiveValuesToday(c)
+      const ev = monthlyToday(c)
       const days = daysLeft(c.end)
       const daysText = days === null ? '∞' : days <= 0 ? 'Vypršela' : `${days} dní`
       const daysBadge = days !== null && days <= 90 ? 'badge badge-red' : 'badge badge-green'
-      const total = ev.rent + ev.parking + ev.flatFee
+      const total = ev.total
       return `<tr>
         <td>${a?.unit || '—'}</td>
         <td>${t?.name || '—'}</td>
@@ -151,7 +157,7 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
       <div>
         <div class="header-title">RentFlow</div>
         <div style="font-size:18px;font-weight:700;color:#1a1a1a;margin-top:4px">${title}</div>
-        <div class="header-sub">Aktivní smlouvy · Vygenerováno ${today()}</div>
+        <div class="header-sub">Platné smlouvy · částky přepočtené na měsíc · Vygenerováno ${today()}</div>
       </div>
       <div class="header-date" style="text-align:right">${firmBoxes}</div>
     </div>
@@ -165,13 +171,8 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
 
 function genTenantCard(tenant, contracts, assets, fi) {
   const tenantContracts = contracts.filter(c => c.tenantId === tenant.id)
-  const activeContracts = tenantContracts.filter(c => c.status === 'active')
-  const archivedContracts = tenantContracts.filter(c => c.status !== 'active')
-
-  const totalMonthly = activeContracts.reduce((s, c) => {
-    const ev = getEffectiveValuesToday(c)
-    return s + ev.rent + ev.parking + ev.flatFee
-  }, 0)
+  const activeContracts = tenantContracts.filter(c => isContractOccupying(c))
+  const archivedContracts = tenantContracts.filter(c => !isContractOccupying(c))
 
   const contractCard = (c, isActive) => {
     const a = assets.find(x => x.id === c.assetId)
@@ -180,7 +181,7 @@ function genTenantCard(tenant, contracts, assets, fi) {
     return `
       <div class="card" style="${isActive ? '' : 'opacity:0.65'}">
         <div class="card-header">${firmChip(fi(contractSubject(c, assets)))}${a?.unit || '—'} <span style="font-size:11px;font-weight:500;color:#666">${contractSubject(c, assets)}</span>
-          ${isActive ? '<span class="badge badge-green" style="float:right">Aktivní</span>' : '<span class="badge badge-gray" style="float:right">Ukončena</span>'}
+          ${isActive ? (c.status === 'archived' ? `<span class="badge badge-orange" style="float:right">Končí ${c.end}</span>` : '<span class="badge badge-green" style="float:right">Aktivní</span>') : '<span class="badge badge-gray" style="float:right">Ukončena</span>'}
         </div>
         <div class="row"><span class="label">Platnost</span><span class="value">${c.start || '—'} → ${c.end || 'Neurčito'}</span></div>
         <div class="row"><span class="label">Nájemné</span><span class="value">${fmtCzk(ev.rent)}</span></div>
@@ -211,9 +212,8 @@ function genTenantCard(tenant, contracts, assets, fi) {
           activeContracts.forEach(c => {
             const f = fi(contractSubject(c, assets))
             const k = f ? f.name : '—'
-            const ev = getEffectiveValuesToday(c)
             byFirm[k] = byFirm[k] || { f, total: 0 }
-            byFirm[k].total += ev.rent + ev.parking + ev.flatFee
+            byFirm[k].total += monthlyToday(c).total
           })
           return Object.values(byFirm).map(({ f, total }) => `<div class="summary-box" style="${f ? `background:${f.bg};border-color:${f.mid}` : ''}">
           <div class="summary-label" style="${f ? `color:${f.txt}` : ''}">${firmChip(f)}${f ? f.name : ''} · nájemné / měsíc</div>
@@ -257,7 +257,8 @@ function genTenantCard(tenant, contracts, assets, fi) {
 }
 
 function genExpirationReport(contracts, assets, tenants, fi) {
-  const active = contracts.filter(c => c.status === 'active')
+  // Platné smlouvy vč. ukončených k budoucímu datu (jejich konec je právě ten termín)
+  const active = contracts.filter(c => isContractOccupying(c))
   const enriched = active.map(c => ({
     ...c,
     days: daysLeft(c.end),
@@ -275,8 +276,7 @@ function genExpirationReport(contracts, assets, tenants, fi) {
   const sectionsHtml = groups.map(g => {
     if (g.items.length === 0) return ''
     const rows = g.items.map(c => {
-      const ev = getEffectiveValuesToday(c)
-      const total = ev.rent + ev.parking + ev.flatFee
+      const total = monthlyToday(c).total
       return `<tr>
       <td>${c.asset?.unit || '—'}</td>
       <td>${firmChip(fi(contractSubject(c, assets)))}${contractSubject(c, assets) || '—'}</td>
@@ -318,9 +318,29 @@ function genExpirationReport(contracts, assets, tenants, fi) {
 }
 
 function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrder, fi) {
-  const active = contracts.filter(c => c.status === 'active')
+  // Výběr smluv jako v Platbách: účtovatelné a platné aspoň jeden den v aktuálním měsíci
+  const now = new Date(), yr = now.getFullYear(), mo = now.getMonth()
+  const dim = new Date(yr, mo + 1, 0).getDate()
+  const active = contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' && isContractInMonth(c, yr, mo))
   // Filtr a řazení podle skutečného pronajímatele smlouvy (ne podle subjektu předmětu)
   const filtered = active.filter(c => selectionMatches(subjectFilter, contractSubject(c, assets)))
+
+  // Předpis za měsíc: nájem + parking poměrně podle dní (getMonthRentParking), paušál a zálohy celé;
+  // víceměsíční smlouvy přepočtené na měsíc. Rozdělení nájem / parking jen pro zobrazení.
+  const mv = (c) => {
+    const n = PERIOD_LEN[c.paymentFrequency] || 1
+    const ev = getEffectiveValues(c, yr, mo)
+    const rp = getMonthRentParking(c, yr, mo)
+    const base = ev.rent + ev.parking
+    const parking = base > 0 ? Math.round(rp * ev.parking / base) : 0
+    const d = getMonthDeposits(c, yr, mo)
+    const rent = (rp - parking) / n, pk = parking / n, flatFee = ev.flatFee / n
+    const s = parseDate(c.start), e = parseDate(c.end)
+    const from = s && s.getFullYear() === yr && s.getMonth() === mo && s.getDate() > 1 ? s.getDate() : null
+    const to = e && e.getFullYear() === yr && e.getMonth() === mo && e.getDate() < dim ? e.getDate() : null
+    const note = n === 1 && (from || to) ? `poměrně ${from ? `od ${from}. ${mo + 1}.` : ''}${from && to ? ' ' : ''}${to ? `do ${to}. ${mo + 1}.` : ''}` : ''
+    return { rent, parking: pk, flatFee, deposit: d.deposit + d.depositWater, total: rent + pk + flatFee, note }
+  }
 
   const sorted = [...filtered].sort((a, b) => {
     const sa = contractSubject(a, assets)
@@ -332,31 +352,26 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
   sorted.forEach(c => {
     const f = fi(contractSubject(c, assets))
     const k = f ? f.name : '—'
-    const ev = getEffectiveValuesToday(c)
-    firmSums[k] = firmSums[k] || { f, rent: 0, flat: 0, dep: 0, total: 0 }
-    firmSums[k].rent += ev.rent + ev.parking
+    const ev = mv(c)
+    firmSums[k] = firmSums[k] || { f, rent: 0, parking: 0, flat: 0, dep: 0, total: 0 }
+    firmSums[k].rent += ev.rent
+    firmSums[k].parking += ev.parking
     firmSums[k].flat += ev.flatFee
     firmSums[k].dep += ev.deposit
-    firmSums[k].total += ev.rent + ev.parking + ev.flatFee
+    firmSums[k].total += ev.total
   })
 
-  const totalRent = sorted.reduce((s, c) => { const ev = getEffectiveValuesToday(c); return s + ev.rent + ev.parking + ev.flatFee }, 0)
-  const totalParking = 0  // zahrnut v totalRent
-  const totalDeposit = sorted.reduce((s, c) => { const ev = getEffectiveValuesToday(c); return s + ev.deposit }, 0)
-  const totalFlatFee = sorted.reduce((s, c) => { const ev = getEffectiveValuesToday(c); return s + ev.flatFee }, 0)
-  const totalAll = totalRent + totalParking
-
-  const month = new Date().toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' })
+  const month = now.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' })
 
   const rows = sorted.map(c => {
     const a = assets.find(x => x.id === c.assetId)
     const t = tenants.find(x => x.id === c.tenantId)
-    const ev = getEffectiveValuesToday(c)
-    const total = ev.rent + ev.parking + ev.flatFee
+    const ev = mv(c)
+    const total = ev.total
     return `<tr>
       <td>${firmChip(fi(contractSubject(c, assets)))}${contractSubject(c, assets) || '—'}</td>
       <td>${a?.unit || '—'}</td>
-      <td>${t?.name || '—'}</td>
+      <td>${t?.name || '—'}${ev.note ? `<div style="font-size:10px;color:#92400E">${ev.note}</div>` : ''}</td>
       <td class="amount">${fmtCzk(ev.rent)}</td>
       <td class="amount">${ev.parking > 0 ? fmtCzk(ev.parking) : '—'}</td>
       <td class="amount">${ev.flatFee > 0 ? fmtCzk(ev.flatFee) : '—'}</td>
@@ -376,15 +391,12 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
         <div style="font-size:18px;font-weight:700;color:#1a1a1a;margin-top:4px">${title}</div>
         <div class="header-sub">${month.charAt(0).toUpperCase()+month.slice(1)} · Vygenerováno ${today()}</div>
       </div>
-      <div>
-        <div class="summary-box">
-          <div class="summary-label">Nájemné celkem</div>
-          <div class="summary-value">${fmtCzk(totalAll)}</div>
-        </div>
-        ${totalDeposit > 0 ? `<div class="summary-box">
-          <div class="summary-label">Zálohy energií</div>
-          <div class="summary-value">${fmtCzk(totalDeposit)}</div>
-        </div>` : ''}
+      <div style="text-align:right">
+        ${Object.values(firmSums).map(s => `<div class="summary-box" style="${s.f ? `background:${s.f.bg};border-color:${s.f.mid}` : ''}">
+          <div class="summary-label" style="${s.f ? `color:${s.f.txt}` : ''}">${firmChip(s.f)}${s.f ? s.f.name : ''} · předpis</div>
+          <div class="summary-value" style="${s.f ? `color:${s.f.mid}` : ''}">${fmtCzk(Math.round(s.total))}</div>
+          ${s.dep > 0 ? `<div style="font-size:10px;color:#666;margin-top:2px">+ zálohy ${fmtCzk(Math.round(s.dep))}</div>` : ''}
+        </div>`).join('')}
       </div>
     </div>
     <div class="section">
@@ -397,17 +409,10 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
         <tbody>${rows}</tbody>
         <tfoot>${Object.values(firmSums).map(s => `<tr style="font-weight:700;background:${s.f ? s.f.bg : '#F8F8F8'}">
           <td colspan="3" style="padding:8px 10px;${s.f ? `color:${s.f.txt};box-shadow:inset 5px 0 0 ${s.f.mid}` : ''}">${firmChip(s.f)}Součet ${s.f ? s.f.name : ''}</td>
-          <td class="amount">${fmtCzk(s.rent)}</td><td class="amount">—</td>
-          <td class="amount">${fmtCzk(s.flat)}</td><td class="amount">${fmtCzk(s.dep)}</td>
-          <td class="amount" style="${s.f ? `color:${s.f.mid}` : ''}">${fmtCzk(s.total)}</td>
-        </tr>`).join('')}<tr style="background:#F0FDF4;font-weight:700">
-          <td colspan="3" style="padding:10px">SOUČET (všechny vybrané)</td>
-          <td class="amount">${fmtCzk(totalRent - totalFlatFee)}</td>
-          <td class="amount">${fmtCzk(totalParking)}</td>
-          <td class="amount">${fmtCzk(totalFlatFee)}</td>
-          <td class="amount">${fmtCzk(totalDeposit)}</td>
-          <td class="amount" style="color:#12654A;font-size:14px">${fmtCzk(totalAll)}</td>
-        </tr></tfoot>
+          <td class="amount">${fmtCzk(Math.round(s.rent))}</td><td class="amount">${fmtCzk(Math.round(s.parking))}</td>
+          <td class="amount">${fmtCzk(Math.round(s.flat))}</td><td class="amount">${fmtCzk(Math.round(s.dep))}</td>
+          <td class="amount" style="${s.f ? `color:${s.f.mid}` : ''}">${fmtCzk(Math.round(s.total))}</td>
+        </tr>`).join('')}</tfoot>
       </table>
     </div>
     <div class="footer">
@@ -548,8 +553,8 @@ export default function Export() {
             <FirmPickerButton
               value={subjectFilter}
               onChange={setSubjectFilter}
-              sections={subjects.filter(s => contracts.some(c => c.status === 'active' && contractSubject(c, assets) === s))}
-              getStat={(sel) => { const n = contracts.filter(c => c.status === 'active' && selectionMatches(sel, contractSubject(c, assets))).length; return { count: `${n} sml.`, text: `${n} aktivních smluv`, tone: 'muted' } }}
+              sections={subjects.filter(s => contracts.some(c => isContractOccupying(c) && contractSubject(c, assets) === s))}
+              getStat={(sel) => { const n = contracts.filter(c => isContractOccupying(c) && selectionMatches(sel, contractSubject(c, assets))).length; return { count: `${n} sml.`, text: `${n} platných smluv`, tone: 'muted' } }}
             />
           </div>
         )}
@@ -576,7 +581,7 @@ export default function Export() {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Co bude v exportu</div>
           {activeType === 'portfolio' && (
             <ul style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 2, paddingLeft: 18 }}>
-              <li>Seznam aktivních smluv dle {subjectFilter === 'all' ? 'všech firem' : selectionLabel(subjectFilter)}</li>
+              <li>Seznam platných smluv dle {subjectFilter === 'all' ? 'všech firem' : selectionLabel(subjectFilter)}</li>
               <li>Nájemce, předmět nájmu, platnost smlouvy, zbývající dny</li>
               <li>Nájemné, parkovné, celková měsíční částka</li>
               <li>Součty dle subjektu + celkové portfolio</li>
@@ -599,9 +604,9 @@ export default function Export() {
           )}
           {activeType === 'monthly' && (
             <ul style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 2, paddingLeft: 18 }}>
-              <li>Předpis nájemného pro aktuální měsíc</li>
-              <li>Nájemné + parkovné + zálohy energií zvlášť</li>
-              <li>Součty dle subjektu + celkové portfolio</li>
+              <li>Předpis nájemného pro aktuální měsíc (vč. smluv končících / začínajících v měsíci, poměrně podle dní)</li>
+              <li>Nájemné + parkovné + paušál + zálohy zvlášť</li>
+              <li>Součty striktně po firmách</li>
               <li>Podklady pro účetní nebo daňové přiznání</li>
             </ul>
           )}

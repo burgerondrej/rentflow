@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import TenantForm from '../TenantForm.jsx'
-import { firmOf, tenantRentsByFirm } from '../utils.js'
+import { firmOf, tenantRentsByFirm, isContractOccupying } from '../utils.js'
 import { FirmRentSummary } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
 
@@ -108,7 +108,7 @@ export default function Tenants({ onOpen }) {
       if (words.length === 0) return '??'
       return ((words[0][0] || '') + (words[1]?.[0] || words[0][1] || '')).toUpperCase()
     })()
-    const activeContracts = contracts.filter(c => c.tenantId === t.id && c.status === 'active')
+    const activeContracts = contracts.filter(c => c.tenantId === t.id && isContractOccupying(c))
     const hasActive = activeContracts.length > 0
     // Měsíční nájem STRIKTNĚ po firmách (pronajímatelích)
     const firmRents = tenantRentsByFirm(activeContracts, assets, firms)
@@ -411,17 +411,17 @@ export default function Tenants({ onOpen }) {
       {!search && filtered.length > 0 && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
           {[
-            { label: 'Celkem nájemníků', value: filtered.length, color: '#12654A', bg: '#F0FDF4', border: '#BBF7D0', icon: '🧑‍💼' },
-            { label: 'Firmy', value: companies.length, color: '#3730a3', bg: '#EEF2FF', border: '#C7D2FE', icon: '🏢' },
-            { label: 'Fyzické osoby', value: persons.length, color: '#0369a1', bg: '#F0F9FF', border: '#BAE6FD', icon: '👤' },
-            { label: 'S aktivní smlouvou', value: filtered.filter(t => contracts.some(c => c.tenantId === t.id && c.status === 'active')).length, color: '#166534', bg: '#DCFCE7', border: '#86EFAC', icon: '✅' },
-            { label: 'Bez smlouvy', value: filtered.filter(t => !contracts.some(c => c.tenantId === t.id && c.status === 'active')).length, color: '#6B7280', bg: 'var(--bg2)', border: 'var(--border)', icon: '⭕' },
+            { label: 'Celkem nájemníků', value: filtered.length, tone: 'green', icon: '🧑‍💼' },
+            { label: 'Firmy', value: companies.length, tone: 'violet', icon: '🏢' },
+            { label: 'Fyzické osoby', value: persons.length, tone: 'blue', icon: '👤' },
+            { label: 'S platnou smlouvou', value: filtered.filter(t => contracts.some(c => c.tenantId === t.id && isContractOccupying(c))).length, tone: 'green', icon: '✅' },
+            { label: 'Bez smlouvy', value: filtered.filter(t => !contracts.some(c => c.tenantId === t.id && isContractOccupying(c))).length, tone: 'gray', icon: '⭕' },
           ].map(stat => (
-            <div key={stat.label} style={{ background: stat.bg, border: `1.5px solid ${stat.border}`, borderRadius: 14, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 0', minWidth: 140 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{stat.icon}</div>
+            <div key={stat.label} style={{ background: `var(--tone-${stat.tone}-soft)`, border: `1.5px solid var(--tone-${stat.tone}-border)`, borderRadius: 14, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 0', minWidth: 140 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: `var(--tone-${stat.tone}-bg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{stat.icon}</div>
               <div>
-                <div style={{ fontSize: 26, fontWeight: 900, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
-                <div style={{ fontSize: 11, color: stat.color, fontWeight: 700, marginTop: 3, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{stat.label}</div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: `var(--tone-${stat.tone}-text)`, lineHeight: 1 }}>{stat.value}</div>
+                <div style={{ fontSize: 11, color: `var(--tone-${stat.tone}-text)`, fontWeight: 700, marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{stat.label}</div>
               </div>
             </div>
           ))}

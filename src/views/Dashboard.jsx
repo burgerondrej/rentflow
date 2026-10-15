@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, contractSubject, firmColors, firmOf, firmSelection, getPeriodMonthKeys, overdueDays } from '../utils.js'
+import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, getPeriodMonthKeys, overdueDays } from '../utils.js'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
 
@@ -11,7 +11,8 @@ export default function Dashboard({ onNav, onOpen }) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const activeContracts = contracts.filter(c => c && c.status === 'active')
+  // Platné smlouvy (aktivní + ukončené s budoucím koncem – jejich konec je také termín)
+  const activeContracts = contracts.filter(c => c && isContractOccupying(c))
 
   const enrichedForExpirations = activeContracts.map(c => {
     let daysLeft = null

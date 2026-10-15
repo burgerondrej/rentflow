@@ -168,7 +168,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           <div className="page-title">Smlouvy</div>
           <div className="page-sub">
             {validCount} platných · {endedCount} ukončených{(() => {
-              const soon = filtered.filter(c => c.status === 'active' && c.daysLeft !== null && c.daysLeft >= 0 && c.daysLeft <= 30 && selectionMatches(activeSubject, c.assetSubject)).length
+              const soon = filtered.filter(c => isValid(c) && c.daysLeft !== null && c.daysLeft >= 0 && c.daysLeft <= 30 && selectionMatches(activeSubject, c.assetSubject)).length
               return soon ? ` · ${soon} končí do 30 dní` : ''
             })()}
           </div>
