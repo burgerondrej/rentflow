@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import { save } from '@tauri-apps/api/dialog'
-import { getEffectiveValuesToday, getEffectiveValues, getMonthRentParking, getMonthDeposits, isContractBillable, isContractInMonth, isContractOccupying, parseDate, PERIOD_LEN } from '../utils.js'
+import { getEffectiveValuesToday, getEffectiveValues, getMonthRentParking, getMonthDeposits, isContractBillable, isContractInMonth, isContractOccupying, parseDate, PERIOD_LEN, depositYearRows } from '../utils.js'
 import { FirmPickerButton } from '../FirmUI.jsx'
 import { contractSubject, selectionMatches, selectionLabel, firmColors } from '../utils.js'
 
@@ -421,6 +421,70 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
   </div></body></html>`
 }
 
+function genDepositReport(contracts, payments, assets, tenants, subjectFilter, subjectOrder, fi, year) {
+  // Podklad pro vyúčtování služeb: zálohy po smlouvách (při předávce dva nájemci na předmětu), součty po sekcích a firmách
+  const all = depositYearRows(contracts, payments, assets, year)
+    .filter(r => selectionMatches(subjectFilter, contractSubject(r.c, assets)))
+  const hasWater = all.some(r => r.water > 0)
+  const firmSums = {}
+  let sectionsHtml = ''
+  subjectOrder.filter(s => selectionMatches(subjectFilter, s)).forEach(subject => {
+    const rows = all.filter(r => contractSubject(r.c, assets) === subject)
+    if (!rows.length) return
+    const f = fi(subject)
+    const fk = f ? f.name : subject
+    const tr = rows.filter(r => r.tracked)
+    const sub = { exp: rows.reduce((s, r) => s + r.exp, 0), water: rows.reduce((s, r) => s + r.water, 0), paid: tr.reduce((s, r) => s + r.paid, 0), diff: tr.reduce((s, r) => s + r.diff, 0) }
+    const fs = firmSums[fk] = firmSums[fk] || { f, exp: 0, water: 0, paid: 0, diff: 0 }
+    fs.exp += sub.exp; fs.water += sub.water; fs.paid += sub.paid; fs.diff += sub.diff
+    let prevAsset = null
+    const body = rows.map(r => {
+      const t = tenants.find(x => x.id === r.c.tenantId)
+      const first = r.c.assetId !== prevAsset
+      prevAsset = r.c.assetId
+      const period = r.from === r.to ? `${r.from + 1}/${year}` : `${r.from + 1}–${r.to + 1}/${year}`
+      const diff = r.tracked ? `<span style="color:${r.diff < 0 ? '#DC2626' : r.diff > 0 ? '#16A34A' : '#1a1a1a'}">${r.diff > 0 ? '+' : ''}${fmtCzk(r.diff)}</span>` : '<span style="color:#999">neevidováno</span>'
+      return `<tr${first ? '' : ' style="background:#FFFBEB"'}>
+        <td>${first ? `<strong>${r.asset?.unit || '—'}</strong>` : '<span style="color:#999;padding-left:10px">↳</span>'}</td>
+        <td>${t?.name || '—'}</td><td>${period}</td>
+        <td class="amount">${fmtCzk(r.exp)}</td>${hasWater ? `<td class="amount">${r.water > 0 ? fmtCzk(r.water) : '—'}</td>` : ''}
+        <td class="amount">${r.tracked ? fmtCzk(r.paid) : '—'}</td><td class="amount">${diff}</td>
+      </tr>`
+    }).join('')
+    sectionsHtml += `
+      <div class="section">
+        <div class="section-title" style="${f ? `color:${f.txt};background:${f.bg};border-left:5px solid ${f.mid}` : ''}">${firmChip(f)}${subject}</div>
+        <table>
+          <thead><tr><th>Předmět</th><th>Nájemce</th><th>Období</th><th style="text-align:right">Zálohy předpis</th>${hasWater ? '<th style="text-align:right">Voda předpis</th>' : ''}<th style="text-align:right">Zaplaceno</th><th style="text-align:right">Rozdíl</th></tr></thead>
+          <tbody>${body}</tbody>
+          <tfoot><tr style="font-weight:700;background:#F8F8F8"><td colspan="3" style="padding:8px 10px">Součet sekce</td>
+            <td class="amount">${fmtCzk(sub.exp)}</td>${hasWater ? `<td class="amount">${fmtCzk(sub.water)}</td>` : ''}<td class="amount">${fmtCzk(sub.paid)}</td>
+            <td class="amount" style="color:${sub.diff < 0 ? '#DC2626' : '#16A34A'}">${sub.diff > 0 ? '+' : ''}${fmtCzk(sub.diff)}</td></tr></tfoot>
+        </table>
+      </div>`
+  })
+  const title = `Zálohy ${year} — ${subjectFilter === 'all' ? 'všechny firmy' : selectionLabel(subjectFilter)}`
+  const boxes = Object.values(firmSums).map(s => `<div class="summary-box" style="${s.f ? `background:${s.f.bg};border-color:${s.f.mid}` : ''}">
+      <div class="summary-label" style="${s.f ? `color:${s.f.txt}` : ''}">${firmChip(s.f)}${s.f ? s.f.name : ''} · zálohy ${year}</div>
+      <div class="summary-value" style="${s.f ? `color:${s.f.mid}` : ''}">${fmtCzk(s.paid)} <span style="font-size:11px;font-weight:600;color:#666">/ ${fmtCzk(s.exp)}</span></div>
+    </div>`).join('')
+  return `<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8">
+    <title>${title}</title>
+    <style>${PRINT_CSS}</style></head><body><div class="page">
+    <div class="header">
+      <div>
+        <div class="header-title">RentFlow</div>
+        <div style="font-size:18px;font-weight:700;color:#1a1a1a;margin-top:4px">${title}</div>
+        <div class="header-sub">Podklad pro vyúčtování služeb · v měsíci předávky platí plné zálohy oba nájemci · Vygenerováno ${today()}</div>
+      </div>
+      <div style="text-align:right">${boxes}</div>
+    </div>
+    ${sectionsHtml || '<div style="padding:24px;text-align:center;color:#999">Ve vybraném roce nejsou žádné zálohy.</div>'}
+    ${hasWater ? '<div style="font-size:10px;color:#666;margin-top:8px">Voda: jen předpis (u komerčních prostor) – platby záloh evidují zálohy na energie a služby.</div>' : ''}
+    <div class="footer"><span>RentFlow — Zálohy za rok</span><span>Vygenerováno: ${today()}</span></div>
+  </div></body></html>`
+}
+
 // ── KOMPONENTA ────────────────────────────────────────────────────────────────
 
 const EXPORT_TYPES = [
@@ -428,10 +492,14 @@ const EXPORT_TYPES = [
   { id: 'tenant',   icon: '👤', label: 'Karta nájemce',     sub: 'Kontakty + smlouvy jednoho nájemce', color: '#4f46e5', bg: '#EEF2FF', border: '#C7D2FE' },
   { id: 'expiry',   icon: '⏰', label: 'Expirační report',  sub: 'Smlouvy končící do 180 dnů', color: '#c2410c', bg: '#FFF7ED', border: '#FED7AA' },
   { id: 'monthly',  icon: '💰', label: 'Měsíční předpis',   sub: 'Předpis nájemného pro aktuální měsíc', color: '#0369a1', bg: '#F0F9FF', border: '#BAE6FD' },
+  { id: 'deposits', icon: '💧', label: 'Zálohy za rok',     sub: 'Podklad pro vyúčtování služeb', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
 ]
 
 export default function Export() {
-  const { contracts = [], assets = [], tenants = [], subjects = [], getFirm } = useApp() || {}
+  const { contracts = [], assets = [], tenants = [], subjects = [], payments = [], getFirm } = useApp() || {}
+  const [depYear, setDepYear] = useState(() => new Date().getFullYear())
+  const depYears = []
+  for (let y = 2026; y <= new Date().getFullYear(); y++) depYears.push(y)
   // Barvy firmy pro tisk (vždy světlý režim)
   const fi = (subject) => {
     const f = getFirm ? getFirm(subject) : null
@@ -482,6 +550,10 @@ export default function Export() {
           html = genMonthlyReport(contracts, assets, tenants, subjectFilter, subjects, fi)
           filename = `RentFlow-Predpis-${stamp}.html`
           break
+        case 'deposits':
+          html = genDepositReport(contracts, payments, assets, tenants, subjectFilter, subjects, fi, depYear)
+          filename = `RentFlow-Zalohy-${depYear}-${subjectFilter === 'all' ? 'Vsechny' : selectionLabel(subjectFilter).replace(/[^a-zA-Z0-9]/g, '-')}.html`
+          break
       }
 
       // Zobrazit save dialog pro PDF
@@ -512,7 +584,7 @@ export default function Export() {
       </div>
 
       {/* Výběr typu exportu */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 28 }}>
         {EXPORT_TYPES.map(et => (
           <button
             key={et.id}
@@ -547,7 +619,15 @@ export default function Export() {
         </div>
 
         {/* Filtry dle typu */}
-        {(activeType === 'portfolio' || activeType === 'monthly') && (
+        {activeType === 'deposits' && (
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Rok</label>
+            <select className="btn" style={{ cursor: 'pointer' }} value={depYear} onChange={e => setDepYear(Number(e.target.value))}>
+              {depYears.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        )}
+        {(activeType === 'portfolio' || activeType === 'monthly' || activeType === 'deposits') && (
           <div style={{ marginBottom: 20 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Subjekt / firma</label>
             <FirmPickerButton
@@ -600,6 +680,13 @@ export default function Export() {
               <li>Smlouvy končící do 30 / 60 / 90 / 180 dnů</li>
               <li>Nájemce + telefon pro přímý kontakt</li>
               <li>Přehled nájemného u každé expirující smlouvy</li>
+            </ul>
+          )}
+          {activeType === 'deposits' && (
+            <ul style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 2, paddingLeft: 18 }}>
+              <li>Zálohy za rok {depYear} po předmětech a nájemcích (při předávce oba nájemci)</li>
+              <li>Předpis, zaplaceno a rozdíl za každou smlouvu</li>
+              <li>Součty po sekcích a striktně po firmách</li>
             </ul>
           )}
           {activeType === 'monthly' && (

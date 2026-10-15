@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
+import ChangeTenantDialog from './ChangeTenantDialog.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
@@ -48,6 +49,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   useEffect(() => { setContractTab('overview'); setAssetTab('overview'); setTenantTab('overview') }, [id])
   const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
   const [renewFor, setRenewFor] = useState(null) // smlouva, ze které se zakládají navazující smlouvy
+  const [changeFor, setChangeFor] = useState(null) // smlouva, u které se mění nájemce (předávka předmětu)
   const [closing, setClosing] = useState(false)
 
   const [docForm, setDocForm] = useState(false)
@@ -60,6 +62,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [payDate, setPayDate] = useState('')
   const [amendForm, setAmendForm] = useState(false)
   const [amendData, setAmendData] = useState({ effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '' })
+  const [depYear, setDepYear] = useState(() => new Date().getFullYear())
 
   // Helper: vrátí platné finanční hodnoty smlouvy k dnešnímu datu (respektuje amendments)
   // Přesunuto do src/utils.js jako getEffectiveValuesToday — používáme aliasem pro zpětnou kompatibilitu
@@ -283,6 +286,52 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   }
 
   // --- NOVÉ: VYKRESLENÍ HISTORIE PLATEB (Jen pro Smlouvy) ---
+  // Zálohy za rok (podklad pro vyúčtování) – po měsících, v měsíci předávky plné zálohy oběma nájemcům
+  const renderDepositYear = (contract) => {
+    const MONTHS_DY = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
+    const years = []
+    for (let y = 2026; y <= new Date().getFullYear(); y++) years.push(y)
+    const { tracked, months } = depositMonths(contract, payments, assets, depYear)
+    const anyYear = years.some(y => depositMonths(contract, payments, assets, y).months.length > 0)
+    if (!anyYear) return null
+    const sum = (k) => months.reduce((s, x) => s + x[k], 0)
+    const hasWater = months.some(x => x.water > 0)
+    const fmt = (v) => Math.round(v).toLocaleString('cs-CZ')
+    const th = { padding: '6px 10px', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', textAlign: 'right', borderBottom: '1px solid var(--border)' }
+    const td = { padding: '6px 10px', fontSize: 12.5, textAlign: 'right', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
+    const diffEl = (v) => <b style={{ color: v < 0 ? '#DC2626' : v > 0 ? '#16A34A' : 'var(--text)' }}>{v > 0 ? '+' : v < 0 ? '−' : ''}{fmt(Math.abs(v))}</b>
+    return (
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginTop: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'var(--tone-blue-soft)', borderBottom: '1px solid var(--tone-blue-border)' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--tone-blue-text)', flex: 1 }}>💧 Zálohy {depYear} – podklad pro vyúčtování</span>
+          <select className="btn btn-sm" value={depYear} onChange={e => setDepYear(Number(e.target.value))} style={{ cursor: 'pointer' }}>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        {months.length === 0 ? <div style={{ padding: 12, fontSize: 12.5, color: 'var(--text3)', fontStyle: 'italic' }}>V roce {depYear} smlouva neměla zálohy.</div> : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr><th style={{ ...th, textAlign: 'left' }}>Měsíc</th><th style={th}>Předpis</th>{hasWater && <th style={th}>Voda (předpis)</th>}<th style={th}>Zaplaceno</th><th style={th}>Rozdíl</th></tr></thead>
+            <tbody>
+              {months.map(x => (
+                <tr key={x.m}>
+                  <td style={{ ...td, textAlign: 'left', color: 'var(--text2)' }}>{MONTHS_DY[x.m]}</td>
+                  <td style={td}>{fmt(x.exp)}</td>{hasWater && <td style={{ ...td, color: 'var(--text2)' }}>{fmt(x.water)}</td>}
+                  <td style={td}>{tracked ? fmt(x.paid) : '—'}</td><td style={td}>{tracked ? diffEl(x.paid - x.exp) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot><tr style={{ background: 'var(--bg2)' }}>
+              <td style={{ ...td, textAlign: 'left', fontWeight: 800 }}>Celkem</td>
+              <td style={{ ...td, fontWeight: 800 }}>{fmt(sum('exp'))}</td>{hasWater && <td style={{ ...td, fontWeight: 800 }}>{fmt(sum('water'))}</td>}
+              <td style={{ ...td, fontWeight: 800 }}>{tracked ? fmt(sum('paid')) : '—'}</td><td style={td}>{tracked ? diffEl(sum('paid') - sum('exp')) : '—'}</td>
+            </tr></tfoot>
+          </table>
+        )}
+        {!tracked && <div style={{ padding: '6px 12px', fontSize: 11.5, color: 'var(--text3)' }}>Platby záloh se u této smlouvy neevidují – zobrazen jen předpis.</div>}
+      </div>
+    )
+  }
+
   const renderPaymentsSection = (contract) => {
     const contractPayments = payments.filter(p => p.contractId === contract.id)
 
@@ -344,6 +393,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
     }
 
     return (
+      <>
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginTop: 0 }}>
         <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>💳 Historie plateb</span>
@@ -442,6 +492,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           )}
         </div>
       </div>
+      {renderDepositYear(contract)}
+      </>
     )
   }
 
@@ -454,6 +506,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
     // Smlouvy účtované v aktuálním měsíci (vč. ukončené v tomto měsíci, bez smluv začínajících později)
     const nowT = new Date()
     const monthContracts = contracts.filter(c => c.tenantId === id && isContractBillable(c) && isContractInMonth(c, nowT.getFullYear(), nowT.getMonth()))
+    // Saldo od 1. 1. 2026 za měsíce po splatnosti, striktně po firmách (záporné = dluh)
+    const saldo = tenantSaldo(id, contracts, payments, assets)
+    const saldoFirms = saldo.firms.filter(f => f.rent !== 0 || f.deposit !== 0)
+    const fmtSaldo = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString('cs-CZ')} Kč`
 
     let defaultSubject = billingGroups.find(g => !g.isVatPayer)?.val || ''
     if (activeContracts.length > 0) {
@@ -651,7 +707,13 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 {kv('Telefon', t.phone || '—')}
                 {kv('E-mail', t.email || '—')}
                 {kv('Tento měsíc', unpaid ? `✕ ${unpaid} neuhrazeno` : monthContracts.length ? '✓ Vše uhrazeno' : '—', unpaid ? '#DC2626' : monthContracts.length ? '#16A34A' : null)}
-                {kv('Po splatnosti', overdue ? `⚠ ${overdue}` : '0', overdue ? '#DC2626' : null)}
+                {(() => {
+                  // Saldo: jedna firma → částka; víc firem se nesčítá (striktní oddělení) → počet firem, rozpis v Platbách
+                  const debt = saldoFirms.filter(f => f.rent + f.deposit < 0)
+                  if (saldoFirms.length === 0) return kv('Saldo', '✓ 0 Kč', '#16A34A')
+                  if (saldoFirms.length === 1) { const v = saldoFirms[0].rent + saldoFirms[0].deposit; return kv('Saldo', fmtSaldo(v), v < 0 ? '#DC2626' : '#16A34A') }
+                  return kv('Saldo', debt.length ? `⚠ dluh u ${debt.length} firem` : '✓ přeplatek', debt.length ? '#DC2626' : '#16A34A')
+                })()}
               </div>
               {/* Záložky – neaktivní tmavý text na světlém, aktivní bílý text na zelené */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingBottom: 2, borderBottom: '1px solid var(--border)' }}>
@@ -796,6 +858,31 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                           <StatusPill kind={it.paid ? 'paid' : 'unpaid'} size="sm" />
                           {it.od > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: '#DC2626' }}>⚠ po splatnosti {it.od} {it.od === 1 ? 'den' : it.od < 5 ? 'dny' : 'dní'}</span>}
                         </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {sectionTitle('Saldo od 1. 1. 2026 (měsíce po splatnosti)')}
+              {saldoFirms.length === 0 ? <div style={{ fontSize: 13, color: '#16A34A', fontWeight: 700, marginBottom: 18 }}>✓ Vše vyrovnáno</div> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
+                  {saldoFirms.map(sf => {
+                    const f = (firms || []).find(x => x.name === sf.firm)
+                    const debtItems = saldo.items.filter(it => it.firm === sf.firm && it.diff !== 0)
+                    return (
+                      <div key={sf.firm} style={{ border: '1.5px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '26px minmax(0, 1fr) auto auto', alignItems: 'center', gap: 12, padding: '8px 12px', background: 'var(--bg2)' }}>
+                          {f ? <FirmBadge firm={f} size={24} /> : <span />}
+                          <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)' }}>{sf.firm}</div>
+                          <div style={{ fontSize: 12.5, color: 'var(--text2)', whiteSpace: 'nowrap' }}>nájem <b style={{ color: sf.rent < 0 ? '#DC2626' : sf.rent > 0 ? '#16A34A' : 'var(--text)' }}>{fmtSaldo(sf.rent)}</b></div>
+                          <div style={{ fontSize: 12.5, color: 'var(--text2)', whiteSpace: 'nowrap' }}>zálohy <b style={{ color: sf.deposit < 0 ? '#DC2626' : sf.deposit > 0 ? '#16A34A' : 'var(--text)' }}>{fmtSaldo(sf.deposit)}</b></div>
+                        </div>
+                        {debtItems.slice(-24).reverse().map((it, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 12px 6px 50px', borderTop: '1px solid var(--border)', fontSize: 12.5 }}>
+                            <span style={{ color: 'var(--text2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{MONTHS_T[it.m]} {it.y} · {it.label} · {it.kind === 'deposit' ? 'zálohy' : 'nájem'} <span style={{ color: 'var(--text3)' }}>(předpis {Math.round(it.expected).toLocaleString('cs-CZ')}, zaplaceno {Math.round(it.paid).toLocaleString('cs-CZ')})</span></span>
+                            <b style={{ color: it.diff < 0 ? '#DC2626' : '#16A34A', whiteSpace: 'nowrap' }}>{fmtSaldo(it.diff)}</b>
+                          </div>
+                        ))}
                       </div>
                     )
                   })}
@@ -1346,6 +1433,11 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               </div>
             ) : (
               <div style={{ fontSize: 13, color: 'var(--text3)' }}>Předmět je aktuálně volný.</div>
+            )}
+            {!isReadOnly && activeContract && activeContract.status === 'active' && (
+              <button className="btn btn-sm btn-tone-blue" style={{ width: '100%', marginTop: 10, justifyContent: 'center' }} onClick={() => setChangeFor(activeContract)}>
+                👤 Změna nájemce
+              </button>
             )}
           </div>
         </div>
@@ -2667,16 +2759,25 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {contractTab === 'overview' && !isReadOnly && <div style={{ display: 'flex', gap: 8, marginTop: 24, padding: '16px 0 4px', borderTop: '1px solid var(--border)' }}>
           {c.status === 'active' && (
             <button
-              className="btn btn-sm"
-              style={{ flex: 1, background: '#ECFDF5', color: '#166534', border: '1px solid #BBF7D0' }}
+              className="btn btn-sm btn-tone-green"
+              style={{ flex: 1 }}
               onClick={() => setRenewFor(c)}
             >
               🔁 Navazující smlouva
             </button>
           )}
+          {c.status === 'active' && (
+            <button
+              className="btn btn-sm btn-tone-blue"
+              style={{ flex: 1 }}
+              onClick={() => setChangeFor(c)}
+            >
+              👤 Změna nájemce
+            </button>
+          )}
           <button
-            className="btn btn-sm"
-            style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
+            className="btn btn-sm btn-tone-amber"
+            style={{ flex: 1 }}
             onClick={() => {
               // Výchozí poslední den nájmu: dnes, nebo dřívější sjednaný konec smlouvy
               const todayIso = new Date().toLocaleDateString('sv-SE')
@@ -2708,8 +2809,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             📦 Ukončit smlouvu
           </button>
           <button
-            className="btn btn-sm"
-            style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FECACA' }}
+            className="btn btn-sm btn-tone-red"
+            style={{ flex: 1 }}
             onClick={() => setConfirmDialog({
               title: 'Smazat smlouvu?',
               text: 'Smlouva bude přesunuta do koše. Odtud ji lze obnovit.',
@@ -2829,6 +2930,9 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
       {confirmDialog && (
         <ConfirmDialog {...confirmDialog} onClose={() => setConfirmDialog(null)} />
+      )}
+      {changeFor && (
+        <ChangeTenantDialog contract={changeFor} onClose={() => setChangeFor(null)} onDone={() => { setChangeFor(null); onClose() }} />
       )}
       {renewFor && (
         <RenewContractsDialog contract={renewFor} onClose={() => setRenewFor(null)} onDone={() => { setRenewFor(null); onClose() }} />

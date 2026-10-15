@@ -110,6 +110,20 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .btn-primary { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
 .btn-primary:hover { background: var(--accent) !important; opacity: .88 !important; transform: translateY(-1px); }
 .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+/* Jednotná kostra dialogu (DialogShell) */
+.dlg { background: var(--bg); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 28px 64px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.04);
+  display: flex; flex-direction: column; overflow: hidden; animation: modalIn 0.18s ease; }
+.dlg-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.dlg-icon { width: 40px; height: 40px; border-radius: 12px; border: 1.5px solid; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+.dlg-title { font-size: 17px; font-weight: 800; color: var(--text); line-height: 1.25; }
+.dlg-sub { font-size: 12.5px; color: var(--text2); margin-top: 2px; }
+.dlg-close { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
+.dlg-close:hover { background: var(--bg2); color: var(--text); }
+.dlg-body { flex: 1; overflow-y: auto; padding: 18px 20px; }
+.dlg-foot { display: flex; gap: 10px; justify-content: flex-end; align-items: center; padding: 12px 20px; background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0; }
+.dlg-lbl { display: block; font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
+
 .btn-tone-green { background: var(--tone-green-bg); color: var(--tone-green-text); border-color: var(--tone-green-border); }
 .btn-tone-amber { background: var(--tone-amber-bg); color: var(--tone-amber-text); border-color: var(--tone-amber-border); }
 .btn-tone-red   { background: var(--tone-red-bg);   color: var(--tone-red-text);   border-color: var(--tone-red-border); }

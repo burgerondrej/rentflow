@@ -60,6 +60,20 @@ export function AppProvider({ children }) {
     toastTimerRef.current = setTimeout(() => setToast(null), 4500)
   }, [])
 
+  // ─── ZÁLOHA PŘI ZAVŘENÍ (Rust ji spustí jen při změnách od poslední zálohy; Pavel nikdy) ───
+  useEffect(() => {
+    if (!isTauri) return
+    invoke('set_close_backup', { enabled: !isReadOnly }).catch(() => {})
+  }, [isReadOnly])
+  useEffect(() => {
+    if (!isTauri) return
+    let unlisten = null
+    import('@tauri-apps/api/event').then(({ listen }) =>
+      listen('backup-on-close', () => showToast('💾 Zálohuji před zavřením… (kopie DB + Google Disk)', 'success'))
+    ).then(u => { unlisten = u }).catch(() => {})
+    return () => { if (unlisten) unlisten() }
+  }, [showToast])
+
   // Guard pro read-only – Pavel nesmí zapisovat
   const guardWrite = () => {
     if (isReadOnly) {
@@ -397,6 +411,59 @@ export function AppProvider({ children }) {
       console.error('renewContracts error:', err)
       showToast('Navazující smlouvy se nepodařilo vytvořit. Zkontroluj Smlouvy, případně obnov zálohu.')
       // Načti skutečný stav z DB (část operací mohla proběhnout)
+      try { const fresh = await invoke('get_contracts'); if (fresh) setContracts(fresh) } catch { /* ignore */ }
+      return false
+    }
+  }
+
+  // Změna nájemce na předmětu: záloha → stará smlouva archived s koncem = den před předávkou →
+  // nová smlouva NOVÉHO nájemce na stejném předmětu (nastavení převzaté, dodatky a kauce ne).
+  // opts: { old, tenantId, start: Date, end: Date|null, rent, cauce, keepDeposits, keepGroup }
+  const changeTenant = async (opts) => {
+    if (guardWrite()) return false
+    const { old, tenantId, start, end, rent, cauce, keepDeposits, keepGroup } = opts
+    try {
+      await invoke('create_backup')
+      const dayBefore = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1)
+      const oldEnd = parseDate(old.end)
+      const endCz = (!oldEnd || oldEnd > dayBefore) ? toCzDate(dayBefore) : old.end
+      await invoke('update_contract', { id: old.id, contract: { ...old, status: 'archived', end: endCz }, user: currentUser })
+      const ev = getEffectiveValuesToday(old)
+      const isIncluded = old.paymentFrequency === 'Zahrnuto v nájemném'
+      await invoke('add_contract', {
+        contract: {
+          ...old,
+          id: '',
+          tenantId,
+          status: 'active',
+          start: toCzDate(start),
+          end: end ? toCzDate(end) : '',
+          rent: isIncluded ? 0 : (Number(rent) || 0),
+          cauce: Number(cauce) || 0,
+          deposit: keepDeposits ? ev.deposit : 0,
+          depositWater: keepDeposits ? ev.depositWater : 0,
+          flatFee: ev.flatFee,
+          parking: ev.parking,
+          groupLabel: keepGroup ? old.groupLabel : null,
+          rentTotal: 0,
+          amendments: [],
+          addenda: [],
+          energySettlements: [],
+          occupants: null, permanentResidents: null, coResidents: null, contractNotes: null, handoverDate: null,
+          valorizationDate: null,
+        },
+        user: currentUser,
+      })
+      const [freshContracts, freshAssets, freshLogs] = await Promise.all([invoke('get_contracts'), invoke('get_assets'), invoke('get_logs')])
+      if (freshContracts) setContracts(freshContracts)
+      if (freshAssets) setAssets(freshAssets)
+      if (freshLogs) setLogs(freshLogs)
+      const newTenant = tenants.find(t => t.id === tenantId)
+      logAction('Přidání', 'Smlouvy', `Změna nájemce na předmětu ${old.assetId}: od ${toCzDate(start)} ${newTenant?.name || tenantId} (předchozí smlouva do ${endCz})`)
+      return true
+    } catch (err) {
+      console.error('changeTenant error:', err)
+      showToast(`Změnu nájemce se nepodařilo dokončit (${String(err)}). Zkontroluj Smlouvy, případně obnov zálohu.`)
       try { const fresh = await invoke('get_contracts'); if (fresh) setContracts(fresh) } catch { /* ignore */ }
       return false
     }
@@ -760,7 +827,7 @@ export function AppProvider({ children }) {
     // CRUD – Předměty
     addAsset, updateAsset, deleteAsset, archiveAsset,
     // CRUD – Smlouvy
-    addContract, updateContract, deleteContract, archiveContract, renewContracts,
+    addContract, updateContract, deleteContract, archiveContract, renewContracts, changeTenant,
     // CRUD – Platby
     addPayment, updatePayment, updatePaymentAmount, deletePayment,
     // CRUD – Kanban

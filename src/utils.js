@@ -405,3 +405,116 @@ export function getPeriodMonthKeys(contract, refYear, refMonth) {
 
   return [`${refYear}-${refMonth}`]
 }
+
+// ─────────────────────────────────────────
+// SALDO NÁJEMCE – předpis vs. zaplaceno od spuštění RentFlow (1. 1. 2026)
+// ─────────────────────────────────────────
+export const SALDO_FROM = { y: 2026, m: 0 }
+
+/**
+ * Saldo nájemce za měsíce PO SPLATNOSTI (od SALDO_FROM do dneška), STRIKTNĚ po firmách.
+ * - Měsíc se počítá, jen když už uplynula splatnost (dueDateFor); bez určitelné splatnosti jen celé minulé měsíce.
+ * - Nájem: předpis getMonthRent (víceměsíční smlouvy měsíční díl = předpis / délka okna, platba je uložená rozdělená).
+ * - Skupina (group_label): předpis = součet členů, platba skupiny; nájemci připadá podíl jeho členů.
+ * - Zálohy (jen energie, jako v Platbách): bytové vždy; ostatní jen když se u smlouvy zálohy evidují (existuje platba záloh).
+ * - agreed = odsouhlaseno → měsíc vyrovnán.
+ * Vrací { firms: [{ firm, rent, deposit }], items: [{ key, y, m, firm, label, kind, expected, paid, diff }] }; diff < 0 = dluh.
+ */
+export function tenantSaldo(tenantId, contracts = [], payments = [], assets = []) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const curY = today.getFullYear(), curM = today.getMonth()
+  const mine = contracts.filter(c => c.tenantId === tenantId && isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném')
+  const items = []
+  const isDue = (c, y, m) => {
+    const due = dueDateFor(c, y, m)
+    if (due) return due < today
+    return y < curY || (y === curY && m < curM)
+  }
+  const pay = (pred) => payments.find(pred)
+  const amt = (p, expected) => !p ? 0 : p.agreed ? expected : (Number(p.amount) || 0)
+  const assetOf = (c) => assets.find(a => a.id === c.assetId)
+  const tracksDeposits = new Set(payments.filter(p => p.paymentType === 'deposit' && p.contractId).map(p => p.contractId))
+
+  for (let y = SALDO_FROM.y, m = SALDO_FROM.m; y < curY || (y === curY && m <= curM); m === 11 ? (y++, m = 0) : m++) {
+    const key = `${y}-${m}`
+    const seenGroups = new Set()
+    for (const c of mine) {
+      if (!isContractInMonth(c, y, m) || !isDue(c, y, m)) continue
+      const firm = firmOf(contractSubject(c, assets))
+      const a = assetOf(c)
+      // Nájem
+      if (c.groupLabel) {
+        if (!seenGroups.has(c.groupLabel)) {
+          seenGroups.add(c.groupLabel)
+          const members = contracts.filter(x => x.groupLabel === c.groupLabel && isContractBillable(x) && isContractInMonth(x, y, m))
+          const groupExp = members.reduce((s, x) => s + getMonthRent(x, y, m), 0)
+          const mineExp = members.filter(x => x.tenantId === tenantId).reduce((s, x) => s + getMonthRent(x, y, m), 0)
+          const gp = pay(p => p.groupLabel === c.groupLabel && !p.contractId && p.month === key && p.paymentType !== 'deposit')
+          const share = groupExp > 0 ? mineExp / groupExp : 0
+          const paid = amt(gp, groupExp) * share
+          items.push({ key, y, m, firm, label: `🔗 ${c.groupLabel}`, kind: 'rent', expected: mineExp, paid, diff: paid - mineExp })
+        }
+      } else {
+        const n = PERIOD_LEN[c.paymentFrequency] || 1
+        const expected = getMonthRent(c, y, m) / n
+        const p = pay(x => x.contractId === c.id && x.month === key && x.paymentType !== 'deposit')
+        const paid = amt(p, expected)
+        items.push({ key, y, m, firm, label: a?.unit || '—', kind: 'rent', expected, paid, diff: paid - expected })
+      }
+      // Zálohy
+      const dep = getMonthDeposits(c, y, m).deposit
+      if (dep > 0 && (a?.type === 'residential' || tracksDeposits.has(c.id))) {
+        const p = pay(x => x.contractId === c.id && x.month === key && x.paymentType === 'deposit')
+        const paid = amt(p, dep)
+        items.push({ key, y, m, firm, label: a?.unit || '—', kind: 'deposit', expected: dep, paid, diff: paid - dep })
+      }
+    }
+  }
+  const firms = []
+  for (const it of items) {
+    let f = firms.find(x => x.firm === it.firm)
+    if (!f) { f = { firm: it.firm, rent: 0, deposit: 0 }; firms.push(f) }
+    f[it.kind] += it.diff
+  }
+  firms.forEach(f => { f.rent = Math.round(f.rent); f.deposit = Math.round(f.deposit) })
+  return { firms, items: items.map(it => ({ ...it, diff: Math.round(it.diff) })) }
+}
+
+// ─────────────────────────────────────────
+// ZÁLOHY ZA ROK – podklad pro vyúčtování služeb
+// Platby záloh (payment_type 'deposit') evidují zálohy na energie a služby; voda (komerční) je jen předpis.
+// V měsíci předávky platí plné zálohy odcházející i nový nájemce.
+// ─────────────────────────────────────────
+
+/** Zálohy smlouvy po měsících roku: { tracked, months: [{ m, key, exp, water, paid }] } */
+export function depositMonths(c, payments = [], assets = [], year) {
+  const a = assets.find(x => x.id === c.assetId)
+  const tracked = a?.type === 'residential' || payments.some(p => p.contractId === c.id && p.paymentType === 'deposit')
+  const months = []
+  if (!isContractBillable(c)) return { tracked, months }
+  for (let m = 0; m < 12; m++) {
+    if (!isContractInMonth(c, year, m)) continue
+    const d = getMonthDeposits(c, year, m)
+    if (d.deposit <= 0 && d.depositWater <= 0) continue
+    const key = `${year}-${m}`
+    const p = payments.find(x => x.contractId === c.id && x.month === key && x.paymentType === 'deposit')
+    const paid = !p ? 0 : p.agreed ? d.deposit : (Number(p.amount) || 0)
+    months.push({ m, key, exp: d.deposit, water: d.depositWater, paid })
+  }
+  return { tracked, months }
+}
+
+/** Řádky přehledu záloh za rok (jedna smlouva = jeden řádek), seřazené dle předmětu a začátku smlouvy. */
+export function depositYearRows(contracts = [], payments = [], assets = [], year) {
+  const rows = []
+  for (const c of contracts) {
+    const { tracked, months } = depositMonths(c, payments, assets, year)
+    if (!months.length) continue
+    const exp = months.reduce((s, x) => s + x.exp, 0)
+    const water = months.reduce((s, x) => s + x.water, 0)
+    const paid = months.reduce((s, x) => s + x.paid, 0)
+    rows.push({ c, asset: assets.find(x => x.id === c.assetId), from: months[0].m, to: months[months.length - 1].m, months, exp, water, paid, tracked, diff: tracked ? paid - exp : null })
+  }
+  const startTs = (c) => parseDate(c.start)?.getTime() || 0
+  return rows.sort((x, y) => (x.asset?.unit || '').localeCompare(y.asset?.unit || '', 'cs', { numeric: true }) || startTs(x.c) - startTs(y.c))
+}

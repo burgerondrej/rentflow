@@ -6,10 +6,17 @@ mod commands;
 
 use db::Database;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use tauri::Manager;
 
 pub struct AppState {
     pub db: Mutex<Database>,
+    /// total_changes() DB v okamžiku poslední zálohy (nebo startu) – vyšší hodnota = neuložené změny
+    pub backup_changes: AtomicI64,
+    /// Záloha při zavření povolena (jen admin; frontend nastaví přes set_close_backup)
+    pub close_backup: AtomicBool,
+    /// Zavírání po záloze už probíhá – druhý CloseRequested okno zavře
+    pub closing: AtomicBool,
 }
 
 fn main() {
@@ -46,7 +53,13 @@ fn main() {
             let db = Database::new(&db_path)
                 .expect("Nelze otevřít databázi");
 
-            app.manage(AppState { db: Mutex::new(db) });
+            let baseline = db.total_changes();
+            app.manage(AppState {
+                db: Mutex::new(db),
+                backup_changes: AtomicI64::new(baseline),
+                close_backup: AtomicBool::new(false),
+                closing: AtomicBool::new(false),
+            });
 
             // ─── Denní záloha v 19:00 ───
             let app_handle_backup = app.handle();
@@ -107,6 +120,7 @@ fn main() {
             commands::get_db_path,
             commands::create_backup,
             commands::get_backup_info,
+            commands::set_close_backup,
             commands::save_settings,
             commands::get_settings,
             commands::export_html,
@@ -130,6 +144,29 @@ fn main() {
         // Bez toho může dojít ke ztrátě dat pokud je proces ukončen před
         // automatickým checkpointem SQLite.
         .on_window_event(|event| {
+            // Záloha při zavření: jen pokud od poslední zálohy proběhla změna v DB (a nejde o Pavla)
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event.event() {
+                if let Some(state) = event.window().try_state::<AppState>() {
+                    if !state.closing.load(Ordering::SeqCst) && state.close_backup.load(Ordering::SeqCst) {
+                        let dirty = state.db.lock()
+                            .map(|db| db.total_changes() > state.backup_changes.load(Ordering::SeqCst))
+                            .unwrap_or(false);
+                        if dirty {
+                            api.prevent_close();
+                            state.closing.store(true, Ordering::SeqCst);
+                            let window = event.window().clone();
+                            let _ = window.emit("backup-on-close", ());
+                            let handle = window.app_handle();
+                            std::thread::spawn(move || {
+                                if let Err(e) = commands::create_backup(handle) {
+                                    eprintln!("Záloha při zavření selhala: {:?}", e);
+                                }
+                                let _ = window.close();
+                            });
+                        }
+                    }
+                }
+            }
             if let tauri::WindowEvent::Destroyed = event.event() {
                 if let Some(state) = event.window().try_state::<AppState>() {
                     if let Ok(db) = state.db.lock() {

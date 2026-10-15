@@ -28,6 +28,11 @@ impl Database {
     }
 
     /// Vynutí zápis WAL do hlavního DB souboru (volat před zálohováním a zavřením)
+    /// Počet řádků změněných tímto spojením od otevření DB (pro detekci změn od poslední zálohy).
+    pub fn total_changes(&self) -> i64 {
+        self.conn.query_row("SELECT total_changes()", [], |r| r.get(0)).unwrap_or(0)
+    }
+
     pub fn checkpoint(&self) -> Result<()> {
         self.conn.execute_batch("PRAGMA wal_checkpoint(FULL);")?;
         Ok(())

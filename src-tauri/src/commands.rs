@@ -525,7 +525,20 @@ pub fn create_backup(app_handle: tauri::AppHandle) -> std::result::Result<String
         }
     }
 
+    // Od teď žádné neuložené změny (pro zálohu při zavření)
+    if let Some(state) = app_handle.try_state::<crate::AppState>() {
+        if let Ok(db) = state.db.lock() {
+            state.backup_changes.store(db.total_changes(), std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
     Ok(backup_path.to_string_lossy().into_owned())
+}
+
+/// Povolí / zakáže zálohu při zavření okna (frontend: jen admin, Pavel = false).
+#[tauri::command]
+pub fn set_close_backup(enabled: bool, state: tauri::State<crate::AppState>) {
+    state.close_backup.store(enabled, std::sync::atomic::Ordering::SeqCst);
 }
 
 #[tauri::command]
