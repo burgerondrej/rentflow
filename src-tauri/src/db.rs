@@ -986,6 +986,27 @@ impl Database {
     // LOGS (Audit trail)
     // ─────────────────────────────────────────
 
+    /// Záznamy historie, jejichž detail obsahuje některý z textů (pro historii smlouvy), nejnovější první.
+    pub fn search_logs(&self, terms: &[String], limit: i64) -> Result<Vec<Log>> {
+        let terms: Vec<&String> = terms.iter().filter(|t| t.trim().len() >= 3).take(200).collect();
+        if terms.is_empty() { return Ok(vec![]); }
+        let cond = terms.iter().enumerate().map(|(i, _)| format!("instr(detail, ?{}) > 0", i + 1)).collect::<Vec<_>>().join(" OR ");
+        let sql = format!("SELECT id, timestamp, user_name, action, module, detail FROM logs WHERE {} ORDER BY created_at DESC LIMIT {}", cond, limit.clamp(1, 1000));
+        let mut stmt = self.conn.prepare(&sql)?;
+        let params: Vec<&dyn rusqlite::ToSql> = terms.iter().map(|t| *t as &dyn rusqlite::ToSql).collect();
+        let items = stmt.query_map(params.as_slice(), |row| {
+            Ok(Log {
+                id: row.get(0)?,
+                timestamp: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                user: row.get::<_, Option<String>>(2)?.unwrap_or_else(|| "Ondra".into()),
+                action: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                module: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                detail: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
+            })
+        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
+
     pub fn get_logs(&self) -> Result<Vec<Log>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, timestamp, user_name, action, module, detail FROM logs ORDER BY created_at DESC LIMIT 500"

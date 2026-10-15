@@ -116,7 +116,16 @@ pub fn get_contracts(state: State<AppState>) -> std::result::Result<Vec<Contract
 pub fn add_contract(contract: Contract, user: String, state: State<AppState>) -> std::result::Result<Contract, AppError> {
     let db = db!(state);
     let result = db.add_contract(&contract)?;
-    db.add_log(&user, "Přidání", "Smlouvy", &format!("Vytvořena smlouva (Nájem: {} Kč, Zálohy: {} Kč)", contract.rent, contract.deposit))?;
+    // Předmět a nájemce v textu → záznam jde dohledat v historii smlouvy
+    let asset_unit = db.get_assets().ok()
+        .and_then(|assets| assets.into_iter().find(|a| a.id == contract.asset_id))
+        .map(|a| a.unit)
+        .unwrap_or_else(|| "?".to_string());
+    let tenant_name = db.get_tenants().ok()
+        .and_then(|tenants| tenants.into_iter().find(|t| t.id == contract.tenant_id))
+        .map(|t| t.name)
+        .unwrap_or_else(|| "?".to_string());
+    db.add_log(&user, "Přidání", "Smlouvy", &format!("Vytvořena smlouva: {} – {} (od {}, nájem: {} Kč, zálohy: {} Kč)", asset_unit, tenant_name, contract.start, contract.rent, contract.deposit))?;
     Ok(result)
 }
 
@@ -871,6 +880,11 @@ pub fn delete_object(name: String, user: String, state: State<AppState>) -> std:
     db.delete_object(&name)?;
     db.add_log(&user, "Smazání", "Firmy a sekce", &format!("Smazána budova {}", name))?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn search_logs(terms: Vec<String>, limit: i64, state: State<AppState>) -> std::result::Result<Vec<Log>, AppError> {
+    db!(state).search_logs(&terms, limit)
 }
 
 #[tauri::command]

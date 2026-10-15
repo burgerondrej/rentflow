@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
-import { isDialogOpen } from './DialogShell.jsx'
+import ContractHistory from './ContractHistory.jsx'
+import DialogShell, { isDialogOpen } from './DialogShell.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
@@ -51,6 +52,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
   const [renewFor, setRenewFor] = useState(null) // smlouva, ze které se zakládají navazující smlouvy
   const [changeFor, setChangeFor] = useState(null) // smlouva, u které se mění nájemce (předávka předmětu)
+  const [saldoPay, setSaldoPay] = useState(null) // { it, amount, date, note } – úhrada dlužného měsíce ze salda
   const [closing, setClosing] = useState(false)
 
   const [docForm, setDocForm] = useState(false)
@@ -89,7 +91,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
     setDocName('')
     setPayForm(false)
     setPayAmount('')
-    setPayDate(new Date().toISOString().split('T')[0]) // defaultně dnešek ve formátu pro <input type="date">
+    setPayDate(getLastPayDate()) // naposledy použité datum úhrady (zápis podle výpisu), jinak dnešek
   }, [id, type])
 
   const handleAddTag = (tagToAdd) => {
@@ -373,6 +375,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
     const handleAddPaymentClick = async () => {
       if (!payAmount || !payDate) return
+      setLastPayDate(payDate)
       
       const d = new Date(payDate)
       // Měsíčně → měsíc data úhrady; čtvrtletně/pololetně/ročně → částka rozdělená do měsíců
@@ -454,7 +457,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                     <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8 }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 800, color: '#16A34A' }}>+ {Number(p.amount).toLocaleString('cs-CZ')} Kč</div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>Přijato: {p.date}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>Přijato: {p.date}{p.paymentType === 'deposit' ? ' · zálohy' : ''}</div>
+                        {p.note && <div style={{ fontSize: 11.5, color: 'var(--text2)', marginTop: 2 }}>📝 {p.note}</div>}
                       </div>
                       <button className="btn btn-sm btn-ghost" style={{ color: '#DC2626', padding: '4px 8px' }} onClick={() => deletePayment(p.id)}>✕</button>
                     </div>
@@ -881,7 +885,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                         {debtItems.slice(-24).reverse().map((it, i) => (
                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 12px 6px 50px', borderTop: '1px solid var(--border)', fontSize: 12.5 }}>
                             <span style={{ color: 'var(--text2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{MONTHS_T[it.m]} {it.y} · {it.label} · {it.kind === 'deposit' ? 'zálohy' : 'nájem'} <span style={{ color: 'var(--text3)' }}>(předpis {Math.round(it.expected).toLocaleString('cs-CZ')}, zaplaceno {Math.round(it.paid).toLocaleString('cs-CZ')})</span></span>
-                            <b style={{ color: it.diff < 0 ? '#DC2626' : '#16A34A', whiteSpace: 'nowrap' }}>{fmtSaldo(it.diff)}</b>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                              <b style={{ color: it.diff < 0 ? '#DC2626' : '#16A34A', whiteSpace: 'nowrap' }}>{fmtSaldo(it.diff)}</b>
+                              {/* Uhradit jen měsíc úplně bez platby, měsíční smlouva nebo skupina (víceměsíční a doplatky v Platbách) */}
+                              {!isReadOnly && it.diff < 0 && !it.hasPayment && !it.multi && (
+                                <button type="button" className="btn btn-sm btn-tone-green" style={{ padding: '2px 9px', fontWeight: 700 }}
+                                  onClick={() => setSaldoPay({ it, amount: String(Math.round((it.groupLabel ? it.groupExpected : it.expected) * 100) / 100), date: getLastPayDate(), note: '' })}>Uhradit</button>
+                              )}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -2187,6 +2198,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             { id: 'payments', label: 'Platby' },
             ...((a?.type === 'residential' || a?.type === 'commercial') ? [{ id: 'amendments', label: 'Dodatky' }] : []),
             { id: 'docs', label: 'Dokumenty' },
+            { id: 'history', label: 'Historie' },
           ]
           const kv = (label, value, color, onClick) => (
             <div onClick={onClick} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', cursor: onClick ? 'pointer' : 'default', minWidth: 0 }}>
@@ -2756,6 +2768,9 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {/* Záložka Dokumenty */}
         {contractTab === 'docs' && renderDocsSection(a?.subject)}
 
+        {/* Záložka Historie – záznamy z historie změn */}
+        {contractTab === 'history' && <ContractHistory contract={c} />}
+
         {/* Akce se smlouvou – na záložce Přehled */}
         {contractTab === 'overview' && !isReadOnly && <div style={{ display: 'flex', gap: 8, marginTop: 24, padding: '16px 0 4px', borderTop: '1px solid var(--border)' }}>
           {c.status === 'active' && (
@@ -2940,6 +2955,54 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
       {confirmDialog && (
         <ConfirmDialog {...confirmDialog} onClose={() => setConfirmDialog(null)} />
       )}
+      {saldoPay && (() => {
+        const { it } = saldoPay
+        const MONTHS_SP = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
+        const amt = Number(String(saldoPay.amount).replace(',', '.'))
+        const valid = !isNaN(amt) && amt > 0 && !!saldoPay.date
+        const confirm = async () => {
+          if (!valid) return
+          setLastPayDate(saldoPay.date)
+          const d = new Date(saldoPay.date)
+          await addPayment({
+            contractId: it.groupLabel ? `group:${it.groupLabel}` : it.contractId,
+            groupLabel: it.groupLabel || null,
+            month: it.key,
+            amount: amt,
+            status: 'paid',
+            date: d.toLocaleDateString('cs-CZ'),
+            paymentType: it.kind === 'deposit' ? 'deposit' : 'rent',
+            note: saldoPay.note || '',
+          })
+          setSaldoPay(null)
+          showToast(`Zapsána úhrada ${amt.toLocaleString('cs-CZ')} Kč za ${MONTHS_SP[it.m].toLowerCase()} ${it.y}.`, 'success')
+        }
+        return (
+          <DialogShell icon="💳" title="Potvrdit úhradu" width={400} onClose={() => setSaldoPay(null)}
+            subtitle={`${it.label} · ${it.kind === 'deposit' ? 'zálohy' : 'nájem'} · 📅 ${MONTHS_SP[it.m]} ${it.y}`}
+            footer={<>
+              <button className="btn" onClick={() => setSaldoPay(null)}>Zrušit</button>
+              <button className="btn btn-primary" style={{ fontWeight: 700, opacity: valid ? 1 : 0.5 }} disabled={!valid} onClick={confirm}>✓ Potvrdit úhradu</button>
+            </>}>
+            <label className="dlg-lbl">Částka (Kč)</label>
+            <input type="number" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'text', marginBottom: 12, boxSizing: 'border-box' }}
+              value={saldoPay.amount} onChange={e => setSaldoPay({ ...saldoPay, amount: e.target.value })} />
+            <label className="dlg-lbl">Termín přijetí platby</label>
+            <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: 6, boxSizing: 'border-box' }}
+              value={saldoPay.date} onChange={e => setSaldoPay({ ...saldoPay, date: e.target.value })} />
+            {saldoPay.date !== todayIso() && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text3)', marginBottom: 12 }}>
+                📌 Předvyplněno naposledy použité datum
+                <button type="button" className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 11 }} onClick={() => setSaldoPay({ ...saldoPay, date: todayIso() })}>Dnes</button>
+              </div>
+            )}
+            <label className="dlg-lbl" style={{ marginTop: 6 }}>Poznámka (nepovinné)</label>
+            <input className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'text', boxSizing: 'border-box' }} placeholder="Např. hotovost, přeplatek…"
+              value={saldoPay.note} onChange={e => setSaldoPay({ ...saldoPay, note: e.target.value })} />
+            {it.groupLabel && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 10 }}>Platba skupiny „{it.groupLabel}“ za celý měsíc (předpis skupiny).</div>}
+          </DialogShell>
+        )
+      })()}
       {changeFor && (
         <ChangeTenantDialog contract={changeFor} onClose={() => setChangeFor(null)} onDone={() => { setChangeFor(null); onClose() }} />
       )}

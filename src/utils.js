@@ -452,24 +452,25 @@ export function tenantSaldo(tenantId, contracts = [], payments = [], assets = []
           const members = contracts.filter(x => x.groupLabel === c.groupLabel && isContractBillable(x) && isContractInMonth(x, y, m))
           const groupExp = members.reduce((s, x) => s + getMonthRent(x, y, m), 0)
           const mineExp = members.filter(x => x.tenantId === tenantId).reduce((s, x) => s + getMonthRent(x, y, m), 0)
-          const gp = pay(p => p.groupLabel === c.groupLabel && !p.contractId && p.month === key && p.paymentType !== 'deposit')
+          // skupinová platba: v DB contract_id NULL, načtená jako contractId "group:<název>"
+          const gp = pay(p => p.groupLabel === c.groupLabel && (!p.contractId || p.contractId.startsWith('group:')) && p.month === key && p.paymentType !== 'deposit')
           const share = groupExp > 0 ? mineExp / groupExp : 0
           const paid = amt(gp, groupExp) * share
-          items.push({ key, y, m, firm, label: `🔗 ${c.groupLabel}`, kind: 'rent', expected: mineExp, paid, diff: paid - mineExp })
+          items.push({ key, y, m, firm, label: `🔗 ${c.groupLabel}`, kind: 'rent', expected: mineExp, paid, diff: paid - mineExp, groupLabel: c.groupLabel, groupExpected: groupExp, hasPayment: !!gp })
         }
       } else {
         const n = PERIOD_LEN[c.paymentFrequency] || 1
         const expected = getMonthRent(c, y, m) / n
         const p = pay(x => x.contractId === c.id && x.month === key && x.paymentType !== 'deposit')
         const paid = amt(p, expected)
-        items.push({ key, y, m, firm, label: a?.unit || '—', kind: 'rent', expected, paid, diff: paid - expected })
+        items.push({ key, y, m, firm, label: a?.unit || '—', kind: 'rent', expected, paid, diff: paid - expected, contractId: c.id, multi: n > 1, hasPayment: !!p })
       }
       // Zálohy
       const dep = getMonthDeposits(c, y, m).deposit
       if (dep > 0 && (a?.type === 'residential' || tracksDeposits.has(c.id))) {
         const p = pay(x => x.contractId === c.id && x.month === key && x.paymentType === 'deposit')
         const paid = amt(p, dep)
-        items.push({ key, y, m, firm, label: a?.unit || '—', kind: 'deposit', expected: dep, paid, diff: paid - dep })
+        items.push({ key, y, m, firm, label: a?.unit || '—', kind: 'deposit', expected: dep, paid, diff: paid - dep, contractId: c.id, hasPayment: !!p })
       }
     }
   }
@@ -520,4 +521,26 @@ export function depositYearRows(contracts = [], payments = [], assets = [], year
   }
   const startTs = (c) => parseDate(c.start)?.getTime() || 0
   return rows.sort((x, y) => (x.asset?.unit || '').localeCompare(y.asset?.unit || '', 'cs', { numeric: true }) || startTs(x.c) - startTs(y.c))
+}
+
+// ─────────────────────────────────────────
+// DATUM ÚHRADY – zapamatování naposledy použitého data (zápis plateb podle bankovního výpisu)
+// ─────────────────────────────────────────
+const LAST_PAY_KEY = 'rf_last_pay_date'
+/** Dnešní datum jako "RRRR-MM-DD" v místním čase. */
+export function todayIso() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+/** Naposledy použité datum úhrady ("RRRR-MM-DD"), jinak dnešek. */
+export function getLastPayDate() {
+  try {
+    const v = localStorage.getItem(LAST_PAY_KEY)
+    if (v && /^\d{4}-\d{2}-\d{2}$/.test(v) && v <= todayIso()) return v
+  } catch { /* ignore */ }
+  return todayIso()
+}
+/** Uloží datum úhrady ("RRRR-MM-DD") pro další zápis. */
+export function setLastPayDate(iso) {
+  try { if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) localStorage.setItem(LAST_PAY_KEY, iso) } catch { /* ignore */ }
 }

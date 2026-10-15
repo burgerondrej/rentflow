@@ -20,6 +20,7 @@ import UpdateDialog from './UpdateDialog.jsx'
 import ActivationScreen from './ActivationScreen.jsx'
 import { FirmPickerButton, FirmBadge } from './FirmUI.jsx'
 import DialogShell from './DialogShell.jsx'
+import { isOverlayOpen } from './shortcuts.js'
 import { contractSubject, selectionMatches, parseDate, isContractOccupying } from './utils.js'
 import { invoke } from '@tauri-apps/api/tauri'
 
@@ -120,6 +121,8 @@ function AppInner() {
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const searchInputRef = useRef(null)
 
+  const readOnlyRef = useRef(isReadOnly)
+  readOnlyRef.current = isReadOnly
   // Ctrl+F → fokus na vyhledávání, Ctrl+S → záloha
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -127,6 +130,11 @@ function AppInner() {
         e.preventDefault()
         searchInputRef.current?.focus()
         searchInputRef.current?.select()
+      }
+      // Ctrl+N → „Nový …“ na aktuální obrazovce (Smlouvy, Nájemníci, Předměty, Úkoly, Revize, Náklady)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault()
+        if (!readOnlyRef.current && !isOverlayOpen()) window.dispatchEvent(new Event('rf-new'))
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()

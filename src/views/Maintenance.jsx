@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { FirmPicker, useObjectFirms } from '../FirmUI.jsx'
 import { useApp } from '../AppContext.jsx'// ── Pomocná komponenta: selector subjektů ────────────────────────────────────
 import { StatusPill } from '../StatusUI.jsx'
+import { useNewShortcut } from '../shortcuts.js'
 function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt' }) {
   const cols = subjects.length <= 5 ? 'repeat(auto-fill, minmax(160px, 1fr))' : 'repeat(3, 1fr)'
   return (
@@ -41,6 +42,7 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
 export default function Maintenance() {
   const { revisions = [], assets = [], addRevision, deleteRevision, mainObjects = [], showToast } = useApp()
   const [showForm, setShowForm] = useState(false)
+  useNewShortcut(() => setShowForm(true)) // Ctrl+N
   
   // Zvolená firma pro filtraci zobrazení (výchozí "Vše")
   const [activeSub, setActiveSub] = useState(mainObjects[0] || '')

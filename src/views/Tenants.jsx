@@ -4,6 +4,7 @@ import TenantForm from '../TenantForm.jsx'
 import { firmOf, tenantRentsByFirm, isContractOccupying } from '../utils.js'
 import { FirmRentSummary } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
+import { useNewShortcut } from '../shortcuts.js'
 
 // 26 výrazných tmavých barev — každé písmeno abecedy dostane svou vlastní
 const LETTER_COLORS = [
@@ -62,6 +63,7 @@ export default function Tenants({ onOpen }) {
   const { tenants = [], contracts = [], assets = [], isReadOnly, billingGroups = [], subjects = [], firms = [] } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  useNewShortcut(() => { if (!isReadOnly) setShowForm(true) }) // Ctrl+N
   const [showArchived, setShowArchived] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState({})
   const dragId = useRef(null)

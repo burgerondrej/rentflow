@@ -4,6 +4,7 @@ import AssetForm from '../AssetForm.jsx'
 import { getCurrentAssetContract, isContractOccupying, selectionMatches, firmOf, firmColors, assetTypeStyle, getEffectiveValuesToday } from '../utils.js'
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
+import { useNewShortcut } from '../shortcuts.js'
 
 
 // Sekce pro bytové jednotky
@@ -58,6 +59,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
   const { assets = [], contracts = [], tenants = [] , residentialSubjects = [], firms = [], getFirm, theme } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  useNewShortcut(() => setShowForm(true)) // Ctrl+N
   const [showArchived, setShowArchived] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState({})
   const { getOrdered, handlers } = useDragOrder([])

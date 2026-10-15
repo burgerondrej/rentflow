@@ -4,6 +4,7 @@ import DialogShell from '../DialogShell.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
 import { FirmBadge } from '../FirmUI.jsx'
 import { firmColors } from '../utils.js'
+import { useNewShortcut } from '../shortcuts.js'
 
 const COLUMNS = [
   { id: 'longterm',  title: 'Dlouhodobé úkoly',            cssKey: 'longterm'  },
@@ -57,6 +58,8 @@ export default function Kanban() {
     setCustomInput('')
     setShowForm(true)
   }
+  useNewShortcut(() => openAdd('todo')) // Ctrl+N
+
 
   const openEdit = (task) => {
     setFormMode('edit')

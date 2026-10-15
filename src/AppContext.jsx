@@ -880,6 +880,9 @@ export function AppProvider({ children }) {
     createBackup: async () => {
       try { return await invoke('create_backup') } catch (e) { console.error(e) }
     },
+    searchLogs: async (terms) => {
+      try { return await invoke('search_logs', { terms, limit: 300 }) } catch (e) { console.error(e); return [] }
+    },
     getBackupInfo: async () => {
       try { return await invoke('get_backup_info') } catch (e) { return { lastBackup: '—', backupCount: 0, gdrivePath: '' } }
     },

@@ -112,6 +112,7 @@ fn main() {
             commands::add_document,
             commands::delete_document,
             commands::get_logs,
+            commands::search_logs,
             commands::add_log,
             commands::get_trash,
             commands::restore_from_trash,

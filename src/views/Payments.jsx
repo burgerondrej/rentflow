@@ -4,11 +4,24 @@ import { save } from '@tauri-apps/api/dialog'
 import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import DialogShell from '../DialogShell.jsx'
-import { assetTypeStyle } from '../utils.js'
+import { isTyping, isOverlayOpen } from '../shortcuts.js'
+import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
+
+// Nápověda pod datem úhrady: předvyplněno naposledy použité datum (zápis podle výpisu) + rychlé „Dnes“
+function PayDateHint({ value, onChange }) {
+  const t = todayIso()
+  if (!value || value === t) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text3)', margin: '-6px 0 12px' }}>
+      📌 Předvyplněno naposledy použité datum
+      <button type="button" className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 11 }} onClick={() => onChange(t)}>Dnes</button>
+    </div>
+  )
+}
 
 // ─── Modal pro výběr měsíců u čtvrtletní/pololetní platby ──────────────────
 function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose, refYear, refMonth }) {
@@ -37,7 +50,7 @@ function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose,
 
   const [selected, setSelected] = useState(new Set(preselectedKeys))
   const today = new Date()
-  const [date, setDate]   = useState(today.toISOString().split('T')[0])
+  const [date, setDate]   = useState(getLastPayDate)
   const [note, setNote]   = useState('')
 
   // Použij getEffectiveValues pro správnou částku (respektuje dodatky/amendments)
@@ -69,7 +82,7 @@ function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose,
       footer={<>
         <button className="btn" onClick={onClose}>Zrušit</button>
         <button className="btn btn-primary" style={{ opacity: selectedCount > 0 ? 1 : 0.5 }}
-          onClick={() => { if (selectedCount > 0) onConfirm(date, totalAmount, note, Array.from(selected)) }}
+          onClick={() => { if (selectedCount > 0) { setLastPayDate(date); onConfirm(date, totalAmount, note, Array.from(selected)) } }}
           disabled={selectedCount === 0}>
           ✓ Potvrdit úhradu ({selectedCount} měs.)
         </button>
@@ -100,6 +113,7 @@ function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose,
         <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Termín přijetí platby</label>
         <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'var(--bg2)', marginBottom: 12, boxSizing: 'border-box' }}
           value={date} onChange={e => setDate(e.target.value)} />
+        <PayDateHint value={date} onChange={setDate} />
 
         {/* Poznámka */}
         <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
@@ -115,14 +129,14 @@ function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose,
 
 // ─── Modal pro zadání data přijetí platby ───────────────────────────────────
 function PaymentDateModal({ contract, fullAmount, onConfirm, onClose, monthLabel }) {
-  const today = new Date().toISOString().split('T')[0]
-  const [date, setDate]       = useState(today)
+  const [date, setDate]       = useState(getLastPayDate)
   const [partial, setPartial] = useState(false)
   const [amount, setAmount]   = useState(String(fullAmount || ''))
   const [note, setNote]       = useState('')
 
   const handleConfirm = () => {
     const finalAmount = partial ? (Number(amount) || 0) : fullAmount
+    setLastPayDate(date)
     onConfirm(date, finalAmount, note)
   }
 
@@ -168,6 +182,7 @@ function PaymentDateModal({ contract, fullAmount, onConfirm, onClose, monthLabel
         </label>
         <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'var(--bg2)', marginBottom: 16, boxSizing: 'border-box' }}
           value={date} onChange={e => setDate(e.target.value)} />
+        <PayDateHint value={date} onChange={setDate} />
 
         <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
           Poznámka <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--text3)' }}>(nepovinné)</span>
@@ -187,7 +202,7 @@ function PaymentDateModal({ contract, fullAmount, onConfirm, onClose, monthLabel
 
 // Modal pro bytové subjekty: nejdřív se ptá zda přišlo nájemné+zálohy dohromady nebo odděleně
 function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, onClose, monthLabel }) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLastPayDate()
   const [step, setStep] = useState('ask') // 'ask' | 'together' | 'separate'
   const [sharedDate, setSharedDate] = useState(today)
   const [rentDate, setRentDate]     = useState(today)
@@ -196,12 +211,13 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
   const hasDeposit = depositAmount > 0
 
   const handleTogether = () => {
-    if (!hasDeposit) { onConfirm([{ type: 'rent', date: sharedDate, amount: rentAmount, note }]); return }
+    if (!hasDeposit) { setLastPayDate(sharedDate); onConfirm([{ type: 'rent', date: sharedDate, amount: rentAmount, note }]); return }
     setStep('together')
   }
   const handleSeparate = () => setStep('separate')
 
   const confirmTogether = () => {
+    setLastPayDate(sharedDate)
     const res = [{ type: 'rent', date: sharedDate, amount: rentAmount, note }]
     if (hasDeposit) res.push({ type: 'deposit', date: sharedDate, amount: depositAmount, note })
     onConfirm(res)
@@ -211,6 +227,7 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
 
   const confirmSeparate = () => {
     const res = []
+    setLastPayDate(rentPaid ? rentDate : depDate)
     if (rentPaid) res.push({ type: 'rent', date: rentDate, amount: rentAmount, note })
     if (hasDeposit && depPaid) res.push({ type: 'deposit', date: depDate, amount: depositAmount, note })
     if (res.length > 0) onConfirm(res)
@@ -264,6 +281,7 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
             </div>
             <label style={labelStyle}>Termín přijetí platby</label>
             <input type="date" className="btn" style={inputStyle} value={sharedDate} onChange={e => setSharedDate(e.target.value)} />
+            <PayDateHint value={sharedDate} onChange={setSharedDate} />
             <label style={labelStyle}>Poznámka <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--text3)' }}>(nepovinné)</span></label>
             <textarea className="btn" rows={2} placeholder="Např. hotovost, přeplatek…"
               style={{ width: '100%', resize: 'vertical', textAlign: 'left', cursor: 'text', background: 'var(--bg2)', marginBottom: 20, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, padding: '8px 12px' }}
@@ -290,6 +308,7 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
                 <>
                   <label style={labelStyle}>Termín přijetí</label>
                   <input type="date" className="btn" style={{ ...inputStyle, marginBottom: 0 }} value={rentDate} onChange={e => setRentDate(e.target.value)} />
+                  <div style={{ marginTop: 10 }}><PayDateHint value={rentDate} onChange={(v) => { setRentDate(v); setDepDate(v) }} /></div>
                 </>
               )}
             </div>
@@ -687,6 +706,21 @@ export default function Payments() {
     if (hasError) console.error('[Payments] Některé platby se nepodařilo uložit do DB')
     setPeriodPicker(null)
   }
+
+  // Šipky ← → = předchozí / další měsíc (ne při psaní do pole, ani když je otevřený dialog nebo detail)
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.ctrlKey || e.altKey || e.metaKey || isTyping() || isOverlayOpen()) return
+      e.preventDefault()
+      if (e.key === 'ArrowLeft') {
+        if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1) } else setSelectedMonth(m => m - 1)
+      } else {
+        if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1) } else setSelectedMonth(m => m + 1)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedMonth])
 
   const subContracts = contractsForSub(activeSub)
   // Filtr řádků Přehledu: stejná logika stavu jako řádky tabulky (skupina / jednotlivá smlouva vč. záloh u bytů)
@@ -1604,6 +1638,7 @@ export default function Payments() {
                               {groupPayment?.date
                                 ? <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A' }}>{groupPayment.date}</span>
                                 : <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>}
+                              {groupPayment?.note && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, maxWidth: 200, marginLeft: 'auto', lineHeight: 1.35, whiteSpace: 'normal' }}>📝 {groupPayment?.note}</div>}
                             </td>
                             <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
@@ -1758,6 +1793,8 @@ export default function Payments() {
                             {payment?.date
                               ? <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A' }}>{payment.date}</span>
                               : <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>}
+                            {payment?.note && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, maxWidth: 200, marginLeft: 'auto', lineHeight: 1.35, whiteSpace: 'normal' }}>📝 {payment?.note}</div>}
+                            {depPaymentRow?.note && depPaymentRow.note !== payment?.note && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, maxWidth: 200, marginLeft: 'auto', lineHeight: 1.35, whiteSpace: 'normal' }}>📝 zálohy: {depPaymentRow.note}</div>}
                           </td>
                           <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
@@ -2227,6 +2264,7 @@ export default function Payments() {
                             )}
                           </div>
                           {p.date && <div style={{ fontSize: 10, color: '#4ADE80', marginTop: 1 }}>Přijato: {p.date}</div>}
+                          {p.note && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>📝 {p.note}</div>}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ fontSize: 14, fontWeight: 800, color: '#166534' }}>{Number(p.amount || 0).toLocaleString('cs-CZ')} Kč</div>

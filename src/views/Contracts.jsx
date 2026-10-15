@@ -4,11 +4,13 @@ import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDat
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill, contractStatus } from '../StatusUI.jsx'
+import { useNewShortcut } from '../shortcuts.js'
 
 export default function Contracts({ activeSubject, onOpen }) {
   const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  useNewShortcut(() => setShowForm(true)) // Ctrl+N
   const [tab, setTab] = useState('valid') // 'valid' = platné (vč. ukončených s budoucím koncem) | 'ended' = ukončené
   const [cardOrder, setCardOrder] = useState(() => {
     try { const s = localStorage.getItem('rf_contract_order'); return s ? JSON.parse(s) : null } catch { return null }

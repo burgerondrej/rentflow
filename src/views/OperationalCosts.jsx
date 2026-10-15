@@ -4,6 +4,7 @@ import { selectionLabel } from '../utils.js'
 import { useApp } from '../AppContext.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
 import DialogShell from '../DialogShell.jsx'
+import { useNewShortcut } from '../shortcuts.js'
 
 const CATEGORIES = [
   'Pojištění','Účetní firma','Úklid společných prostor','Údržba objektu',
@@ -38,6 +39,7 @@ export default function OperationalCosts() {
   const filtered = operationalCosts.filter(c => matches(sel, c.objectName))
 
   const openAdd = () => { setEditId(null); setForm({ objectName: firstObjectOf(sel), category: CATEGORIES[0], amount: '', frequency: 'Ročně', notes: '', vatIncluded: false }); setShowForm(true) }
+  useNewShortcut(() => { if (!isReadOnly) openAdd() }) // Ctrl+N
   const openEdit = (oc) => {
     setEditId(oc.id)
     setForm({

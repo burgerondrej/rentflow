@@ -63,7 +63,12 @@ export default function DataCheck({ onClose, onOpen }) {
     const ids = new Set(contracts.map(c => c.id))
     const groups = new Set(contracts.map(c => c.groupLabel).filter(Boolean))
     add('payments', '💳', 'Platby bez smlouvy', 'Smlouva platby byla smazána (je v koši?) – platba se nikde nezapočítá.',
-      payments.filter(p => (p.contractId && !ids.has(p.contractId)) || (!p.contractId && p.groupLabel && !groups.has(p.groupLabel)) || (!p.contractId && !p.groupLabel))
+      // skupinové platby mají contractId "group:<název>" (v DB NULL)
+      payments.filter(p => {
+        const isGroup = !p.contractId || p.contractId.startsWith('group:')
+        if (isGroup) return !p.groupLabel || !groups.has(p.groupLabel)
+        return !ids.has(p.contractId)
+      })
         .map(p => ({ key: p.id, text: `${Number(p.amount || 0).toLocaleString('cs-CZ')} Kč · ${p.date || 'bez data'}`, sub: p.groupLabel ? `skupina ${p.groupLabel}` : `měsíc ${p.month}` })), 'gray')
 
     // 8) Duplicitní platby (stejná smlouva/skupina, měsíc a typ)
