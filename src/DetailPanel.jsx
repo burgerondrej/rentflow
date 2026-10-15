@@ -295,9 +295,8 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                   .sort((x, y) => (parseDate(y.c.start)?.getTime() || 0) - (parseDate(x.c.start)?.getTime() || 0))
               : []
             if (entityDocs.length === 0 && tenantContractGroups.length === 0) {
-              return <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>
-                Zatím nejsou připojeny žádné soubory.{type === 'tenant' ? ' Smlouvy, protokoly a dodatky nahrávejte v detailu příslušné smlouvy (záložka Dokumenty) – zobrazí se pak i tady.' : ''}
-              </div>
+              return <EmptyState compact icon="📎" title="Zatím žádné dokumenty"
+                text={type === 'tenant' ? 'Smlouvy, protokoly a dodatky nahrávejte v detailu příslušné smlouvy (záložka Dokumenty) – zobrazí se pak i tady.' : 'Soubor přidáte tlačítkem + Nahrát.'} />
             }
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -619,7 +618,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               })}
             </div>
           ) : groupShareRows.length === 0 && (
-            <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Zatím neevidujeme žádné platby k této smlouvě.</div>
+            <EmptyState compact icon="💳" title="Zatím žádné platby" text="Platby se zapisují v Platbách nebo tady přes + Přidat platbu." />
           )}
         </div>
       </div>
@@ -1057,7 +1056,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               </div>
             )}
             {activeContracts.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--text3)' }}>Tento kontakt aktuálně nic nepronajímá.</div>
+              <EmptyState compact icon="📄" title="Žádná platná smlouva" text="Tento kontakt aktuálně nic nepronajímá." />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {(() => {
@@ -2856,9 +2855,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
             {/* Seznam existujících amendments */}
             {(c.amendments || []).length === 0 && !amendForm ? (
-              <div style={{ padding: '14px 16px', fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>
-                Žádné zaznamenané změny. Použijte "+ Přidat změnu" pro zaznamenání valorizace nebo jiné úpravy.
-              </div>
+              <div style={{ padding: 12 }}><EmptyState compact icon="📈" title="Zatím žádné dodatky" text="Valorizaci nebo jinou změnu nájemného či záloh přidáte přes + Přidat změnu." /></div>
             ) : (
               <div style={{ padding: '4px 0' }}>
                 {[...(c.amendments || [])].reverse().map((am, i, arr) => (

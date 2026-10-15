@@ -7,11 +7,8 @@ import { parseDate, isContractBillable, isContractOccupying, getCurrentAssetCont
  * Kontrola dat (jen čtení): najde nesrovnalosti, které rozbíjejí přehledy a platby.
  * Nic neopravuje – u každé položky je odkaz do detailu.
  */
-export default function DataCheck({ onClose, onOpen }) {
-  const { contracts = [], assets = [], tenants = [], payments = [], subjects = [], objectFirms = [], firms = [] } = useApp()
-  const [open, setOpen] = useState(null)
-
-  const checks = useMemo(() => {
+/** Výpočet všech kontrol (sdílí dialog i proužek na Dashboardu). Vrací [{ id, icon, title, hint, items, tone }]. */
+export function computeDataChecks({ contracts = [], assets = [], tenants = [], payments = [], subjects = [], objectFirms = [], firms = [] }) {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const tenantOf = (c) => tenants.find(t => t.id === c.tenantId)
     const assetOf = (c) => assets.find(a => a.id === c.assetId)
@@ -113,7 +110,19 @@ export default function DataCheck({ onClose, onOpen }) {
         .map(t => ({ key: t.id, text: t.name, sub: contracts.filter(c => c.tenantId === t.id && isContractOccupying(c)).map(c => contractSubject(c, assets)).filter(Boolean)[0] || '', open: ['tenant', t.id] })), 'gray')
 
     return out
-  }, [contracts, assets, tenants, payments, subjects, objectFirms, firms])
+}
+
+/** Počet položek, které stojí za pozornost (červené a oranžové kontroly; šedé jsou jen informativní). */
+export function dataCheckAlerts(checks) {
+  const important = checks.filter(c => (c.tone === 'red' || c.tone === 'amber') && c.items.length > 0)
+  return { total: important.reduce((s, c) => s + c.items.length, 0), groups: important, signature: important.flatMap(c => c.items.map(i => c.id + ':' + i.key)).sort().join('|') }
+}
+
+export default function DataCheck({ onClose, onOpen }) {
+  const { contracts = [], assets = [], tenants = [], payments = [], subjects = [], objectFirms = [], firms = [] } = useApp()
+  const [open, setOpen] = useState(null)
+  const checks = useMemo(() => computeDataChecks({ contracts, assets, tenants, payments, subjects, objectFirms, firms }),
+    [contracts, assets, tenants, payments, subjects, objectFirms, firms])
 
   const problems = checks.filter(c => c.items.length > 0)
   const total = problems.reduce((s, c) => s + c.items.length, 0)

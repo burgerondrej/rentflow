@@ -232,9 +232,7 @@ export default function Contracts({ activeSubject, onOpen }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 40, marginTop: 10 }}>
         {tab === 'valid' && endFilter !== 'all' && endCount(endFilter) === 0 && (
-          <div style={{ padding: 28, textAlign: 'center', fontSize: 14, fontWeight: 700, color: 'var(--tone-green-text)', background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 14 }}>
-            ✓ Žádné smlouvy v tomto výběru
-          </div>
+          <EmptyState good icon="✓" title="Žádné smlouvy v tomto výběru" text="Nic nekončí ani nepropadlo – vše je v pořádku." />
         )}
         {subjects.map(subject => {
           if (!selectionMatches(activeSubject, subject)) return null
@@ -259,9 +257,7 @@ export default function Contracts({ activeSubject, onOpen }) {
               </div>
 
               {subjectContracts.length === 0 ? (
-                <div style={{ fontSize: 13, color: 'var(--text3)', padding: '10px 0', fontStyle: 'italic', paddingLeft: 33 }}>
-                  Zatím žádné evidované smlouvy.
-                </div>
+                <EmptyState compact icon="📑" title="Zatím žádné smlouvy" />
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 16 }}>
                   {activeInSubject.map(c => (

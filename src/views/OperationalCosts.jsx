@@ -5,6 +5,7 @@ import { useApp } from '../AppContext.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
 import DialogShell from '../DialogShell.jsx'
 import { useNewShortcut } from '../shortcuts.js'
+import { EmptyState } from '../UI.jsx'
 
 const CATEGORIES = [
   'Pojištění','Účetní firma','Úklid společných prostor','Údržba objektu',
@@ -144,11 +145,8 @@ export default function OperationalCosts() {
 
       {/* Seznam */}
       {filtered.length === 0 ? (
-        <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text3)' }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>🏗️</div>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Žádné provozní náklady</div>
-          <div style={{ fontSize: 13, marginTop: 4 }}>Pro {selectionLabel(sel)} zatím nejsou evidovány žádné náklady.</div>
-        </div>
+        <EmptyState icon="🧾" title="Žádné provozní náklady" text={`Pro ${selectionLabel(sel)} zatím nejsou evidovány žádné náklady.`}
+          action={!isReadOnly && <button className="btn btn-sm" onClick={openAdd}>+ Přidat náklad</button>} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(oc => {

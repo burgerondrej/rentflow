@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
+import { EmptyState } from '../UI.jsx'
 
 const STATUS_COLOR = { green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)', blue: 'var(--blue)', gray: 'var(--text3)' }
 const BADGE_CLS    = { green: 'badge-green', amber: 'badge-amber', red: 'badge-red', blue: 'badge-blue', gray: 'badge-gray' }
@@ -41,9 +42,7 @@ export default function Properties({ onOpenTenant, activeSubject }) {
       </div>
 
       {filtered.length === 0 && (
-        <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text3)' }}>
-          Žádné nemovitosti pro tento subjekt.
-        </div>
+        <EmptyState icon="🏢" title="Žádné nemovitosti" text="Pro tento subjekt zatím nejsou evidované nemovitosti." />
       )}
 
       {filtered.map((firm, fi) => {

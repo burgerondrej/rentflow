@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useApp } from './AppContext.jsx'
+import { EmptyState } from './UI.jsx'
 
 const ACTION_TONE = { 'Přidání': 'green', 'Úprava': 'blue', 'Smazání': 'red', 'Archivace': 'amber', 'Obnova': 'violet', 'Automatické prodloužení': 'violet' }
 
@@ -27,7 +28,7 @@ export default function ContractHistory({ contract }) {
   }, [contract.id, unit, tenant, contract.groupLabel, payments.length])
 
   if (rows === null) return <div style={{ padding: 16, fontSize: 13, color: 'var(--text3)' }}>Načítám historii…</div>
-  if (rows.length === 0) return <div style={{ padding: 16, fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Žádné záznamy v historii změn.</div>
+  if (rows.length === 0) return <EmptyState compact icon="🕑" title="Zatím žádné záznamy" text="Úpravy smlouvy, platby a dodatky se budou zobrazovat tady." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

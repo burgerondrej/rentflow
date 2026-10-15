@@ -119,6 +119,7 @@ function AppInner() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const [searchIdx, setSearchIdx] = useState(0) // zvýrazněný výsledek (šipky ↑↓, Enter)
   const searchInputRef = useRef(null)
 
   const readOnlyRef = useRef(isReadOnly)
@@ -245,7 +246,7 @@ function AppInner() {
   }
 
   const VIEWS = { 
-    dashboard: () => <Dashboard onNav={handleNav} onOpen={(id) => openDetail('contract', id)} />, 
+    dashboard: () => <Dashboard onNav={handleNav} onOpen={(id) => openDetail('contract', id)} onOpenDetail={(type, id) => openDetail(type, id)} />, 
     tenants: () => <Tenants onOpen={(id) => openDetail('tenant', id)} />, 
     residential: () => <Assets type="residential" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     commercial: () => <Assets type="commercial" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
@@ -308,56 +309,62 @@ function AppInner() {
         <div className="topbar" style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid var(--border)', position: 'relative', zIndex: 50 }}>
           <div style={{ display: 'flex', gap: 12, flex: 1, maxWidth: 600 }}>
             
-            {/* FULLTEXTOVÉ VYHLEDÁVÁNÍ */}
+            {/* FULLTEXTOVÉ VYHLEDÁVÁNÍ – paleta: štítek typu a firmy, ovládání ↑↓ Enter Esc */}
             <div style={{ position: 'relative', flex: 1 }}>
-              <input 
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }}>
+                <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.6"/><path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              </svg>
+              <input
                 ref={searchInputRef}
-                type="text" 
-                placeholder="Hledat… (Ctrl+F)" 
+                type="text"
+                placeholder="Hledat nájemce, předmět, smlouvu, telefon… (Ctrl+F)"
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={e => { setSearchQuery(e.target.value); setSearchIdx(0) }}
                 onFocus={() => setIsSearchFocused(true)}
                 onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)} // Zpoždění, aby šlo kliknout na výsledek
-                style={{ 
-                  width: '100%', padding: '8px 14px', background: 'var(--tone-green-soft)', 
-                  border: '1px solid var(--tone-green-border)', borderRadius: 'var(--r)', 
-                  fontSize: 13, color: 'var(--tone-green-text)', fontWeight: 600, outline: 'none' 
+                onKeyDown={e => {
+                  if (!searchResults.length) return
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setSearchIdx(i => Math.min(i + 1, searchResults.length - 1)) }
+                  else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx(i => Math.max(i - 1, 0)) }
+                  else if (e.key === 'Enter') { e.preventDefault(); handleResultClick(searchResults[Math.min(searchIdx, searchResults.length - 1)]); setSearchQuery(''); searchInputRef.current?.blur() }
+                }}
+                style={{
+                  width: '100%', padding: '8px 14px 8px 34px', background: 'var(--bg2)',
+                  border: '1.5px solid var(--border)', borderRadius: 10,
+                  fontSize: 13, color: 'var(--text)', fontWeight: 600, outline: 'none'
                 }}
               />
-              
+
               {/* Našeptávač výsledků */}
-              {isSearchFocused && searchQuery.trim() !== '' && (
-                <div style={{ 
-                  position: 'absolute', top: '100%', left: 0, right: 0, 
-                  background: 'var(--bg)', border: '1px solid var(--border)', 
-                  borderRadius: 12, marginTop: 6, boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
-                  zIndex: 1000, overflow: 'hidden' 
-                }}>
-                  {searchResults.length > 0 ? searchResults.map((res, i) => (
-                    <div 
-                      key={i} 
-                      onClick={() => handleResultClick(res)}
-                      style={{ 
-                        padding: '10px 16px', borderBottom: '1px solid var(--border2)', 
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12,
-                        background: 'var(--bg)'
-                      }}
-                      onMouseOver={e => e.currentTarget.style.background = 'var(--bg2)'}
-                      onMouseOut={e => e.currentTarget.style.background = 'var(--bg)'}
-                    >
-                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', background: 'var(--bg3)', padding: '4px 8px', borderRadius: 6, color: 'var(--text2)', width: 70, textAlign: 'center' }}>
-                        {res.label}
-                      </span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0 }}>{res.text}</span>
-                      {(res.firms || []).map(f => <FirmBadge key={f.name} firm={f} size={22} />)}
-                    </div>
-                  )) : (
-                    <div style={{ padding: '16px', fontSize: 13, color: 'var(--text3)', textAlign: 'center', fontWeight: 500 }}>
-                      Hledaný výraz se v systému nenachází.
-                    </div>
-                  )}
-                </div>
-              )}
+              {isSearchFocused && searchQuery.trim() !== '' && (() => {
+                const TYPE_TONE = { tenant: 'violet', contract: 'blue', asset: 'green', task: 'amber', doc: 'gray' }
+                return (
+                  <div className="dlg" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 1000, borderRadius: 14 }}>
+                    {searchResults.length > 0 ? searchResults.map((res, i) => {
+                      const tone = TYPE_TONE[res.type] || 'gray'
+                      const on = i === Math.min(searchIdx, searchResults.length - 1)
+                      return (
+                        <div key={i}
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => handleResultClick(res)}
+                          onMouseEnter={() => setSearchIdx(i)}
+                          style={{ padding: '9px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                            background: on ? 'var(--tone-green-soft)' : 'var(--bg)' }}>
+                          <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, minWidth: 64, textAlign: 'center', flexShrink: 0,
+                            background: `var(--tone-${tone}-soft)`, border: `1px solid var(--tone-${tone}-border)`, color: `var(--tone-${tone}-text)` }}>{res.label}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{res.text}</span>
+                          {(res.firms || []).map(f => <FirmBadge key={f.name} firm={f} size={22} />)}
+                        </div>
+                      )
+                    }) : (
+                      <div style={{ padding: 16, fontSize: 13, color: 'var(--text3)', textAlign: 'center', fontWeight: 500 }}>
+                        Nic nenalezeno pro „{searchQuery.trim()}“.
+                      </div>
+                    )}
+                    <div style={{ padding: '7px 14px', fontSize: 11, color: 'var(--text3)', background: 'var(--bg2)' }}>↑↓ výběr · Enter otevřít · Esc zavřít</div>
+                  </div>
+                )
+              })()}
             </div>
 
             <FirmPickerButton

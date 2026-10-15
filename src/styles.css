@@ -131,6 +131,9 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .empty-state-title { font-size: 14px; font-weight: 800; color: var(--text); }
 .empty-state-text { font-size: 12.5px; color: var(--text2); max-width: 420px; line-height: 1.45; }
 
+/* Připnuté záhlaví tabulky (Platby) – .content má horní odsazení 24px, proto top: -24px; obal tabulky musí mít overflow: clip */
+.sticky-head th { position: sticky; top: -24px; z-index: 3; background: var(--bg2); box-shadow: inset 0 -2px 0 var(--border); }
+
 /* Jednotná kostra dialogu (DialogShell) */
 .dlg { background: var(--bg); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 28px 64px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.04);
   display: flex; flex-direction: column; overflow: hidden; animation: modalIn 0.18s ease; }

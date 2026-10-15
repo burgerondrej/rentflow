@@ -2,13 +2,18 @@ import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import DialogShell from '../DialogShell.jsx'
 import { setPaymentsFilterOnOpen } from '../shortcuts.js'
+import DataCheck, { computeDataChecks, dataCheckAlerts } from '../DataCheck.jsx'
 import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, overdueDays, contractMonthStatus, groupMonthStatus, hasSuccessor } from '../utils.js'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
 
-export default function Dashboard({ onNav, onOpen }) {
-  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [], getFirm, theme, firms = [], setNavSelection } = useApp() || {}
+export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
+  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [], getFirm, theme, firms = [], setNavSelection, objectFirms = [] } = useApp() || {}
   const [expandedGroup, setExpandedGroup] = useState(null) // { days, colorVar, list }
+  // Kontrola dat – proužek s počtem důležitých nálezů
+  const [showCheck, setShowCheck] = useState(false)
+  const [dismissedSig, setDismissedSig] = useState(() => { try { return localStorage.getItem('rf_datacheck_dismissed') || '' } catch { return '' } })
+  const checkAlert = dataCheckAlerts(computeDataChecks({ contracts, assets, tenants, payments, subjects, objectFirms, firms }))
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -191,6 +196,22 @@ export default function Dashboard({ onNav, onOpen }) {
           <div className="page-sub">Přehled expirací smluv, úkolů, blížících se revizí a měsíčních plateb nájemného</div>
         </div>
       </div>
+
+      {/* Upozornění na Kontrolu dat – jen když je co řešit; zavřít lze do další změny dat */}
+      {checkAlert.total > 0 && dismissedSig !== checkAlert.signature && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', marginBottom: 18, borderRadius: 12,
+          background: 'var(--tone-amber-soft)', border: '1.5px solid var(--tone-amber-border)', color: 'var(--tone-amber-text)', fontSize: 13, fontWeight: 700 }}>
+          <span style={{ fontSize: 18 }}>🩺</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            Kontrola dat našla {checkAlert.total} {checkAlert.total === 1 ? 'položku' : checkAlert.total < 5 ? 'položky' : 'položek'} k ověření
+            <span style={{ fontWeight: 600, color: 'var(--text2)' }}> ({checkAlert.groups.map(g => `${g.title.toLowerCase()}: ${g.items.length}`).join(', ')})</span>
+          </span>
+          <button className="btn btn-sm btn-tone-amber" style={{ fontWeight: 800, borderRadius: 999 }} onClick={() => setShowCheck(true)}>Zobrazit ➔</button>
+          <button className="btn btn-sm" title="Skrýt do další změny" style={{ padding: '3px 8px' }}
+            onClick={() => { setDismissedSig(checkAlert.signature); try { localStorage.setItem('rf_datacheck_dismissed', checkAlert.signature) } catch { /* ignore */ } }}>✕</button>
+        </div>
+      )}
+      {showCheck && <DataCheck onClose={() => setShowCheck(false)} onOpen={(type, id) => { setShowCheck(false); onOpenDetail ? onOpenDetail(type, id) : (type === 'contract' && onOpen && onOpen(id)) }} />}
 
       {/* 0. KARTY FIREM – kliknutím do Plateb dané firmy */}
       {firmCards.length > 0 && (

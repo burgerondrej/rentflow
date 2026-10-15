@@ -5,6 +5,7 @@ import { firmOf, tenantRentsByFirm, isContractOccupying } from '../utils.js'
 import { FirmRentSummary } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
 import { useNewShortcut } from '../shortcuts.js'
+import { EmptyState } from '../UI.jsx'
 
 // 26 výrazných tmavých barev — každé písmeno abecedy dostane svou vlastní
 const LETTER_COLORS = [
@@ -563,9 +564,7 @@ export default function Tenants({ onOpen }) {
       )}
 
       {!hasAnyTenant && (
-        <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text3)' }}>
-          Žádný nájemce nenalezen.
-        </div>
+        <EmptyState icon="👥" title="Žádný nájemce nenalezen" text="Zkuste upravit hledání nebo výběr firmy." />
       )}
 
       {/* Archiv */}

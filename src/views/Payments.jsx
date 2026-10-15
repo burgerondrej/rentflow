@@ -1524,16 +1524,16 @@ export default function Payments() {
                 </div>
               )
             })()}
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'clip', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
+                <thead className="sticky-head">
                   <tr style={{ background: 'var(--bg2)', borderBottom: '2px solid var(--border)' }}>
                     <th style={{ padding: '14px 20px', textAlign: 'left',  fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nájemce / Jednotka</th>
                     <th style={{ padding: '14px 12px', textAlign: 'left', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Splatnost</th>
                     <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isBytovySub(activeSub) ? 'Nájemné + parkování' : 'Nájemné'}</th>
                     <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Zálohy</th>
                     <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Komplet uhrazeno dne</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nájem uhrazen</th>
+                    <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Stav platby</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1541,8 +1541,8 @@ export default function Payments() {
                     // Seskupení dle group_label (overviewGroups) + filtr Vše / Neuhrazené / Po splatnosti
                     const groups = overviewGroups.filter(rowPasses)
                     if (groups.length === 0) return (
-                      <tr><td colSpan={6} style={{ padding: '28px 20px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: 'var(--tone-green-text)' }}>
-                        {rowFilter === 'overdue' ? '✓ Nic není po splatnosti' : '✓ Vše uhrazeno'}
+                      <tr><td colSpan={6} style={{ padding: 16 }}>
+                        <EmptyState good icon="✓" title={rowFilter === 'overdue' ? 'Nic není po splatnosti' : 'Vše uhrazeno'} text={`${selectionLabel(activeSub)} · ${monthLabel}`} />
                       </td></tr>
                     )
 
@@ -1955,11 +1955,7 @@ export default function Payments() {
             </span>
           </div>
           {debtors.length === 0 ? (
-            <div style={{ padding: 60, textAlign: 'center', background: 'var(--tone-green-soft)', borderRadius: 16, border: '1px solid var(--tone-green-border)' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>🎉</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--tone-green-text)' }}>Všichni zaplatili!</div>
-              <div style={{ fontSize: 13, color: '#4ADE80', marginTop: 4 }}>Za {monthLabel} je vše uhrazeno napříč celým portfoliem.</div>
-            </div>
+            <EmptyState good icon="🎉" title="Všichni zaplatili!" text={`Za ${monthLabel} je vše uhrazeno napříč celým portfoliem.`} />
           ) : (
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -2252,7 +2248,7 @@ export default function Payments() {
                   Historie plateb ({history.length})
                 </div>
                 {history.length === 0 ? (
-                  <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Žádné evidované platby.</div>
+                  <EmptyState compact icon="💳" title="Zatím žádné platby" />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {history.map(p => (

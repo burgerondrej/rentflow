@@ -1,5 +1,6 @@
 import React from 'react'
 import { useApp } from '../AppContext.jsx'
+import { EmptyState } from '../UI.jsx'
 
 export default function History() {
   const { logs = [] } = useApp() || {}
@@ -66,10 +67,8 @@ export default function History() {
               )
             }) : (
               <tr>
-                <td colSpan="5" style={{ padding: 60, textAlign: 'center', color: 'var(--text3)' }}>
-                  <div style={{ fontSize: 32, marginBottom: 16 }}>📝</div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>Zatím nebyla zaznamenána žádná aktivita.</div>
-                  <div style={{ fontSize: 12, marginTop: 4 }}>Zkuste přidat úkol, nájemníka nebo smazat soubor.</div>
+                <td colSpan="5" style={{ padding: 16 }}>
+                  <EmptyState icon="🕑" title="Zatím žádná aktivita" text="Změny v nájemnících, smlouvách a platbách se budou zapisovat sem." />
                 </td>
               </tr>
             )}

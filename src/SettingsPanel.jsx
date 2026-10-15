@@ -3,6 +3,7 @@ import { useApp } from './AppContext.jsx'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/tauri'
 import FirmsSettings from './FirmsSettings.jsx'
+import { SectionHeader } from './UI.jsx'
 import DataCheck from './DataCheck.jsx'
 
 export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
@@ -60,58 +61,57 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
     <>
       <div
         onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, backdropFilter: 'blur(2px)' }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(10, 20, 15, 0.55)', zIndex: 200, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
       />
       <div style={{
         position: 'fixed', right: 0, top: 0, bottom: 0, width: 440,
-        background: 'var(--bg)', zIndex: 201,
-        boxShadow: '-4px 0 24px rgba(0,0,0,0.15)',
+        background: 'var(--bg)', zIndex: 201, borderLeft: '1px solid var(--border)',
+        boxShadow: '-12px 0 40px rgba(0,0,0,0.22)', animation: 'modalIn 0.18s ease',
         display: 'flex', flexDirection: 'column',
         overflowY: 'auto'
       }}>
         {/* Header */}
-        <div style={{
-          padding: '16px 20px', borderBottom: '1px solid var(--border)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: 'var(--bg2)', position: 'sticky', top: 0, zIndex: 10
-        }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>⚙️ Nastavení</span>
-          <button onClick={onClose} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 16 }}>✕</button>
+        <div className="dlg-head" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg)' }}>
+          <div className="dlg-icon" style={{ background: 'var(--tone-green-soft)', borderColor: 'var(--tone-green-border)' }}>⚙️</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="dlg-title">Nastavení</div>
+            <div className="dlg-sub">RentFlow v{appVersion}</div>
+          </div>
+          <button type="button" className="dlg-close" onClick={onClose} title="Zavřít">✕</button>
         </div>
 
-        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14, background: 'var(--bg2)', flex: 1 }}>
 
           {/* ── FIRMY A SEKCE (jen admin) ── */}
           {!isReadOnly && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', letterSpacing: '0.06em', marginBottom: 14 }}>
-                Firmy a sekce
-              </div>
+            <div className="sec-card">
+              <SectionHeader icon="🏢" tone="green" title="Firmy a sekce" />
+              <div className="sec-card-body">
               <button className="btn" style={{ width: '100%', justifyContent: 'center', fontWeight: 700 }} onClick={() => setShowFirms(true)}>
                 🏢 Spravovat firmy, sekce a budovy
               </button>
               <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 6 }}>Názvy, zkratky, barvy, DPH, pořadí. Přejmenování se propíše všude a předem se zazálohuje.</div>
+              </div>
             </div>
           )}
           {showFirms && <FirmsSettings onClose={() => setShowFirms(false)} />}
 
           {/* ── KONTROLA DAT ── */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', letterSpacing: '0.06em', marginBottom: 14 }}>
-              Kontrola dat
-            </div>
+          <div className="sec-card">
+            <SectionHeader icon="🩺" tone="amber" title="Kontrola dat" />
+            <div className="sec-card-body">
             <button className="btn" style={{ width: '100%', justifyContent: 'center', fontWeight: 700 }} onClick={() => setShowCheck(true)}>
               🩺 Zkontrolovat data
             </button>
             <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 6 }}>Propadlé smlouvy, překryvy, chybějící data konce, platby bez smlouvy, duplicity… Jen čte, nic nemění.</div>
+            </div>
           </div>
           {showCheck && <DataCheck onClose={() => setShowCheck(false)} onOpen={onOpen ? (type, id) => { setShowCheck(false); onOpen(type, id) } : undefined} />}
 
           {/* ── SEKCE ZÁLOHY ── */}
-          <section>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', letterSpacing: '0.06em', marginBottom: 14 }}>
-              Zálohy databáze
-            </div>
+          <section className="sec-card">
+            <SectionHeader icon="💾" tone="blue" title="Zálohy databáze" />
+            <div className="sec-card-body">
 
             {/* Stav zálohy */}
             <div style={{
@@ -133,7 +133,7 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
               background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)',
               borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--tone-green-text)'
             }}>
-              💡 Zálohy se ukládají do <code style={{ background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3 }}>%APPDATA%\rentflow\backups\</code>
+              💡 Zálohy se ukládají do <code style={{ background: 'var(--bg3)', padding: '1px 4px', borderRadius: 3 }}>%APPDATA%\rentflow\backups\</code>
               <br />Automatická záloha proběhne každý den v 19:00.
             </div>
 
@@ -164,13 +164,13 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
                   : '🧹 Vyčistit duplicitní platby'}
               </button>
             )}
+            </div>
           </section>
 
           {/* ── SEKCE GOOGLE DRIVE ── */}
-          <section>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', letterSpacing: '0.06em', marginBottom: 14 }}>
-              Google Drive sync
-            </div>
+          <section className="sec-card">
+            <SectionHeader icon="☁️" tone="blue" title="Google Drive sync" />
+            <div className="sec-card-body">
 
             <div style={{
               background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)',
@@ -179,12 +179,12 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
             }}>
               📂 Zadej cestu ke složce synchronizované přes <strong>Google Drive for Desktop</strong>.<br /><br />
               <strong>🖥️ U Ondřeje (tento PC):</strong><br />
-              Nastav cestu ke sdílené GDrive složce (např. <code style={{ background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3 }}>C:\\Users\\ondra\\Google Drive\\RentFlow</code>).
+              Nastav cestu ke sdílené GDrive složce (např. <code style={{ background: 'var(--bg3)', padding: '1px 4px', borderRadius: 3 }}>C:\\Users\\ondra\\Google Drive\\RentFlow</code>).
               Při každé záloze se sem automaticky zkopírují databáze i nově nahrané přílohy smluv.<br /><br />
               <strong>🖥️ U Pavla (druhý PC):</strong><br />
               1. Nainstalovat <strong>Google Drive for Desktop</strong> a přihlásit se ke stejnému Google účtu.<br />
               2. V nastavení RentFlow zadat do pole <em>Cesta ke Google Drive složce</em> cestu k té samé sdílené složce na Pavlově PC.<br />
-              3. Do pole <em>Cesta k databázi</em> zadat plnou cestu k souboru <code style={{ background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3 }}>rentflow.db</code> uvnitř té složky.<br />
+              3. Do pole <em>Cesta k databázi</em> zadat plnou cestu k souboru <code style={{ background: 'var(--bg3)', padding: '1px 4px', borderRadius: 3 }}>rentflow.db</code> uvnitř té složky.<br />
               4. Restartovat aplikaci.<br /><br />
               <strong>⚠️ Přílohy smluv</strong> se synchronizují automaticky při každé záloze (Ondra → GDrive → Pavel). Než Pavel otevře přílohu, musí Google Drive na jeho PC dokončit synchronizaci.
             </div>
@@ -225,17 +225,17 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
                 ✅ Drive sync aktivní: <code style={{ wordBreak: 'break-all' }}>{backupInfo.gdrivePath}</code>
               </div>
             )}
+            </div>
           </section>
 
           {/* ── SEKCE DATABÁZE ── */}
-          <section>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', letterSpacing: '0.06em', marginBottom: 14 }}>
-              Cesta k databázi
-            </div>
-            <div style={{ background: '#FEF9C3', border: '1px solid var(--tone-amber-border)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--tone-amber-text)', lineHeight: 1.6 }}>
-              <strong>🖥️ U Ondřeje:</strong> Nech prázdné — databáze se načítá z výchozího umístění <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 3 }}>%APPDATA%\\rentflow\\rentflow.db</code>.<br /><br />
-              <strong>🖥️ U Pavla:</strong> Zadej plnou cestu k souboru <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 3 }}>rentflow.db</code> uvnitř sdílené GDrive složky,{''}
-              např. <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 3 }}>C:\\Users\\pavel\\Google Drive\\RentFlow\\rentflow.db</code>.<br />
+          <section className="sec-card">
+            <SectionHeader icon="🗄️" tone="gray" title="Cesta k databázi" />
+            <div className="sec-card-body">
+            <div style={{ background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--tone-amber-text)', lineHeight: 1.6 }}>
+              <strong>🖥️ U Ondřeje:</strong> Nech prázdné — databáze se načítá z výchozího umístění <code style={{ background: 'var(--bg3)', padding: '1px 4px', borderRadius: 3 }}>%APPDATA%\\rentflow\\rentflow.db</code>.<br /><br />
+              <strong>🖥️ U Pavla:</strong> Zadej plnou cestu k souboru <code style={{ background: 'var(--bg3)', padding: '1px 4px', borderRadius: 3 }}>rentflow.db</code> uvnitř sdílené GDrive složky,{''}
+              např. <code style={{ background: 'var(--bg3)', padding: '1px 4px', borderRadius: 3 }}>C:\\Users\\pavel\\Google Drive\\RentFlow\\rentflow.db</code>.<br />
               Změna se projeví po restartu aplikace.
             </div>
             <div style={{ marginBottom: 8 }}>
@@ -256,13 +256,13 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
                 ✅ Vlastní DB cesta nastavena — platí po restartu
               </div>
             )}
+            </div>
           </section>
 
           {/* ── SEKCE INFO ── */}
-          <section style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', letterSpacing: '0.06em', marginBottom: 14 }}>
-              O aplikaci
-            </div>
+          <section className="sec-card">
+            <SectionHeader icon="ℹ️" tone="gray" title="O aplikaci" />
+            <div className="sec-card-body">
             <div style={{ display: 'grid', gap: 8, fontSize: 13, color: 'var(--text2)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Verze</span><span style={{ fontWeight: 600, color: 'var(--text)' }}>v{appVersion}</span>
@@ -273,6 +273,7 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Umístění dat</span><span style={{ fontWeight: 600, color: 'var(--text)', fontSize: 11 }}>%APPDATA%\rentflow\</span>
               </div>
+            </div>
             </div>
           </section>
 

@@ -3,6 +3,7 @@ import { FirmPicker, useObjectFirms } from '../FirmUI.jsx'
 import { useApp } from '../AppContext.jsx'// ── Pomocná komponenta: selector subjektů ────────────────────────────────────
 import { StatusPill } from '../StatusUI.jsx'
 import { useNewShortcut } from '../shortcuts.js'
+import { EmptyState } from '../UI.jsx'
 function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt' }) {
   const cols = subjects.length <= 5 ? 'repeat(auto-fill, minmax(160px, 1fr))' : 'repeat(3, 1fr)'
   return (
@@ -191,7 +192,7 @@ export default function Maintenance() {
                 </tr>
               )
             }) : (
-              <tr><td colSpan="5" style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>Zatím zde nemáš evidované žádné revize.</td></tr>
+              <tr><td colSpan="5" style={{ padding: 16 }}><EmptyState icon="🔧" title="Zatím žádné revize" text="Revize a technické kontroly přidáte tlačítkem + Nová revize." /></td></tr>
             )}
           </tbody>
         </table>

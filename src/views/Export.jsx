@@ -491,12 +491,12 @@ function genDepositReport(contracts, payments, assets, tenants, subjectFilter, s
 // ── KOMPONENTA ────────────────────────────────────────────────────────────────
 
 const EXPORT_TYPES = [
-  { id: 'portfolio', icon: '🏢', label: 'Přehled portfolia', sub: 'Aktivní smlouvy dle subjektů', color: '#12654A', bg: 'var(--tone-green-soft)', border: 'var(--tone-green-border)' },
-  { id: 'tenant',   icon: '👤', label: 'Karta nájemce',     sub: 'Kontakty + smlouvy jednoho nájemce', color: 'var(--tone-violet-text)', bg: 'var(--tone-violet-soft)', border: 'var(--tone-violet-border)' },
-  { id: 'expiry',   icon: '⏰', label: 'Expirační report',  sub: 'Smlouvy končící do 180 dnů', color: '#c2410c', bg: 'var(--tone-amber-soft)', border: 'var(--tone-amber-border)' },
-  { id: 'monthly',  icon: '💰', label: 'Měsíční předpis',   sub: 'Předpis nájemného pro aktuální měsíc', color: 'var(--tone-blue-text)', bg: 'var(--tone-blue-soft)', border: 'var(--tone-blue-border)' },
-  { id: 'deposits', icon: '💧', label: 'Zálohy za rok',     sub: 'Podklad pro vyúčtování služeb', color: 'var(--tone-blue-text)', bg: 'var(--tone-blue-soft)', border: 'var(--tone-blue-border)' },
-]
+  { id: 'portfolio', icon: '🏢', label: 'Přehled portfolia', sub: 'Platné smlouvy dle firem a sekcí', tone: 'green' },
+  { id: 'tenant',   icon: '👤', label: 'Karta nájemce',     sub: 'Kontakty + smlouvy jednoho nájemce', tone: 'violet' },
+  { id: 'expiry',   icon: '⏰', label: 'Expirační report',  sub: 'Smlouvy končící do 180 dnů', tone: 'amber' },
+  { id: 'monthly',  icon: '💰', label: 'Měsíční předpis',   sub: 'Předpis nájemného pro aktuální měsíc', tone: 'blue' },
+  { id: 'deposits', icon: '💧', label: 'Zálohy za rok',     sub: 'Podklad pro vyúčtování služeb', tone: 'blue' },
+].map(t => ({ ...t, color: `var(--tone-${t.tone}-text)`, bg: `var(--tone-${t.tone}-soft)`, border: `var(--tone-${t.tone}-border)` }))
 
 export default function Export() {
   const { contracts = [], assets = [], tenants = [], subjects = [], payments = [], getFirm } = useApp() || {}
@@ -588,31 +588,27 @@ export default function Export() {
 
       {/* Výběr typu exportu */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 28 }}>
-        {EXPORT_TYPES.map(et => (
-          <button
-            key={et.id}
-            type="button"
-            onClick={() => { setActiveType(et.id); setLastExport(null); setError(null) }}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-              gap: 8, padding: '18px 18px', borderRadius: 14, cursor: 'pointer', textAlign: 'left',
-              border: activeType === et.id ? `2px solid ${et.color}` : '2px solid var(--border)',
-              background: activeType === et.id ? et.bg : 'var(--bg2)',
-              boxShadow: activeType === et.id ? `0 0 0 3px ${et.color}20` : 'none',
-              transition: 'all 0.18s ease',
-            }}
-          >
-            <span style={{ fontSize: 28 }}>{et.icon}</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: activeType === et.id ? et.color : 'var(--text)' }}>{et.label}</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{et.sub}</div>
-            </div>
-          </button>
-        ))}
+        {EXPORT_TYPES.map(et => {
+          const on = activeType === et.id
+          return (
+            <button key={et.id} type="button" onClick={() => { setActiveType(et.id); setLastExport(null); setError(null) }}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, padding: 14, borderRadius: 14, cursor: 'pointer', textAlign: 'left',
+                border: `1.5px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--bg)' : 'var(--bg2)',
+                boxShadow: on ? '0 0 0 3px rgba(18,101,74,0.15)' : 'none', transition: 'all 0.15s ease', fontFamily: 'inherit',
+              }}>
+              <span style={{ width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: et.bg, border: `1.5px solid ${et.border}` }}>{et.icon}</span>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)' }}>{et.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{et.sub}</div>
+              </div>
+            </button>
+          )
+        })}
       </div>
 
       {/* Konfigurace exportu */}
-      <div style={{ background: 'var(--bg2)', border: `1px solid ${conf.border}`, borderRadius: 16, padding: 28, marginBottom: 20 }}>
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22, paddingBottom: 18, borderBottom: '1px solid var(--border)' }}>
           <div style={{ width: 44, height: 44, background: conf.bg, border: `1px solid ${conf.border}`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{conf.icon}</div>
           <div>
