@@ -2793,6 +2793,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                     <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', boxSizing: 'border-box' }}
                       defaultValue={terminateDateRef.current}
                       onChange={e => { terminateDateRef.current = e.target.value }} />
+                    {c.status === 'active' && (
+                      <div style={{ marginTop: 14, padding: '10px 12px', background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)', borderRadius: 10, fontSize: 12.5, color: 'var(--text2)' }}>
+                        Přichází na předmět nový nájemce?
+                        <button type="button" className="btn btn-sm btn-tone-blue" style={{ marginLeft: 8, fontWeight: 700 }}
+                          onClick={() => { setConfirmDialog(null); setChangeFor(c) }}>👤 Změna nájemce</button>
+                        <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 4 }}>Ukončí tuto smlouvu a rovnou založí smlouvu novému nájemci.</div>
+                      </div>
+                    )}
                   </div>
                 ),
                 okLabel: 'Ukončit smlouvu',

@@ -3,8 +3,9 @@ import { useApp } from './AppContext.jsx'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/tauri'
 import FirmsSettings from './FirmsSettings.jsx'
+import DataCheck from './DataCheck.jsx'
 
-export default function SettingsPanel({ onClose, onBackupDone }) {
+export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
   const { createBackup, getBackupInfo, saveSettings, getSettings, isReadOnly } = useApp()
 
   const [backupInfo, setBackupInfo] = useState({ lastBackup: '…', backupCount: 0, gdrivePath: '' })
@@ -17,6 +18,7 @@ export default function SettingsPanel({ onClose, onBackupDone }) {
   const [appVersion, setAppVersion] = useState('…')
   const [cleanupState, setCleanupState] = useState(null) // null | 'running' | number
   const [showFirms, setShowFirms] = useState(false)
+  const [showCheck, setShowCheck] = useState(false)
 
   useEffect(() => {
     getBackupInfo().then(info => {
@@ -92,6 +94,18 @@ export default function SettingsPanel({ onClose, onBackupDone }) {
             </div>
           )}
           {showFirms && <FirmsSettings onClose={() => setShowFirms(false)} />}
+
+          {/* ── KONTROLA DAT ── */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', letterSpacing: '0.06em', marginBottom: 14 }}>
+              Kontrola dat
+            </div>
+            <button className="btn" style={{ width: '100%', justifyContent: 'center', fontWeight: 700 }} onClick={() => setShowCheck(true)}>
+              🩺 Zkontrolovat data
+            </button>
+            <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 6 }}>Propadlé smlouvy, překryvy, chybějící data konce, platby bez smlouvy, duplicity… Jen čte, nic nemění.</div>
+          </div>
+          {showCheck && <DataCheck onClose={() => setShowCheck(false)} onOpen={onOpen ? (type, id) => { setShowCheck(false); onOpen(type, id) } : undefined} />}
 
           {/* ── SEKCE ZÁLOHY ── */}
           <section>

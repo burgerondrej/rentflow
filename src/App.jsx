@@ -36,7 +36,7 @@ function AppWithActivation() {
 }
 
 function AppInner() {
-  const { unreadCount, urgentContracts, currentUser, setCurrentUser, isReadOnly, theme, setTheme, tenants = [], assets = [], tasks = [], documents = [], contracts = [], getBackupInfo, createBackup, subjects = [], getFirm } = useApp()
+  const { logs = [], unreadCount, urgentContracts, currentUser, setCurrentUser, isReadOnly, theme, setTheme, tenants = [], assets = [], tasks = [], documents = [], contracts = [], getBackupInfo, createBackup, subjects = [], getFirm } = useApp()
 
   // Sledujeme zda od poslední zálohy došlo ke změnám
   const prevCountRef = useRef(tenants.length + assets.length + contracts.length + tasks.length)
@@ -173,10 +173,14 @@ function AppInner() {
     if (!searchQuery.trim()) return []
     const q = searchQuery.toLowerCase()
     const results = []
+    // Telefon / účet: porovnání bez mezer (+420 777 123 456 = 777123456)
+    const qDigits = q.replace(/[\s+\-/]/g, '')
+    const digitsMatch = (v) => qDigits.length >= 4 && /^\d+$/.test(qDigits) && (v || '').replace(/\D/g, '').includes(qDigits)
+    const has = (v) => !!v && String(v).toLowerCase().includes(q)
 
-    // Hledání v nájemnících (jméno, email, ico)
+    // Hledání v nájemnících (jméno, email, ico, telefon, kontaktní osoba)
     tenants.forEach(t => {
-      if ((t.name && t.name.toLowerCase().includes(q)) || (t.email && t.email.toLowerCase().includes(q)) || (t.ico && t.ico.includes(q))) {
+      if (has(t.name) || has(t.email) || (t.ico && t.ico.includes(q)) || has(t.contactPerson) || digitsMatch(t.phone) || digitsMatch(t.whatsapp)) {
         const tFirms = [...new Set(contracts.filter(c => c.tenantId === t.id && isContractOccupying(c)).map(c => getFirm && getFirm(contractSubject(c, assets))).filter(Boolean))]
         results.push({ id: t.id, type: 'tenant', label: 'Nájemce', text: t.name, firms: tFirms })
       }
@@ -196,14 +200,15 @@ function AppInner() {
       }
     })
 
-    // Hledání v smlouvách (nájemce + předmět)
+    // Hledání v smlouvách (nájemce + předmět, skupina plateb, poznámky, spolubydlící)
     contracts.forEach(c => {
       const tenant = tenants.find(t => t.id === c.tenantId)
       const asset = assets.find(a => a.id === c.assetId)
       const cSubject = contractSubject(c, assets)
       const text = [tenant?.name, asset?.unit, cSubject].filter(Boolean).join(' · ')
-      if (text.toLowerCase().includes(q)) {
-        results.push({ id: c.id, type: 'contract', label: 'Smlouva', text, firms: [getFirm && getFirm(cSubject)].filter(Boolean) })
+      const hint = has(c.groupLabel) ? ` · 🔗 ${c.groupLabel}` : has(c.contractNotes) ? ' · 📝 v poznámce' : has(c.coResidents) ? ' · 👥 spolubydlící' : ''
+      if (text.toLowerCase().includes(q) || hint) {
+        results.push({ id: c.id, type: 'contract', label: 'Smlouva', text: text + hint, firms: [getFirm && getFirm(cSubject)].filter(Boolean) })
       }
     })
 
@@ -214,7 +219,7 @@ function AppInner() {
       }
     })
 
-    return results.slice(0, 10)
+    return results.slice(0, 12)
   }
 
   const handleResultClick = (res) => {
@@ -420,13 +425,18 @@ function AppInner() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 18px', marginBottom: 20, color: '#92400E', fontSize: 13, fontWeight: 600 }}>
               <span style={{ fontSize: 16 }}>👁️</span>
               <span>Přihlášen jako <strong>Pavel</strong> — režim pouze ke čtení. Žádné změny nelze uložit.</span>
+              {(() => {
+                // Stáří dat: poslední změna, kterou Ondra uložil (log je součástí synchronizované DB)
+                const last = (logs || []).find(l => l.user && l.user !== 'Pavel')
+                return last ? <span style={{ marginLeft: 'auto', fontWeight: 700, whiteSpace: 'nowrap' }}>🕒 Data k poslední změně: {last.timestamp}{last.user ? ` (${last.user})` : ''}</span> : null
+              })()}
             </div>
           )}
           {ActiveView()}
         </div>
       </div>
       {detail && <DetailPanel type={detail.type} id={detail.id} onClose={() => setDetail(null)} onOpen={openDetail} />}
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} onBackupDone={() => {
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} onOpen={(type, id) => { setShowSettings(false); openDetail(type, id) }} onBackupDone={() => {
         setUnsavedSinceBackup(false)
         getBackupInfo && getBackupInfo().then(info => {
           if (info) setBackupStatus(prev => ({ ...prev, lastBackup: info.lastBackup }))

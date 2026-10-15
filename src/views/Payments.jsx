@@ -460,6 +460,7 @@ export default function Payments() {
   }, [subjectsWithContracts.join('\0')])
   const [detailContract, setDetailContract] = useState(null)
   const [activeTab, setActiveTab]           = useState('overview')
+  const [rowFilter, setRowFilter]           = useState('all') // all | unpaid | overdue
   const [pendingPayment, setPendingPayment] = useState(null)   // { contract, tenantName, paymentType }
   const [periodPicker, setPeriodPicker]     = useState(null)   // { contract, preselectedKeys }
   const [combinedModal, setCombinedModal]   = useState(null)   // { contract, tenantName, rentAmount, depositAmount }
@@ -688,6 +689,30 @@ export default function Payments() {
   }
 
   const subContracts = contractsForSub(activeSub)
+  // Filtr řádků Přehledu: stejná logika stavu jako řádky tabulky (skupina / jednotlivá smlouva vč. záloh u bytů)
+  const rowUnpaid = (g) => {
+    if (g.type === 'group') {
+      const total = g.members.reduce((s, c) => s + getMonthRent(c, selectedYear, selectedMonth), 0)
+      const gp = payments.find(p => p.groupLabel === g.label && p.month === monthKey)
+      return !gp || (!gp.agreed && Number(gp.amount) < total - 0.01)
+    }
+    const c = g.contract
+    const isMulti = (PERIOD_LEN[c.paymentFrequency] || 1) > 1
+    const rentPaid = isMulti ? isPeriodPaid(c, selectedYear, selectedMonth) : getRentStatus(c, monthKey).status === 'paid'
+    const hasDep = getAssetForContract(c)?.type === 'residential' && getMonthDeposits(c, selectedYear, selectedMonth).deposit > 0
+    return !rentPaid || (hasDep && !getDepositPayment(c.id, monthKey))
+  }
+  const rowOverdue = (g) => rowUnpaid(g) && overdueDays(g.type === 'group' ? g.members[0] : g.contract, selectedYear, selectedMonth) > 0
+  const rowPasses = (g) => rowFilter === 'unpaid' ? rowUnpaid(g) : rowFilter === 'overdue' ? rowOverdue(g) : true
+  const overviewGroups = (() => {
+    const out = [], seen = new Set()
+    subContracts.forEach(c => {
+      if (c.groupLabel) {
+        if (!seen.has(c.groupLabel)) { seen.add(c.groupLabel); out.push({ type: 'group', label: c.groupLabel, members: subContracts.filter(x => x.groupLabel === c.groupLabel) }) }
+      } else out.push({ type: 'single', contract: c })
+    })
+    return out
+  })()
   // DEBUG: breakdown per contract
   const subExpected  = subContracts.reduce((s, c) => s + effRent(c), 0)
   const subReceived  = (() => {
@@ -1352,9 +1377,9 @@ export default function Payments() {
           <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--tone-green-text)' }}>{subReceived.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500 }}>Kč</span></div>
           <div style={{ fontSize: 11, color: '#4ADE80', marginTop: 4 }}>{subPercent}% z předpisu subjektu</div>
         </div>
-        <div style={{ background: subRemaining > 0 ? '#FEF2F2' : '#F0FDF4', border: `1px solid ${subRemaining > 0 ? '#FECACA' : '#BBF7D0'}`, borderRadius: 14, padding: '16px 20px' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: subRemaining > 0 ? '#991B1B' : '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Dosud neuhrazeno</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: subRemaining > 0 ? '#991B1B' : '#166534' }}>{subRemaining.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500 }}>Kč</span></div>
+        <div style={{ background: subRemaining > 0 ? 'var(--tone-red-soft)' : 'var(--tone-green-soft)', border: `1px solid ${subRemaining > 0 ? 'var(--tone-red-border)' : 'var(--tone-green-border)'}`, borderRadius: 14, padding: '16px 20px' }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: subRemaining > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Dosud neuhrazeno</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: subRemaining > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)' }}>{subRemaining.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500 }}>Kč</span></div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
             {(() => {
               const seen = new Set()
@@ -1443,6 +1468,28 @@ export default function Payments() {
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
           <div style={{ flex: '1 1 65%' }}>
+            {subContracts.length > 0 && (() => {
+              const nUnpaid = overviewGroups.filter(rowUnpaid).length
+              const nOverdue = overviewGroups.filter(rowOverdue).length
+              const chip = (id, label, n, tone) => {
+                const on = rowFilter === id
+                return (
+                  <button key={id} type="button" className="btn btn-sm" onClick={() => setRowFilter(id)}
+                    style={on ? { background: `var(--tone-${tone}-text)`, borderColor: `var(--tone-${tone}-text)`, color: 'var(--bg)', fontWeight: 800 }
+                              : { background: `var(--tone-${tone}-bg)`, borderColor: `var(--tone-${tone}-border)`, color: `var(--tone-${tone}-text)`, fontWeight: 700 }}>
+                    {label} <span style={{ opacity: 0.85 }}>({n})</span>
+                  </button>
+                )
+              }
+              return (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: 2 }}>Zobrazit</span>
+                  {chip('all', 'Vše', overviewGroups.length, 'gray')}
+                  {chip('unpaid', 'Neuhrazené', nUnpaid, 'red')}
+                  {chip('overdue', '⚠ Po splatnosti', nOverdue, 'amber')}
+                </div>
+              )
+            })()}
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -1457,20 +1504,13 @@ export default function Payments() {
                 </thead>
                 <tbody>
                   {subContracts.length > 0 ? (() => {
-                    // Seskup smlouvy dle group_label
-                    const groups = []
-                    const seen = new Set()
-                    subContracts.forEach(c => {
-                      if (c.groupLabel) {
-                        if (!seen.has(c.groupLabel)) {
-                          seen.add(c.groupLabel)
-                          const members = subContracts.filter(x => x.groupLabel === c.groupLabel)
-                          groups.push({ type: 'group', label: c.groupLabel, members })
-                        }
-                      } else {
-                        groups.push({ type: 'single', contract: c })
-                      }
-                    })
+                    // Seskupení dle group_label (overviewGroups) + filtr Vše / Neuhrazené / Po splatnosti
+                    const groups = overviewGroups.filter(rowPasses)
+                    if (groups.length === 0) return (
+                      <tr><td colSpan={6} style={{ padding: '28px 20px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: 'var(--tone-green-text)' }}>
+                        {rowFilter === 'overdue' ? '✓ Nic není po splatnosti' : '✓ Vše uhrazeno'}
+                      </td></tr>
+                    )
 
                     return groups.map((g, gi) => {
                       if (g.type === 'group') {

@@ -8,9 +8,9 @@ import { contractSubject, selectionMatches, selectionLabel, firmColors } from '.
 
 // ── CSS pro tisk (inline do HTML exportu) ──
 const PRINT_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+  /* Bez Google Fonts @import – PDF se generuje i offline (Edge headless); DM Sans jen pokud je nainstalované */
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'DM Sans', Arial, sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; }
+  body { font-family: 'DM Sans', 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; }
   .page { max-width: 900px; margin: 0 auto; padding: 32px 40px; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 3px solid #12654A; }
   .header-title { font-size: 22px; font-weight: 800; color: #12654A; }
