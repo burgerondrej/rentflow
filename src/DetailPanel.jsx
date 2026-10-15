@@ -4,6 +4,7 @@ import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeri
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
+import { isDialogOpen } from './DialogShell.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
@@ -70,7 +71,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
   // Esc to close
   useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') handleClose() }
+    const handler = (e) => { if (e.key === 'Escape' && !isDialogOpen()) handleClose() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])

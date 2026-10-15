@@ -821,6 +821,59 @@ pub fn delete_amendment(id: String, user: String, state: State<AppState>) -> std
 // ─────────────────────────────────────────
 
 #[tauri::command]
+pub fn update_section(old_name: String, new_name: String, asset_type: String, is_vat_payer: bool, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    db.update_section(&old_name, &new_name, &asset_type, is_vat_payer)?;
+    db.add_log(&user, "Úprava", "Firmy a sekce", &format!("Sekce {} → {} ({}, DPH: {})", old_name, new_name, asset_type, if is_vat_payer { "ano" } else { "ne" }))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_firm(old_firm: String, new_firm: String, short_name: String, color: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    db.update_firm(&old_firm, &new_firm, &short_name, &color)?;
+    db.add_log(&user, "Úprava", "Firmy a sekce", &format!("Firma {} → {} ({}, {})", old_firm, new_firm, short_name, color))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn add_section(name: String, asset_type: String, is_vat_payer: bool, short_name: String, color: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    db.add_section(&name, &asset_type, is_vat_payer, &short_name, &color)?;
+    db.add_log(&user, "Přidání", "Firmy a sekce", &format!("Nová sekce {}", name))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_section(name: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    db.delete_section(&name)?;
+    db.add_log(&user, "Smazání", "Firmy a sekce", &format!("Smazána sekce {}", name))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn reorder_subjects(names: Vec<String>, state: State<AppState>) -> std::result::Result<(), AppError> {
+    db!(state).reorder_subjects(&names)
+}
+
+#[tauri::command]
+pub fn save_object(old_name: String, name: String, firm: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    db.save_object(&old_name, &name, &firm)?;
+    db.add_log(&user, if old_name.is_empty() { "Přidání" } else { "Úprava" }, "Firmy a sekce", &format!("Budova {} ({})", name, firm))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_object(name: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    db.delete_object(&name)?;
+    db.add_log(&user, "Smazání", "Firmy a sekce", &format!("Smazána budova {}", name))?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_subjects(state: State<AppState>) -> std::result::Result<Vec<Subject>, AppError> {
     db!(state).get_subjects()
 }

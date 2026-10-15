@@ -3,6 +3,7 @@ import { useApp } from '../AppContext.jsx'
 import { FirmPicker } from '../FirmUI.jsx'
 import { selectionMatches, contractSubject, isContractOccupying } from '../utils.js'
 import { StatusPill, contractStatus } from '../StatusUI.jsx'
+import DialogShell from '../DialogShell.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
@@ -434,14 +435,19 @@ export function Docs() {
 
       {/* ── FORMULÁŘ NAHRÁNÍ ─────────────────────────────────────── */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--bg)', width: 440, borderRadius: 16, padding: 32, boxShadow: '0 20px 40px rgba(0,0,0,0.2)', maxHeight: 'calc(90vh / var(--ui-zoom, 1))', overflowY: 'auto' }}>
-            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 24, color: 'var(--text)' }}>Nahrát dokument</div>
+        <DialogShell icon="📎" title="Nahrát dokument" subtitle="Soubor se uloží do archivu dokumentů" width={460} zIndex={1000} busy={uploading}
+          onClose={() => { setShowForm(false); setPickedFile(null); setNewName(''); setNewNotes('') }}
+          footer={<>
+            <button className="btn" onClick={() => { setShowForm(false); setPickedFile(null); setNewName(''); setNewNotes('') }}>Zrušit</button>
+            <button className="btn btn-primary" onClick={handleAdd} disabled={uploading}>
+              {uploading ? 'Nahrávám…' : 'Uložit do archívu'}
+            </button>
+          </>}>
 
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>Soubor *</label>
               {pickedFile ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#F0FDF4', border: '1.5px solid #BBF7D0', borderRadius: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--tone-green-soft)', border: '1.5px solid var(--tone-green-border)', borderRadius: 10 }}>
                   <div style={{ width: 32, height: 32, borderRadius: 8, background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: getExtColor(pickedFile.ext), fontWeight: 800, fontSize: 10, flexShrink: 0 }}>
                     {getExtLabel(pickedFile.ext)}
                   </div>
@@ -499,14 +505,7 @@ export function Docs() {
                 value={newNotes} onChange={e => setNewNotes(e.target.value)} />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-              <button className="btn" onClick={() => { setShowForm(false); setPickedFile(null); setNewName(''); setNewNotes('') }}>Zrušit</button>
-              <button className="btn btn-primary" onClick={handleAdd} disabled={uploading}>
-                {uploading ? 'Nahrávám…' : 'Uložit do archívu'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </DialogShell>
       )}
 
       {/* ── PREVIEW MODAL ─────────────────────────────────────────── */}

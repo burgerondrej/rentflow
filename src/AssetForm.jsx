@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
+import DialogShell from './DialogShell.jsx'
+import { assetTypeStyle } from './utils.js'
 
 
 
@@ -65,13 +67,6 @@ export default function AssetForm({ type, onClose }) {
   const lbl = (text) => <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{text}</label>
   const inp = { width: '100%', textAlign: 'left', cursor: 'text' }
 
-  const ASSET_GRADIENT = {
-    residential: 'linear-gradient(135deg, #166534 0%, #16a34a 60%, #22c55e 100%)',
-    commercial:  'linear-gradient(135deg, #3730a3 0%, #6d28d9 60%, #7c3aed 100%)',
-    ads:         'linear-gradient(135deg, #c2410c 0%, #ea580c 60%, #f97316 100%)',
-    parking:     'linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%)',
-    ostatni:     'linear-gradient(135deg, #0f766e 0%, #0d9488 60%, #14b8a6 100%)',
-  }
   const ASSET_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', ostatni: '📄' }
   const ASSET_SUB  = {
     residential: 'Bytový fond – obytná jednotka',
@@ -81,28 +76,15 @@ export default function AssetForm({ type, onClose }) {
     ostatni:     'Interní / skupinové záznamy',
   }
 
+  const ts = assetTypeStyle(type)
   return (
-    <>
-      <div className="overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, backdropFilter: 'blur(3px)' }} />
-      <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--bg)', borderRadius: 16, width: '100%', maxWidth: 480, zIndex: 1001, boxShadow: '0 32px 64px -12px rgba(0,0,0,0.25)', maxHeight: 'calc(92vh / var(--ui-zoom, 1))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* Gradient header */}
-        <div style={{ background: ASSET_GRADIENT[type] || ASSET_GRADIENT.residential, padding: '22px 28px 20px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.18)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{ASSET_ICON[type] || '📄'}</div>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{conf.title}</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>{ASSET_SUB[type] || ''}</div>
-              </div>
-            </div>
-            <button type="button" onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>×</button>
-          </div>
-        </div>
-
-        {/* Scrollable form */}
-        <div style={{ overflowY: 'auto', flex: 1 }}>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '22px 28px' }}>
+    <DialogShell icon={ASSET_ICON[type] || '📄'} iconStyle={{ background: ts.bg, borderColor: ts.border }}
+      title={conf.title} subtitle={ASSET_SUB[type] || ''} width={480} onClose={onClose} zIndex={1000}
+      footer={<>
+        <button type="button" className="btn" onClick={onClose}>Zrušit</button>
+        <button type="submit" form="asset-form" className="btn btn-primary">Uložit položku</button>
+      </>}>
+        <form id="asset-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
           {type !== 'ostatni' && (
             <div>
@@ -235,13 +217,7 @@ export default function AssetForm({ type, onClose }) {
             </>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-            <button type="button" className="btn" onClick={onClose}>Zrušit</button>
-            <button type="submit" className="btn btn-primary">Uložit položku</button>
-          </div>
         </form>
-        </div>{/* end scrollable */}
-      </div>
-    </>
+    </DialogShell>
   )
 }

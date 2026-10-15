@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
+import DialogShell from '../DialogShell.jsx'
 import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, getPeriodMonthKeys, overdueDays } from '../utils.js'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
@@ -173,25 +174,12 @@ export default function Dashboard({ onNav, onOpen }) {
 
       {/* POPUP — zobrazit vše */}
       {expandedGroup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', zIndex: 2000 }} onClick={() => setExpandedGroup(null)}>
-          <div style={{ background: `var(--dash-${expandedGroup.colorVar}-bg)`, border: `2px solid var(--dash-${expandedGroup.colorVar}-border)`,
-            borderRadius: 16, padding: 28, width: 520, maxHeight: 'calc(80vh / var(--ui-zoom, 1))',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', animation: 'modalIn 0.18s ease' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: `var(--dash-${expandedGroup.colorVar}-title)` }}>
-                Smlouvy končící za méně než {expandedGroup.days} dní ({expandedGroup.list.length})
-              </div>
-              <button onClick={() => setExpandedGroup(null)}
-                style={{ background: `var(--dash-${expandedGroup.colorVar}-border)`, border: 'none', width: 32, height: 32, borderRadius: 8,
-                  cursor: 'pointer', fontWeight: 800, color: `var(--dash-${expandedGroup.colorVar}-title)`, fontSize: 16 }}>✕</button>
-            </div>
-            <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {expandedGroup.list.map(renderContractItem)}
-            </div>
-          </div>
-        </div>
+        <DialogShell icon="⏰" tone={{ red: 'red', orange: 'amber', yellow: 'amber', green: 'green' }[expandedGroup.colorVar] || 'amber'}
+          title={`Smlouvy končící za méně než ${expandedGroup.days} dní`} subtitle={`${expandedGroup.list.length} ${expandedGroup.list.length === 1 ? 'smlouva' : expandedGroup.list.length < 5 ? 'smlouvy' : 'smluv'}`}
+          width={540} onClose={() => setExpandedGroup(null)}
+          bodyStyle={{ background: `var(--dash-${expandedGroup.colorVar}-bg)`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {expandedGroup.list.map(renderContractItem)}
+        </DialogShell>
       )}
 
       <div className="page-header" data-icon="📊">

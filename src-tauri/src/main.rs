@@ -137,6 +137,13 @@ fn main() {
             commands::get_subjects,
             commands::get_objects,
             commands::get_object_firms,
+            commands::update_section,
+            commands::update_firm,
+            commands::add_section,
+            commands::delete_section,
+            commands::reorder_subjects,
+            commands::save_object,
+            commands::delete_object,
             commands::verify_activation,
             commands::check_activation,
         ])

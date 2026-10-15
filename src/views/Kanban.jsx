@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
+import DialogShell from '../DialogShell.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
 import { FirmBadge } from '../FirmUI.jsx'
 import { firmColors } from '../utils.js'
@@ -217,19 +218,13 @@ export default function Kanban() {
       {showForm && (() => {
         const ck = ckForStatus(formData.status)
         return (
-          <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div className="modal-card" style={{ background: 'var(--kanban-card-bg)', width: 560, borderRadius: 18, boxShadow: '0 28px 56px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 'calc(90vh / var(--ui-zoom, 1))' }}>
-              <div style={{ padding: '18px 22px', borderBottom: `1px solid var(--kanban-card-border)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `var(--kanban-${ck}-header)` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{formMode === 'add' ? '✏️ Nový úkol' : '✏️ Upravit úkol'}</span>
-                  <span style={{ background: `var(--kanban-${ck}-border)`, color: `var(--kanban-${ck}-color)`, fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, textTransform: 'uppercase' }}>
-                    {COLUMNS.find(c => c.id === formData.status)?.title}
-                  </span>
-                </div>
-                <button onClick={() => setShowForm(false)} style={{ background: 'var(--bg3)', border: 'none', width: 30, height: 30, borderRadius: 7, cursor: 'pointer', fontWeight: 'bold', color: 'var(--text2)', fontSize: 14 }}>✕</button>
-              </div>
-
-              <div style={{ padding: '20px 22px', overflowY: 'auto' }}>
+          <DialogShell icon="✏️" title={formMode === 'add' ? 'Nový úkol' : 'Upravit úkol'}
+            subtitle={COLUMNS.find(c => c.id === formData.status)?.title} width={560} zIndex={1000} onClose={() => setShowForm(false)}
+            footer={<>
+              {formMode === 'edit' && <button className="btn btn-tone-red" style={{ marginRight: 'auto', fontWeight: 700 }} onClick={() => setConfirmDelete(true)}>Smazat</button>}
+              <button className="btn" onClick={() => setShowForm(false)}>Zrušit</button>
+              <button className="btn btn-primary" style={{ fontWeight: 800 }} onClick={handleSave}>{formMode === 'add' ? 'Vytvořit' : 'Uložit'}</button>
+            </>}>
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.5px' }}>Název úkolu *</label>
                   <input type="text" autoFocus style={{ width: '100%', background: 'var(--bg2)', border: `1px solid var(--kanban-card-border)`, borderRadius: 8, padding: '10px 14px', fontSize: 14, fontWeight: 600, color: 'var(--text)', outline: 'none' }}
@@ -324,21 +319,7 @@ export default function Kanban() {
                     <div style={{ width: 16, height: 16, background: '#fff', borderRadius: '50%', position: 'absolute', top: 3, left: formData.recurring ? 22 : 3, transition: '0.25s', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }} />
                   </div>
                 </div>
-              </div>
-
-              <div style={{ padding: '16px 22px', borderTop: `1px solid var(--kanban-card-border)`, background: 'var(--bg2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                {formMode === 'edit' ? (
-                  <button onClick={() => setConfirmDelete(true)} style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', padding: '9px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>Smazat</button>
-                ) : <div />}
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => setShowForm(false)} style={{ background: 'var(--bg3)', color: 'var(--text2)', border: 'none', padding: '9px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>Zrušit</button>
-                  <button onClick={handleSave} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: 8, fontWeight: 800, cursor: 'pointer', fontSize: 13, boxShadow: '0 4px 12px rgba(18,101,74,0.3)' }}>
-                    {formMode === 'add' ? 'Vytvořit' : 'Uložit'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          </DialogShell>
         )
       })()}
 

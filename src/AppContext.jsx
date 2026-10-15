@@ -142,6 +142,40 @@ export function AppProvider({ children }) {
     load()
   }, [])
 
+  // ─── Znovunačtení dat po změně firem / sekcí / budov (přejmenování mění odkazy v mnoha tabulkách) ───
+  const reloadAll = async () => {
+    const [a, c, d, r, k, oc, subj, objs, objFirms, l] = await Promise.all([
+      invoke('get_assets'), invoke('get_contracts'), invoke('get_documents'), invoke('get_revisions'), invoke('get_tasks'),
+      invoke('get_operational_costs'), invoke('get_subjects'), invoke('get_objects'), invoke('get_object_firms').catch(() => []), invoke('get_logs'),
+    ])
+    if (a) setAssets(a)
+    if (c) setContracts(c)
+    if (d) setDocuments(d)
+    if (r) setRevisions(r)
+    if (k) setTasks(k)
+    if (oc) setOperationalCosts(oc)
+    if (subj) setSubjectData(subj)
+    if (objs) setMainObjects(objs)
+    if (objFirms) setObjectFirms(objFirms)
+    if (l) setLogs(l)
+  }
+
+  // Správa firem a sekcí (Nastavení): záloha → operace → znovunačtení. Vrací true/false.
+  const manageSubjects = async (command, args) => {
+    if (guardWrite()) return false
+    try {
+      await invoke('create_backup')
+      await invoke(command, { ...args, user: currentUser })
+      await reloadAll()
+      return true
+    } catch (err) {
+      console.error('manageSubjects error:', command, err)
+      showToast(String(err?.message || err))
+      try { await reloadAll() } catch { /* ignore */ }
+      return false
+    }
+  }
+
   // ─── VÝPOČET UPOZORNĚNÍ (reaguje na živá data) ───
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -813,7 +847,7 @@ export function AppProvider({ children }) {
     parkingBillingOptions,
     adsBillingOptions,
     mainObjects,
-    objectFirms,
+    objectFirms, manageSubjects, reloadAll,
     navSelection, setNavSelection,
     // State
     loading,

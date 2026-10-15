@@ -3,6 +3,8 @@ import { useApp } from '../AppContext.jsx'
 import { save } from '@tauri-apps/api/dialog'
 import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
+import DialogShell from '../DialogShell.jsx'
+import { assetTypeStyle } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
 
@@ -61,16 +63,17 @@ function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose,
   const totalAmount = rentPerMonth * selectedCount
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 420, maxHeight: 'calc(80vh / var(--ui-zoom, 1))', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', animation: 'modalIn 0.18s ease' }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Vybrat uhrazené měsíce</div>
-        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
-          {contract.tenantName && <span style={{ fontWeight: 600, color: 'var(--text2)' }}>{contract.tenantName}</span>}
-          {contract.tenantName && ' · '}
-          <span style={{ background: 'var(--bg2)', padding: '2px 8px', borderRadius: 6, fontWeight: 600, color: 'var(--accent)' }}>{freq}</span>
-          <span style={{ marginLeft: 8, color: 'var(--text3)' }}>{rentPerMonth.toLocaleString('cs-CZ')} Kč / měsíc</span>
-        </div>
+    <DialogShell icon="📅" title="Vybrat uhrazené měsíce" width={440} onClose={onClose}
+      subtitle={<>{contract.tenantName ? `${contract.tenantName} · ` : ''}{freq} · {rentPerMonth.toLocaleString('cs-CZ')} Kč / měsíc</>}
+      bodyStyle={{ display: 'flex', flexDirection: 'column' }}
+      footer={<>
+        <button className="btn" onClick={onClose}>Zrušit</button>
+        <button className="btn btn-primary" style={{ opacity: selectedCount > 0 ? 1 : 0.5 }}
+          onClick={() => { if (selectedCount > 0) onConfirm(date, totalAmount, note, Array.from(selected)) }}
+          disabled={selectedCount === 0}>
+          ✓ Potvrdit úhradu ({selectedCount} měs.)
+        </button>
+      </>}>
 
         {/* Mřížka měsíců */}
         <div style={{ overflowY: 'auto', flex: 1, marginBottom: 16 }}>
@@ -103,19 +106,10 @@ function PeriodMonthPickerModal({ contract, preselectedKeys, onConfirm, onClose,
           Poznámka <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--text3)' }}>(nepovinné)</span>
         </label>
         <textarea className="btn" rows={2} placeholder="Např. hotovost, přeplatek…"
-          style={{ width: '100%', resize: 'vertical', textAlign: 'left', cursor: 'text', background: 'var(--bg2)', marginBottom: 16, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, padding: '8px 12px' }}
+          style={{ width: '100%', resize: 'vertical', textAlign: 'left', cursor: 'text', background: 'var(--bg2)', marginBottom: 0, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, padding: '8px 12px' }}
           value={note} onChange={e => setNote(e.target.value)} />
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn" style={{ flex: 1 }} onClick={onClose}>Zrušit</button>
-          <button className="btn" style={{ flex: 2, background: selectedCount > 0 ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', fontWeight: 700 }}
-            onClick={() => { if (selectedCount > 0) onConfirm(date, totalAmount, note, Array.from(selected)) }}
-            disabled={selectedCount === 0}>
-            ✓ Potvrdit úhradu ({selectedCount} měs.)
-          </button>
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   )
 }
 
@@ -133,20 +127,15 @@ function PaymentDateModal({ contract, fullAmount, onConfirm, onClose, monthLabel
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 360, boxShadow: '0 20px 50px rgba(0,0,0,0.25)', animation: 'modalIn 0.18s ease' }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Potvrdit úhradu</div>
-        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: monthLabel ? 6 : 20 }}>
-          {contract.tenantName && <span style={{ fontWeight: 600, color: 'var(--text2)' }}>{contract.tenantName}</span>}
-          {contract.tenantName && ' · '}
-          {(fullAmount || 0).toLocaleString('cs-CZ')} Kč
-        </div>
-        {monthLabel && (
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', background: 'var(--bg2)', borderRadius: 8, padding: '5px 10px', marginBottom: 16, display: 'inline-block' }}>
-            📅 {monthLabel}
-          </div>
-        )}
+    <DialogShell icon="💳" title="Potvrdit úhradu" width={400} onClose={onClose}
+      subtitle={<>{contract.tenantName ? `${contract.tenantName} · ` : ''}{(fullAmount || 0).toLocaleString('cs-CZ')} Kč{monthLabel ? ` · 📅 ${monthLabel}` : ''}</>}
+      footer={<>
+        <button className="btn" onClick={onClose}>Zrušit</button>
+        <button className={`btn ${partial ? '' : 'btn-primary'}`} style={partial ? { background: '#D97706', borderColor: '#D97706', color: '#fff', fontWeight: 700 } : { fontWeight: 700 }}
+          onClick={handleConfirm}>
+          ✓ {partial ? 'Potvrdit částečnou úhradu' : 'Potvrdit úhradu'}
+        </button>
+      </>}>
 
         {/* Způsob úhrady */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -192,15 +181,7 @@ function PaymentDateModal({ contract, fullAmount, onConfirm, onClose, monthLabel
           onChange={e => setNote(e.target.value)}
         />
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn" style={{ flex: 1 }} onClick={onClose}>Zrušit</button>
-          <button className="btn" style={{ flex: 2, background: partial ? '#D97706' : '#16A34A', color: '#fff', border: 'none', fontWeight: 700 }}
-            onClick={handleConfirm}>
-            ✓ {partial ? 'Potvrdit částečnou úhradu' : 'Potvrdit úhradu'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   )
 }
 
@@ -240,18 +221,21 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
   const inputStyle = { width: '100%', textAlign: 'left', cursor: 'pointer', background: 'var(--bg2)', marginBottom: 16, boxSizing: 'border-box' }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 50px rgba(0,0,0,0.25)', animation: 'modalIn 0.18s ease' }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Potvrdit úhradu</div>
-        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: monthLabel ? 6 : 16 }}>
-          <span style={{ fontWeight: 600, color: 'var(--text2)' }}>{contract.tenantName}</span>
-        </div>
-        {monthLabel && (
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', background: 'var(--bg2)', borderRadius: 8, padding: '5px 10px', marginBottom: 16, display: 'inline-block' }}>
-            📅 {monthLabel}
-          </div>
-        )}
+    <DialogShell icon="💳" title="Potvrdit úhradu" width={420} onClose={onClose}
+      subtitle={<>{contract.tenantName || ''}{monthLabel ? ` · 📅 ${monthLabel}` : ''}</>}
+      footer={step === 'ask' ? <>
+        <button className="btn" onClick={onClose}>Zrušit</button>
+        {hasDeposit && <button className="btn" style={{ fontWeight: 700 }} onClick={handleSeparate}>Odděleně</button>}
+        <button className="btn btn-primary" style={{ fontWeight: 700 }} onClick={handleTogether}>Dohromady</button>
+      </> : step === 'together' ? <>
+        <button className="btn" onClick={() => setStep('ask')}>← Zpět</button>
+        <button className="btn btn-primary" style={{ fontWeight: 700 }} onClick={confirmTogether}>✓ Potvrdit úhradu</button>
+      </> : <>
+        <button className="btn" onClick={() => setStep('ask')}>← Zpět</button>
+        <button className="btn btn-primary" style={{ fontWeight: 700 }} onClick={confirmSeparate}>
+          ✓ Uložit {(!rentPaid || !depPaid) && !(!rentPaid && !depPaid) ? 'částečnou úhradu' : 'úhradu'}
+        </button>
+      </>}>
 
         {step === 'ask' && (
           <>
@@ -270,17 +254,6 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn" style={{ flex: 1 }} onClick={onClose}>Zrušit</button>
-              {hasDeposit && (
-                <button className="btn" style={{ flex: 1.5, background: 'var(--bg2)', color: 'var(--text)', fontWeight: 700 }} onClick={handleSeparate}>
-                  Odděleně
-                </button>
-              )}
-              <button className="btn" style={{ flex: 1.5, background: '#16A34A', color: '#fff', border: 'none', fontWeight: 700 }} onClick={handleTogether}>
-                Dohromady
-              </button>
-            </div>
           </>
         )}
 
@@ -295,12 +268,6 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
             <textarea className="btn" rows={2} placeholder="Např. hotovost, přeplatek…"
               style={{ width: '100%', resize: 'vertical', textAlign: 'left', cursor: 'text', background: 'var(--bg2)', marginBottom: 20, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, padding: '8px 12px' }}
               value={note} onChange={e => setNote(e.target.value)} />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn" style={{ flex: 1 }} onClick={() => setStep('ask')}>← Zpět</button>
-              <button className="btn" style={{ flex: 2, background: '#16A34A', color: '#fff', border: 'none', fontWeight: 700 }} onClick={confirmTogether}>
-                ✓ Potvrdit úhradu
-              </button>
-            </div>
           </>
         )}
 
@@ -350,16 +317,9 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
             <textarea className="btn" rows={2} placeholder="Např. hotovost, přeplatek…"
               style={{ width: '100%', resize: 'vertical', textAlign: 'left', cursor: 'text', background: 'var(--bg2)', marginBottom: 20, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, padding: '8px 12px' }}
               value={note} onChange={e => setNote(e.target.value)} />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn" style={{ flex: 1 }} onClick={() => setStep('ask')}>← Zpět</button>
-              <button className="btn" style={{ flex: 2, background: '#16A34A', color: '#fff', border: 'none', fontWeight: 700 }} onClick={confirmSeparate}>
-                ✓ Uložit {(!rentPaid || !depPaid) && !(!rentPaid && !depPaid) ? 'částečnou úhradu' : 'úhradu'}
-              </button>
-            </div>
           </>
         )}
-      </div>
-    </div>
+    </DialogShell>
   )
 }
 
@@ -390,38 +350,36 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
     const newDateCzech = isoToCzech(date)
     const dateChanged  = newDateCzech !== (payment.date || '')
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-        onClick={onClose}>
-        <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}
-          onClick={e => e.stopPropagation()}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>Potvrdit úpravu platby</div>
-          <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20, lineHeight: 1.6 }}>
+      <DialogShell icon="✏️" tone="amber" title="Potvrdit úpravu platby" width={420} onClose={onClose}
+        subtitle={<>{monthLabel}{tenantName ? ` · ${tenantName}` : ''}</>}
+        footer={<>
+          <button className="btn" onClick={() => setStep('edit')}>← Zpět</button>
+          <button className="btn" style={{ background: '#D97706', borderColor: '#D97706', color: '#fff', fontWeight: 700 }}
+            onClick={() => onConfirm(parsed, agreed, newDateCzech || null)}>
+            ✓ Uložit změnu
+          </button>
+        </>}>
+          <div style={{ fontSize: 13.5, color: 'var(--text2)', lineHeight: 1.6 }}>
             Změnit platbu za <strong>{monthLabel}</strong>{tenantName ? ` (${tenantName})` : ''} na{' '}
             <strong>{parsed.toLocaleString('cs-CZ')} Kč</strong>
             {dateChanged && newDateCzech && <>{' '}· datum <strong>{newDateCzech}</strong></>}?
             {agreed && <div style={{ marginTop: 8, color: '#16A34A', fontWeight: 700, fontSize: 12 }}>✓ Bude označeno jako odsouhlasená plná úhrada</div>}
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn" style={{ flex: 1 }} onClick={() => setStep('edit')}>← Zpět</button>
-            <button className="btn" style={{ flex: 2, background: '#D97706', color: '#fff', border: 'none', fontWeight: 700 }}
-              onClick={() => onConfirm(parsed, agreed, newDateCzech || null)}>
-              ✓ Uložit změnu
-            </button>
-          </div>
-        </div>
-      </div>
+      </DialogShell>
     )
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-      onClick={onClose}>
-      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}
-        onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Upravit platbu</div>
-        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 18 }}>
-          {monthLabel}{tenantName ? ` · ${tenantName}` : ''}
-        </div>
+    <DialogShell icon="✏️" tone="amber" title="Upravit platbu" width={420} onClose={onClose}
+      subtitle={<>{monthLabel}{tenantName ? ` · ${tenantName}` : ''}</>}
+      footer={<>
+        <button className="btn" onClick={onClose}>Zrušit</button>
+        <button className="btn" style={{ background: isValid ? '#D97706' : 'var(--bg3)', borderColor: isValid ? '#D97706' : 'var(--border2)', color: isValid ? '#fff' : 'var(--text3)', fontWeight: 700 }}
+          disabled={!isValid}
+          onClick={() => { if (isValid) setStep('confirm') }}>
+          Dále →
+        </button>
+      </>}>
         <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
           Uhrazená částka (Kč)
         </label>
@@ -445,7 +403,7 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
           value={date}
           onChange={e => setDate(e.target.value)}
         />
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, cursor: 'pointer', padding: '10px 14px', background: agreed ? '#F0FDF4' : 'var(--bg2)', border: `1.5px solid ${agreed ? '#16A34A' : 'var(--border)'}`, borderRadius: 10, transition: '0.15s' }}>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, cursor: 'pointer', padding: '10px 14px', background: agreed ? 'var(--tone-green-soft)' : 'var(--bg2)', border: `1.5px solid ${agreed ? '#16A34A' : 'var(--border)'}`, borderRadius: 10, transition: '0.15s' }}>
           <input
             type="checkbox"
             checked={agreed}
@@ -453,22 +411,13 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
             style={{ marginTop: 2, accentColor: '#16A34A', width: 16, height: 16, flexShrink: 0 }}
           />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: agreed ? '#15803D' : 'var(--text)' }}>Odsouhlasená plná úhrada</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: agreed ? 'var(--tone-green-text)' : 'var(--text)' }}>Odsouhlasená plná úhrada</div>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, lineHeight: 1.4 }}>
               Tato částka je finální dohodnutá výše — bude považována za 100% uhrazeno bez ohledu na výši nájmu ve smlouvě.
             </div>
           </div>
         </label>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn" style={{ flex: 1 }} onClick={onClose}>Zrušit</button>
-          <button className="btn" style={{ flex: 2, background: isValid ? '#D97706' : '#9CA3AF', color: '#fff', border: 'none', fontWeight: 700 }}
-            disabled={!isValid}
-            onClick={() => { if (isValid) setStep('confirm') }}>
-            Dále →
-          </button>
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   )
 }
 
@@ -2009,24 +1958,9 @@ export default function Payments() {
         const depIsPartial   = depositPayment && Number(depositPayment.amount) < depositAmt - 0.01
 
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-            onClick={() => setDetailContract(null)}>
-            <div style={{ background: 'var(--bg)', width: 580, maxHeight: 'calc(88vh / var(--ui-zoom, 1))', borderRadius: 20, boxShadow: '0 30px 60px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-              onClick={e => e.stopPropagation()}>
-
-              {/* Hlavička */}
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg2)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 22 }}>{typeIcon[asset?.type] || '📄'}</span>
-                  <div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{asset?.unit || 'Neznámý předmět'}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{asset?.subject || ''}</div>
-                  </div>
-                </div>
-                <button onClick={() => setDetailContract(null)} style={{ background: 'var(--bg3)', border: 'none', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', fontWeight: 800, color: 'var(--text2)', fontSize: 16 }}>✕</button>
-              </div>
-
-              <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+          <DialogShell icon={typeIcon[asset?.type] || '📄'} iconStyle={{ background: assetTypeStyle(asset?.type).bg, borderColor: assetTypeStyle(asset?.type).border }}
+            title={asset?.unit || 'Neznámý předmět'} subtitle={asset?.subject || ''} width={600} zIndex={1000}
+            onClose={() => setDetailContract(null)}>
                 {/* Nájemce */}
                 {tenant && (
                   <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 16px', marginBottom: 18 }}>
@@ -2268,9 +2202,7 @@ export default function Payments() {
                     ))}
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
+          </DialogShell>
         )
       })()}
     </div>

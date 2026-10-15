@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import { parseDate, toCzDate, getEffectiveValuesToday } from './utils.js'
+import DialogShell from './DialogShell.jsx'
 
 // ISO "RRRR-MM-DD" ↔ Date (lokální čas, bez posunu přes UTC)
 const isoToDate = (iso) => { if (!iso) return null; const [y, m, d] = iso.split('-').map(Number); return (y && m && d) ? new Date(y, m - 1, d) : null }
@@ -42,11 +43,6 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
   const [endIso, setEndIso] = useState('')
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape' && !saving) onClose() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose, saving])
 
   const newStart = isoToDate(startIso)
   const newEnd = isoToDate(endIso)
@@ -88,14 +84,17 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
   const th = { padding: '6px 8px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', textAlign: 'left', whiteSpace: 'nowrap' }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-      onClick={e => { if (e.target === e.currentTarget && !saving) onClose() }}>
-      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 28, width: 820, maxWidth: 'calc(94vw / var(--ui-zoom, 1))', maxHeight: 'calc(88vh / var(--ui-zoom, 1))', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', animation: 'modalIn 0.18s ease' }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>🔁 Navazující smlouvy</div>
-        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 18 }}>
-          Nájemce: <span style={{ fontWeight: 600, color: 'var(--text2)' }}>{tenant?.name || '—'}</span>
-          {' · '}staré smlouvy se ukončí, nové převezmou předmět, skupinu a nastavení.
-        </div>
+    <DialogShell icon="🔁" title="Navazující smlouvy" width={820} onClose={onClose} busy={saving}
+      subtitle={<>Nájemce: <b>{tenant?.name || '—'}</b> · staré smlouvy se ukončí, nové převezmou předmět, skupinu a nastavení.</>}
+      bodyStyle={{ display: 'flex', flexDirection: 'column' }}
+      footer={<>
+        {errors.length > 0 && <div style={{ flex: 1, fontSize: 12, color: '#DC2626', fontWeight: 600 }}>{errors[0]}</div>}
+        <button className="btn" onClick={onClose} disabled={saving}>Zrušit</button>
+        <button className="btn btn-primary" style={{ opacity: errors.length || saving ? 0.5 : 1 }}
+          onClick={handleConfirm} disabled={errors.length > 0 || saving}>
+          {saving ? '⏳ Vytvářím…' : '✓ Vytvořit navazující smlouvy'}
+        </button>
+      </>}>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
           <div>
@@ -148,7 +147,7 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
                       {incl
                         ? <span style={{ fontSize: 12, color: 'var(--text3)' }}>zahrnuto v nájemném</span>
                         : <input type="number" min={0} className="btn" disabled={!on}
-                            style={{ width: 120, textAlign: 'right', cursor: 'text', background: on ? '#fff' : 'var(--bg2)', boxSizing: 'border-box' }}
+                            style={{ width: 120, textAlign: 'right', cursor: 'text', background: on ? 'var(--bg)' : 'var(--bg2)', boxSizing: 'border-box' }}
                             value={rents[c.id] ?? ''} onChange={e => setRents(prev => ({ ...prev, [c.id]: e.target.value }))} />}
                     </td>
                   </tr>
@@ -158,23 +157,11 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
           </table>
         </div>
 
-        <div style={{ fontSize: 12.5, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', marginBottom: errors.length ? 8 : 16 }}>
+        <div style={{ fontSize: 12.5, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', marginBottom: 4 }}>
           {newStart && chosen.length > 0
             ? <>Ukončí se <b>{chosen.length}</b> {chosen.length === 1 ? 'smlouva' : chosen.length < 5 ? 'smlouvy' : 'smluv'} a vznikne stejný počet nových od <b>{toCzDate(newStart)}</b>{newEnd ? <> do <b>{toCzDate(newEnd)}</b></> : ' na dobu neurčitou'}. Skupiny zůstávají, platby navazují. Před provedením se udělá záloha.</>
             : 'Vyberte smlouvy a začátek nové smlouvy.'}
         </div>
-        {errors.length > 0 && (
-          <div style={{ fontSize: 12, color: '#991B1B', marginBottom: 16 }}>{errors.join(' ')}</div>
-        )}
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn" style={{ flex: 1 }} onClick={onClose} disabled={saving}>Zrušit</button>
-          <button className="btn" style={{ flex: 2, background: errors.length ? 'var(--bg3)' : '#16A34A', color: errors.length ? 'var(--text3)' : '#fff', border: 'none', fontWeight: 700, cursor: errors.length ? 'not-allowed' : 'pointer' }}
-            onClick={handleConfirm} disabled={errors.length > 0 || saving}>
-            {saving ? 'Vytvářím…' : '✓ Vytvořit navazující smlouvy'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   )
 }

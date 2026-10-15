@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useApp } from './AppContext.jsx'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/tauri'
+import FirmsSettings from './FirmsSettings.jsx'
 
 export default function SettingsPanel({ onClose, onBackupDone }) {
   const { createBackup, getBackupInfo, saveSettings, getSettings, isReadOnly } = useApp()
@@ -15,6 +16,7 @@ export default function SettingsPanel({ onClose, onBackupDone }) {
   const [savedOk, setSavedOk] = useState(false)
   const [appVersion, setAppVersion] = useState('…')
   const [cleanupState, setCleanupState] = useState(null) // null | 'running' | number
+  const [showFirms, setShowFirms] = useState(false)
 
   useEffect(() => {
     getBackupInfo().then(info => {
@@ -76,6 +78,20 @@ export default function SettingsPanel({ onClose, onBackupDone }) {
         </div>
 
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+          {/* ── FIRMY A SEKCE (jen admin) ── */}
+          {!isReadOnly && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', letterSpacing: '0.06em', marginBottom: 14 }}>
+                Firmy a sekce
+              </div>
+              <button className="btn" style={{ width: '100%', justifyContent: 'center', fontWeight: 700 }} onClick={() => setShowFirms(true)}>
+                🏢 Spravovat firmy, sekce a budovy
+              </button>
+              <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 6 }}>Názvy, zkratky, barvy, DPH, pořadí. Přejmenování se propíše všude a předem se zazálohuje.</div>
+            </div>
+          )}
+          {showFirms && <FirmsSettings onClose={() => setShowFirms(false)} />}
 
           {/* ── SEKCE ZÁLOHY ── */}
           <section>

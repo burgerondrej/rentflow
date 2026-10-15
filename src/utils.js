@@ -114,6 +114,9 @@ export function tenantRentsByFirm(activeContracts, assets, firms) {
   return out.filter(r => r.dph + r.noDph > 0).sort((a, b) => idx(a.name) - idx(b.name))
 }
 
+/** Barvy, které lze firmě přiřadit v Nastavení (klíče FIRM_PALETTE bez starých pojistek). */
+export const FIRM_COLOR_KEYS = ['wine', 'royal', 'violet', 'teal', 'orange', 'slate']
+
 export function firmColors(colorKey, theme) {
   const p = FIRM_PALETTE[colorKey] || FIRM_PALETTE.slate
   return theme === 'dark' ? p.dark : p.light

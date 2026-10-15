@@ -19,6 +19,7 @@ import SettingsPanel from './SettingsPanel.jsx'
 import UpdateDialog from './UpdateDialog.jsx'
 import ActivationScreen from './ActivationScreen.jsx'
 import { FirmPickerButton, FirmBadge } from './FirmUI.jsx'
+import DialogShell from './DialogShell.jsx'
 import { contractSubject, selectionMatches, parseDate, isContractOccupying } from './utils.js'
 import { invoke } from '@tauri-apps/api/tauri'
 
@@ -258,12 +259,12 @@ function AppInner() {
     <div className="layout">
       {/* PIN modal */}
       {showPinModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000 }}
-          onClick={e => { if (e.target === e.currentTarget) { setShowPinModal(false); setPinValue('') } }}>
-          <div style={{ background: 'var(--bg)', borderRadius: 18, padding: '32px 36px', width: 320, boxShadow: '0 24px 60px rgba(0,0,0,0.3)', animation: 'modalIn 0.18s ease' }}>
-            <div style={{ fontSize: 28, textAlign: 'center', marginBottom: 8 }}>🔐</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)', textAlign: 'center', marginBottom: 4 }}>Přepnutí na Ondra</div>
-            <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', marginBottom: 24 }}>Zadej PIN pro přepnutí do admin režimu.</div>
+        <DialogShell icon="🔐" title="Přepnutí na Ondra" subtitle="Zadej PIN pro přepnutí do admin režimu." width={360} zIndex={9000}
+          onClose={() => { setShowPinModal(false); setPinValue('') }}
+          footer={<>
+            <button className="btn" onClick={() => { setShowPinModal(false); setPinValue('') }}>Zrušit</button>
+            <button className="btn btn-primary" style={{ fontWeight: 800 }} onClick={handlePinSubmit}>Potvrdit</button>
+          </>}>
             <input
               type="password"
               autoFocus
@@ -275,17 +276,12 @@ function AppInner() {
               style={{
                 width: '100%', padding: '12px 16px', fontSize: 22, textAlign: 'center', letterSpacing: 8,
                 borderRadius: 10, border: `2px solid ${pinError ? '#EF4444' : 'var(--border)'}`,
-                background: pinError ? '#FEF2F2' : 'var(--bg2)', color: 'var(--text)',
+                background: pinError ? 'var(--tone-red-soft)' : 'var(--bg2)', color: 'var(--text)',
                 outline: 'none', boxSizing: 'border-box', marginBottom: 8,
               }}
             />
-            {pinError && <div style={{ fontSize: 12, color: '#EF4444', textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>Nesprávný PIN — zkus to znovu.</div>}
-            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-              <button className="btn" style={{ flex: 1 }} onClick={() => { setShowPinModal(false); setPinValue('') }}>Zrušit</button>
-              <button className="btn" style={{ flex: 2, background: 'var(--accent)', color: '#fff', border: 'none', fontWeight: 800 }} onClick={handlePinSubmit}>Potvrdit</button>
-            </div>
-          </div>
-        </div>
+            {pinError && <div style={{ fontSize: 12, color: '#EF4444', textAlign: 'center', fontWeight: 700 }}>Nesprávný PIN — zkus to znovu.</div>}
+        </DialogShell>
       )}
       {updateInfo && (
         <UpdateDialog

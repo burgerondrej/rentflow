@@ -1146,6 +1146,155 @@ impl Database {
         Ok(items)
     }
 
+    // ─────────────────────────────────────────
+    // SPRÁVA FIREM, SEKCÍ A BUDOV (Nastavení) – přejmenování propisuje všechny odkazy v jedné transakci
+    // ─────────────────────────────────────────
+
+    /// Přejmenuje sekci (subjekt) a všechny odkazy na ni; nastaví typ a DPH.
+    pub fn update_section(&self, old_name: &str, new_name: &str, asset_type: &str, is_vat_payer: bool) -> Result<()> {
+        let new_name = new_name.trim();
+        if new_name.is_empty() { return Err(AppError::Other("Název sekce nesmí být prázdný.".into())); }
+        let tx = self.conn.unchecked_transaction()?;
+        if new_name != old_name {
+            let exists: i64 = tx.query_row("SELECT COUNT(*) FROM subjects WHERE name = ?1", params![new_name], |r| r.get(0))?;
+            if exists > 0 { return Err(AppError::Other(format!("Sekce „{}“ už existuje.", new_name))); }
+            tx.execute("UPDATE subjects SET name = ?1 WHERE name = ?2", params![new_name, old_name])?;
+            tx.execute("UPDATE assets SET subject = ?1 WHERE subject = ?2", params![new_name, old_name])?;
+            tx.execute("UPDATE documents SET subject = ?1 WHERE subject = ?2", params![new_name, old_name])?;
+            tx.execute("UPDATE revisions SET subject = ?1 WHERE subject = ?2", params![new_name, old_name])?;
+            tx.execute("UPDATE contracts SET billing_subject = ?1 WHERE billing_subject = ?2", params![new_name, old_name])?;
+        }
+        tx.execute("UPDATE subjects SET asset_type = ?1, is_vat_payer = ?2 WHERE name = ?3",
+            params![asset_type, if is_vat_payer { 1 } else { 0 }, new_name])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Přejmenuje firmu (část názvu před " – ") ve všech sekcích a odkazech; nastaví zkratku a barvu.
+    pub fn update_firm(&self, old_firm: &str, new_firm: &str, short_name: &str, color: &str) -> Result<()> {
+        let new_firm = new_firm.trim();
+        if new_firm.is_empty() { return Err(AppError::Other("Název firmy nesmí být prázdný.".into())); }
+        if new_firm.contains(" – ") { return Err(AppError::Other("Název firmy nesmí obsahovat „ – “.".into())); }
+        let tx = self.conn.unchecked_transaction()?;
+        let prefix_old = format!("{} – ", old_firm);
+        let names: Vec<String> = {
+            let mut stmt = tx.prepare("SELECT name FROM subjects WHERE name = ?1 OR name LIKE ?2")?;
+            let rows = stmt.query_map(params![old_firm, format!("{}%", prefix_old)], |r| r.get::<_, String>(0))?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        if new_firm != old_firm {
+            let clash: i64 = tx.query_row("SELECT COUNT(*) FROM subjects WHERE name = ?1 OR name LIKE ?2",
+                params![new_firm, format!("{} – %", new_firm)], |r| r.get(0))?;
+            if clash > 0 { return Err(AppError::Other(format!("Firma „{}“ už existuje.", new_firm))); }
+            for old in &names {
+                let new = if old == old_firm { new_firm.to_string() } else { format!("{} – {}", new_firm, &old[prefix_old.len()..]) };
+                tx.execute("UPDATE subjects SET name = ?1 WHERE name = ?2", params![new, old])?;
+                tx.execute("UPDATE assets SET subject = ?1 WHERE subject = ?2", params![new, old])?;
+                tx.execute("UPDATE documents SET subject = ?1 WHERE subject = ?2", params![new, old])?;
+                tx.execute("UPDATE revisions SET subject = ?1 WHERE subject = ?2", params![new, old])?;
+                tx.execute("UPDATE contracts SET billing_subject = ?1 WHERE billing_subject = ?2", params![new, old])?;
+            }
+            // billing_subject může obsahovat i čistý název firmy
+            tx.execute("UPDATE contracts SET billing_subject = ?1 WHERE billing_subject = ?2", params![new_firm, old_firm])?;
+            tx.execute("UPDATE objects SET firm = ?1 WHERE firm = ?2", params![new_firm, old_firm])?;
+            // Štítky úkolů (Kanban) – čárkami oddělené, firma přesnou shodou
+            let tags: Vec<(String, String)> = {
+                let mut stmt = tx.prepare("SELECT id, tag FROM tasks WHERE tag IS NOT NULL AND tag <> ''")?;
+                let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+                rows.collect::<std::result::Result<Vec<_>, _>>()?
+            };
+            for (id, tag) in tags {
+                let parts: Vec<String> = tag.split(',').map(|x| x.trim().to_string()).collect();
+                if parts.iter().any(|x| x == old_firm) {
+                    let new_tag = parts.iter().map(|x| if x == old_firm { new_firm.to_string() } else { x.clone() }).collect::<Vec<_>>().join(", ");
+                    tx.execute("UPDATE tasks SET tag = ?1 WHERE id = ?2", params![new_tag, id])?;
+                }
+            }
+        }
+        tx.execute("UPDATE subjects SET short_name = ?1, color = ?2 WHERE name = ?3 OR name LIKE ?4",
+            params![short_name.trim(), color, new_firm, format!("{} – %", new_firm)])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Přidá sekci (název "FIRMA – Sekce" nebo jen "FIRMA") na konec své firmy.
+    pub fn add_section(&self, name: &str, asset_type: &str, is_vat_payer: bool, short_name: &str, color: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() { return Err(AppError::Other("Název sekce nesmí být prázdný.".into())); }
+        let exists: i64 = self.conn.query_row("SELECT COUNT(*) FROM subjects WHERE name = ?1", params![name], |r| r.get(0))?;
+        if exists > 0 { return Err(AppError::Other(format!("Sekce „{}“ už existuje.", name))); }
+        let firm = name.split(" – ").next().unwrap_or(name).trim().to_string();
+        let tx = self.conn.unchecked_transaction()?;
+        // Pozice: za poslední sekcí firmy, jinak na konec; ostatní posunout
+        let after: Option<i64> = tx.query_row("SELECT MAX(sort_order) FROM subjects WHERE name = ?1 OR name LIKE ?2",
+            params![firm, format!("{} – %", firm)], |r| r.get(0))?;
+        let pos = match after {
+            Some(p) => { tx.execute("UPDATE subjects SET sort_order = sort_order + 1 WHERE sort_order > ?1", params![p])?; p + 1 }
+            None => tx.query_row("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM subjects", [], |r| r.get(0))?,
+        };
+        tx.execute("INSERT INTO subjects (id, name, sort_order, asset_type, is_vat_payer, short_name, color) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![Self::new_id(), name, pos, asset_type, if is_vat_payer { 1 } else { 0 }, short_name.trim(), color])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Smaže sekci – jen pokud na ni nic neodkazuje.
+    pub fn delete_section(&self, name: &str) -> Result<()> {
+        let used: i64 = self.conn.query_row(
+            "SELECT (SELECT COUNT(*) FROM assets WHERE subject = ?1) + (SELECT COUNT(*) FROM documents WHERE subject = ?1)
+                  + (SELECT COUNT(*) FROM revisions WHERE subject = ?1) + (SELECT COUNT(*) FROM contracts WHERE billing_subject = ?1)",
+            params![name], |r| r.get(0))?;
+        if used > 0 { return Err(AppError::Other(format!("Sekci nelze smazat – používá ji {} záznamů (předměty, smlouvy, dokumenty, revize).", used))); }
+        self.conn.execute("DELETE FROM subjects WHERE name = ?1", params![name])?;
+        Ok(())
+    }
+
+    /// Nové pořadí sekcí (celý seznam názvů v pořadí).
+    pub fn reorder_subjects(&self, names: &[String]) -> Result<()> {
+        let tx = self.conn.unchecked_transaction()?;
+        for (i, n) in names.iter().enumerate() {
+            tx.execute("UPDATE subjects SET sort_order = ?1 WHERE name = ?2", params![(i + 1) as i64, n])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Přidá nebo upraví budovu (old_name prázdné = nová); přejmenování propíše náklady, revize a dokumenty.
+    pub fn save_object(&self, old_name: &str, name: &str, firm: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() { return Err(AppError::Other("Název budovy nesmí být prázdný.".into())); }
+        let tx = self.conn.unchecked_transaction()?;
+        if old_name.is_empty() || name != old_name {
+            let exists: i64 = tx.query_row("SELECT COUNT(*) FROM objects WHERE name = ?1", params![name], |r| r.get(0))?;
+            if exists > 0 { return Err(AppError::Other(format!("Budova „{}“ už existuje.", name))); }
+        }
+        if old_name.is_empty() {
+            let pos: i64 = tx.query_row("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM objects", [], |r| r.get(0))?;
+            tx.execute("INSERT INTO objects (id, name, sort_order, firm) VALUES (?1, ?2, ?3, ?4)", params![Self::new_id(), name, pos, firm])?;
+        } else {
+            if name != old_name {
+                tx.execute("UPDATE objects SET name = ?1 WHERE name = ?2", params![name, old_name])?;
+                tx.execute("UPDATE operational_costs SET object_name = ?1 WHERE object_name = ?2", params![name, old_name])?;
+                tx.execute("UPDATE revisions SET subject = ?1 WHERE subject = ?2", params![name, old_name])?;
+                tx.execute("UPDATE documents SET subject = ?1 WHERE subject = ?2", params![name, old_name])?;
+            }
+            tx.execute("UPDATE objects SET firm = ?1 WHERE name = ?2", params![firm, name])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Smaže budovu – jen pokud na ni nic neodkazuje.
+    pub fn delete_object(&self, name: &str) -> Result<()> {
+        let used: i64 = self.conn.query_row(
+            "SELECT (SELECT COUNT(*) FROM operational_costs WHERE object_name = ?1) + (SELECT COUNT(*) FROM revisions WHERE subject = ?1)
+                  + (SELECT COUNT(*) FROM documents WHERE subject = ?1)",
+            params![name], |r| r.get(0))?;
+        if used > 0 { return Err(AppError::Other(format!("Budovu nelze smazat – používá ji {} záznamů (náklady, revize, dokumenty).", used))); }
+        self.conn.execute("DELETE FROM objects WHERE name = ?1", params![name])?;
+        Ok(())
+    }
+
     pub fn get_objects(&self) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
             "SELECT name FROM objects ORDER BY sort_order"

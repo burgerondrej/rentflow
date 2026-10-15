@@ -3,6 +3,7 @@ import { FirmPicker, useObjectFirms } from '../FirmUI.jsx'
 import { selectionLabel } from '../utils.js'
 import { useApp } from '../AppContext.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
+import DialogShell from '../DialogShell.jsx'
 
 const CATEGORIES = [
   'Pojištění','Účetní firma','Úklid společných prostor','Údržba objektu',
@@ -211,20 +212,13 @@ export default function OperationalCosts() {
 
       {/* Formulář */}
       {showForm && (
-        <>
-          <div onClick={() => setShowForm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, backdropFilter: 'blur(3px)' }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--bg)', borderRadius: 16, width: '100%', maxWidth: 480, zIndex: 1001, boxShadow: '0 32px 64px -12px rgba(0,0,0,0.25)', maxHeight: 'calc(90vh / var(--ui-zoom, 1))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ background: 'linear-gradient(135deg,#0A3D2B 0%,#12654A 60%,#1A8A62 100%)', padding: '20px 24px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>{editId ? 'Upravit náklad' : 'Nový provozní náklad'}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', marginTop: 2 }}>{form.objectName}</div>
-                </div>
-                <button onClick={() => setShowForm(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-              </div>
-            </div>
-            <div style={{ overflowY: 'auto', flex: 1 }}>
-              <form onSubmit={handleSubmit} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <DialogShell icon="🧾" title={editId ? 'Upravit náklad' : 'Nový provozní náklad'} subtitle={form.objectName} width={480}
+          onClose={() => setShowForm(false)} zIndex={1000}
+          footer={<>
+            <button type="button" className="btn" onClick={() => setShowForm(false)}>Zrušit</button>
+            <button type="submit" form="opcost-form" className="btn btn-primary">{editId ? '✓ Uložit změny' : '✓ Přidat náklad'}</button>
+          </>}>
+              <form id="opcost-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
                   {lbl('Objekt')}
                   <select className="btn" style={{ width: '100%', cursor: 'pointer' }} value={form.objectName} onChange={e => set('objectName', e.target.value)}>
@@ -275,14 +269,8 @@ export default function OperationalCosts() {
                   {lbl('Poznámka')}
                   <input type="text" className="btn" style={{ width: '100%', cursor: 'text' }} placeholder="Volitelná poznámka…" value={form.notes} onChange={e => set('notes', e.target.value)} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
-                  <button type="button" className="btn" onClick={() => setShowForm(false)}>Zrušit</button>
-                  <button type="submit" className="btn btn-primary">{editId ? '✓ Uložit změny' : '✓ Přidat náklad'}</button>
-                </div>
               </form>
-            </div>
-          </div>
-        </>
+        </DialogShell>
       )}
     </div>
   )

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
+import DialogShell from './DialogShell.jsx'
 
 export default function TenantForm({ onClose }) {
   const { addTenant } = useApp()
@@ -57,30 +58,13 @@ export default function TenantForm({ onClose }) {
   const inp = { width: '100%', textAlign: 'left', cursor: 'text' }
 
   return (
-    <>
-      <div className="overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, backdropFilter: 'blur(3px)' }} />
-      <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--bg)', borderRadius: 16, width: '100%', maxWidth: 500, zIndex: 1001, boxShadow: '0 32px 64px -12px rgba(0,0,0,0.25)', maxHeight: 'calc(92vh / var(--ui-zoom, 1))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* Gradient header */}
-        <div style={{ background: 'linear-gradient(135deg, #0A3D2B 0%, #12654A 50%, #1A8A62 100%)', padding: '22px 28px 20px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.18)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-                {tenantType === 'company' ? '🏢' : tenantType === 'person' ? '👤' : '🧑‍💼'}
-              </div>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>Nový nájemce</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>
-                  {tenantType === 'company' ? 'Právnická osoba – firma' : tenantType === 'person' ? 'Fyzická osoba – soukromá' : 'Nejprve vyberte typ nájemce'}
-                </div>
-              </div>
-            </div>
-            <button type="button" onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>×</button>
-          </div>
-        </div>
-
-        {/* Scrollable body */}
-        <div style={{ overflowY: 'auto', padding: '22px 28px', flex: 1 }}>
+    <DialogShell icon={tenantType === 'company' ? '🏢' : tenantType === 'person' ? '👤' : '🧑‍💼'}
+      title="Nový nájemce" subtitle={tenantType === 'company' ? 'Právnická osoba – firma' : tenantType === 'person' ? 'Fyzická osoba – soukromá' : 'Nejprve vyberte typ nájemce'}
+      width={500} onClose={onClose} zIndex={1000}
+      footer={<>
+        <button type="button" className="btn" onClick={onClose}>Zrušit</button>
+        {tenantType && <button type="submit" form="tenant-form" className="btn btn-primary">Uložit nájemce</button>}
+      </>}>
 
         {/* ── VÝBĚR TYPU ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: tenantType ? 20 : 8 }}>
@@ -118,7 +102,7 @@ export default function TenantForm({ onClose }) {
           opacity: revealed ? 1 : 0,
           transition: 'max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease',
         }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <form id="tenant-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
             {/* ══ FIRMA ══ */}
             {tenantType === 'company' && (
@@ -221,22 +205,9 @@ export default function TenantForm({ onClose }) {
               </>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-              <button type="button" className="btn" onClick={onClose}>Zrušit</button>
-              <button type="submit" className="btn btn-primary">Uložit nájemce</button>
-            </div>
           </form>
         </div>
 
-        {/* Tlačítko Zrušit pokud typ ještě nevybrán */}
-        {!tenantType && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-            <button type="button" className="btn" onClick={onClose}>Zrušit</button>
-          </div>
-        )}
-
-        </div>{/* end scrollable body */}
-      </div>
-    </>
+    </DialogShell>
   )
 }

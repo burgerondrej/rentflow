@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
-import { parseDate, getCurrentAssetContract, isEndingArchived, firmOf } from './utils.js'
+import { parseDate, getCurrentAssetContract, isEndingArchived, firmOf, assetTypeStyle } from './utils.js'
+import DialogShell from './DialogShell.jsx'
 
 
 const CONTRACT_TYPES = [
@@ -943,36 +944,16 @@ export default function ContractForm({ onClose }) {
     }
   }
 
+  const ts = contractType ? assetTypeStyle(contractType) : null
   return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, backdropFilter: 'blur(3px)' }} />
-      <div style={{
-        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-        background: 'var(--bg)', borderRadius: 16, width: '100%', maxWidth: 560,
-        zIndex: 1001, boxShadow: '0 32px 64px -12px rgba(0,0,0,0.25)', maxHeight: 'calc(92vh / var(--ui-zoom, 1))',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden'
-      }}>
-        {/* Gradient header */}
-        <div style={{ background: selectedConf?.gradient || 'linear-gradient(135deg, #334155 0%, #475569 100%)', padding: '22px 28px 20px', flexShrink: 0, transition: 'background 0.4s ease' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.18)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-                {selectedConf?.icon || '📋'}
-              </div>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>Nová smlouva</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 1 }}>
-                  {selectedConf ? `${selectedConf.label} — ${selectedConf.sub}` : 'Vyberte typ předmětu nájmu'}
-                </div>
-              </div>
-            </div>
-            <button type="button" onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>×</button>
-          </div>
-        </div>
-
-        {/* Scrollable body */}
-        <div style={{ overflowY: 'auto', flex: 1 }}>
-          <form onSubmit={handleSubmit} style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <DialogShell icon={selectedConf?.icon || '📋'} iconStyle={ts ? { background: ts.bg, borderColor: ts.border } : undefined}
+      title="Nová smlouva" subtitle={selectedConf ? `${selectedConf.label} — ${selectedConf.sub}` : 'Vyberte typ předmětu nájmu'}
+      width={560} onClose={onClose} zIndex={1000}
+      footer={<>
+        <button type="button" className="btn" onClick={onClose}>Zrušit</button>
+        {revealed && contractType && <button type="submit" form="contract-form" className="btn btn-primary" style={{ minWidth: 160 }}>✓ Vytvořit smlouvu</button>}
+      </>}>
+          <form id="contract-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Rozcestník */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
@@ -1004,20 +985,8 @@ export default function ContractForm({ onClose }) {
               display: 'flex', flexDirection: 'column', gap: 16
             }}>
               {renderSections()}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingBottom: 4 }}>
-                <button type="button" className="btn" onClick={onClose}>Zrušit</button>
-                <button type="submit" className="btn btn-primary" style={{ minWidth: 160 }}>✓ Vytvořit smlouvu</button>
-              </div>
             </div>
-
-            {!contractType && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn" onClick={onClose}>Zrušit</button>
-              </div>
-            )}
           </form>
-        </div>
-      </div>
-    </>
+    </DialogShell>
   )
 }
