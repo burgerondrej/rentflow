@@ -214,12 +214,11 @@ export default function Contracts({ activeSubject, onOpen }) {
 
       {tab === 'valid' && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '-8px 0 18px' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: 2 }}>Končící</span>
           {[
             { id: 'all', label: 'Vše', tone: 'gray' },
-            { id: '30', label: '⚠ Do 30 dní', tone: 'red' },
-            { id: '60', label: 'Do 60 dní', tone: 'amber' },
-            { id: '90', label: 'Do 90 dní', tone: 'amber' },
+            { id: '30', label: '⚠ Končí do 30 dní', tone: 'red' },
+            { id: '60', label: 'Končí do 60 dní', tone: 'amber' },
+            { id: '90', label: 'Končí do 90 dní', tone: 'amber' },
             { id: 'expired', label: 'Propadlé', tone: 'red' },
           ].map(ch => {
             const on = endFilter === ch.id
