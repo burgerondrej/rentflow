@@ -15,7 +15,7 @@ const CATEGORIES = [
 const FREQUENCIES = ['Měsíčně', 'Čtvrtletně', 'Pololetně', 'Ročně']
 
 const FREQ_COLOR = {
-  'Měsíčně':    { bg: '#dcfce7', color: '#15803d' },
+  'Měsíčně':    { bg: '#dcfce7', color: 'var(--tone-green-text)' },
   'Čtvrtletně': { bg: '#dbeafe', color: '#1d4ed8' },
   'Pololetně':  { bg: '#fef9c3', color: '#854d0e' },
   'Ročně':      { bg: '#f3e8ff', color: '#6b21a8' },

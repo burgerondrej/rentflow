@@ -71,9 +71,9 @@ export default function Maintenance() {
     if (!nextDate) return { color: '#94A3B8', label: 'Chyba data', bg: '#F1F5F9' }
     const today = new Date()
     const diff = (nextDate - today) / (1000 * 60 * 60 * 24)
-    if (diff < 0) return { color: '#DC2626', label: 'Propadlé', bg: '#FEF2F2' }
-    if (diff < 60) return { color: '#EA580C', label: 'Blíží se', bg: '#FFF7ED' }
-    return { color: '#16A34A', label: 'V pořádku', bg: '#F0FDF4' }
+    if (diff < 0) return { color: '#DC2626', label: 'Propadlé', bg: 'var(--tone-red-soft)' }
+    if (diff < 60) return { color: '#EA580C', label: 'Blíží se', bg: 'var(--tone-amber-soft)' }
+    return { color: '#16A34A', label: 'V pořádku', bg: 'var(--tone-green-soft)' }
   }
 
   const enrichedRevisions = revisions.map(r => {
@@ -142,16 +142,16 @@ export default function Maintenance() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16, marginBottom: 32 }}>
-        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: 24, borderRadius: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Propadlé</div>
+        <div style={{ background: 'var(--tone-red-soft)', border: '1px solid var(--tone-red-border)', padding: 24, borderRadius: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--tone-red-text)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Propadlé</div>
           <div style={{ fontSize: 32, fontWeight: 900, color: '#DC2626', marginTop: 8 }}>{stats.urgent}</div>
         </div>
-        <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', padding: 24, borderRadius: 16 }}>
+        <div style={{ background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', padding: 24, borderRadius: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: '#9A3412', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Revize končící za méně než 60 dnů</div>
           <div style={{ fontSize: 32, fontWeight: 900, color: '#EA580C', marginTop: 8 }}>{stats.warning}</div>
         </div>
-        <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', padding: 24, borderRadius: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px' }}>V pořádku</div>
+        <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', padding: 24, borderRadius: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--tone-green-text)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>V pořádku</div>
           <div style={{ fontSize: 32, fontWeight: 900, color: '#16A34A', marginTop: 8 }}>{stats.ok}</div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { save } from '@tauri-apps/api/dialog'
 import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import DialogShell from '../DialogShell.jsx'
+import { Segmented, EmptyState } from '../UI.jsx'
 import { isTyping, isOverlayOpen, peekPaymentsFilter, clearPaymentsFilter } from '../shortcuts.js'
 import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, isGroupPayment } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
@@ -296,7 +297,7 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
             </div>
 
             {/* Nájemné */}
-            <div style={{ background: rentPaid ? 'rgba(187,247,208,0.55)' : 'var(--bg2)', border: `1px solid ${rentPaid ? '#86EFAC' : 'var(--border)'}`, borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+            <div style={{ background: rentPaid ? 'rgba(187,247,208,0.55)' : 'var(--bg2)', border: `1px solid ${rentPaid ? 'var(--tone-green-border)' : 'var(--border)'}`, borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: rentPaid ? 10 : 0 }}>
                 <input type="checkbox" checked={rentPaid} onChange={e => setRentPaid(e.target.checked)}
                   style={{ width: 16, height: 16, accentColor: '#16A34A', cursor: 'pointer' }} />
@@ -315,7 +316,7 @@ function CombinedPaymentModal({ contract, rentAmount, depositAmount, onConfirm, 
 
             {/* Zálohy */}
             {hasDeposit && (
-              <div style={{ background: depPaid ? 'rgba(187,247,208,0.55)' : 'var(--bg2)', border: `1px solid ${depPaid ? '#86EFAC' : 'var(--border)'}`, borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+              <div style={{ background: depPaid ? 'rgba(187,247,208,0.55)' : 'var(--bg2)', border: `1px solid ${depPaid ? 'var(--tone-green-border)' : 'var(--border)'}`, borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: depPaid ? 10 : 0 }}>
                   <input type="checkbox" checked={depPaid} onChange={e => setDepPaid(e.target.checked)}
                     style={{ width: 16, height: 16, accentColor: '#16A34A', cursor: 'pointer' }} />
@@ -1479,10 +1480,12 @@ export default function Payments() {
       </div>
 
       {/* VNITŘNÍ ZÁLOŽKY */}
-      <div style={{ display: 'flex', gap: 0, margin: '0 0 20px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-        {[['overview','📋 Přehled plateb za aktuální měsíc'],['history','📈 Historie za posledních 6 měsíců'],['debtors','🔴 Dosud neuhrazené platby napříč firmami za aktuální měsíc']].map(([id, label]) => (
-          <button key={id} onClick={() => setActiveTab(id)} style={{ padding: '10px 20px', border: 'none', background: 'transparent', borderBottom: activeTab === id ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === id ? 'var(--accent)' : 'var(--text3)', fontWeight: activeTab === id ? 700 : 500, fontSize: 13, cursor: 'pointer', marginBottom: '-1px', transition: '0.1s' }}>{label}</button>
-        ))}
+      <div style={{ display: 'flex', gap: 12, margin: '0 0 20px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <Segmented value={activeTab} onChange={setActiveTab} items={[
+          { id: 'overview', label: '📋 Přehled měsíce' },
+          { id: 'history', label: '📈 Historie 6 měsíců' },
+          { id: 'debtors', label: '🔴 Neuhrazené napříč firmami', count: debtors.length },
+        ]} />
         <div style={{ flex: 1 }} />
         {!isReadOnly && (
           <button
@@ -1577,7 +1580,7 @@ export default function Payments() {
                                 <span style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</span>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                                <span style={{ fontSize: 10, background: '#EDE9FE', color: '#6D28D9', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>🔗 {label}</span>
+                                <span style={{ fontSize: 10, background: 'var(--tone-violet-soft)', color: 'var(--tone-violet-text)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>🔗 {label}</span>
                                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>
                                   {/* počet předmětů – v měsíci předávky jsou ve skupině stará i navazující smlouva téhož místa */}
                                   {new Set(members.map(x => x.assetId)).size} {(() => {
@@ -1734,7 +1737,7 @@ export default function Payments() {
                               const [ly, lm] = keys[keys.length-1].split('-').map(Number)
                               const fromLabel = `${MONTHS[fm].slice(0,3)} ${fy}`
                               const toLabel   = `${MONTHS[lm].slice(0,3)} ${ly}`
-                              const freqColor = { 'Čtvrtletně': '#7C3AED', 'Pololetně': '#0369A1', 'Ročně': '#0F766E' }[freq] || 'var(--accent)'
+                              const freqColor = { 'Čtvrtletně': '#7C3AED', 'Pololetně': 'var(--tone-blue-text)', 'Ročně': '#0F766E' }[freq] || 'var(--accent)'
                               return (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                                   <span style={{ fontSize: 10, fontWeight: 700, background: freqColor, color: '#fff', padding: '1px 6px', borderRadius: 8 }}>{freq}</span>
@@ -1868,9 +1871,9 @@ export default function Payments() {
                   <div style={{ fontSize: 10, color: 'var(--tone-green-text)', textTransform: 'uppercase', fontWeight: 800, marginBottom: 4 }}>Uhrazeno</div>
                   <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--tone-green-text)' }}>{subReceived.toLocaleString('cs-CZ')} Kč</div>
                 </div>
-                <div style={{ background: subRemaining > 0 ? '#FEF2F2' : '#F0FDF4', padding: '14px 16px', borderRadius: 12, border: subRemaining > 0 ? '1px solid #FECACA' : '1px solid #BBF7D0' }}>
-                  <div style={{ fontSize: 10, color: subRemaining > 0 ? '#991B1B' : '#166534', textTransform: 'uppercase', fontWeight: 800, marginBottom: 4 }}>Dosud neuhrazeno</div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: subRemaining > 0 ? '#991B1B' : '#166534' }}>{subRemaining.toLocaleString('cs-CZ')} Kč</div>
+                <div style={{ background: subRemaining > 0 ? 'var(--tone-red-soft)' : 'var(--tone-green-soft)', padding: '14px 16px', borderRadius: 12, border: subRemaining > 0 ? '1px solid var(--tone-red-border)' : '1px solid var(--tone-green-border)' }}>
+                  <div style={{ fontSize: 10, color: subRemaining > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)', textTransform: 'uppercase', fontWeight: 800, marginBottom: 4 }}>Dosud neuhrazeno</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: subRemaining > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)' }}>{subRemaining.toLocaleString('cs-CZ')} Kč</div>
                 </div>
                 <div style={{ background: 'var(--bg2)', padding: '14px 16px', borderRadius: 12, border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 800, marginBottom: 4 }}>Má být celkem uhrazeno</div>
@@ -1925,13 +1928,13 @@ export default function Payments() {
                     <tr key={i} style={{ borderBottom: '1px solid var(--border2)', background: m.isCurrent ? 'rgba(187,247,208,0.4)' : 'transparent', fontWeight: m.isCurrent ? 700 : 400 }}>
                       <td style={{ padding: '12px 20px', fontSize: 13, color: 'var(--text)', fontWeight: m.isCurrent ? 800 : 600 }}>
                         {MONTHS[parseInt(m.key.split('-')[1])]} {m.key.split('-')[0]}
-                        {m.isCurrent && <span style={{ marginLeft: 8, fontSize: 10, background: '#DCFCE7', color: '#166534', padding: '2px 6px', borderRadius: 4, fontWeight: 800 }}>Aktuální</span>}
+                        {m.isCurrent && <span style={{ marginLeft: 8, fontSize: 10, background: 'var(--tone-green-soft)', color: 'var(--tone-green-text)', padding: '2px 6px', borderRadius: 4, fontWeight: 800 }}>Aktuální</span>}
                       </td>
                       <td style={{ padding: '12px 20px', textAlign: 'right', fontSize: 13, color: 'var(--text)' }}>{m.exp.toLocaleString('cs-CZ')} Kč</td>
                       <td style={{ padding: '12px 20px', textAlign: 'right', fontSize: 13, color: '#16A34A', fontWeight: 700 }}>{m.rec.toLocaleString('cs-CZ')} Kč</td>
                       <td style={{ padding: '12px 20px', textAlign: 'right', fontSize: 13, color: remaining > 0 ? '#DC2626' : '#16A34A', fontWeight: 600 }}>{remaining > 0 ? `${remaining.toLocaleString('cs-CZ')} Kč` : '—'}</td>
                       <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                        <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 800, background: m.pct === 100 ? '#DCFCE7' : m.pct > 50 ? '#FEF9C3' : '#FEE2E2', color: m.pct === 100 ? '#166534' : m.pct > 50 ? '#854D0E' : '#991B1B' }}>{m.pct}%</span>
+                        <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 800, background: m.pct === 100 ? 'var(--tone-green-soft)' : m.pct > 50 ? '#FEF9C3' : 'var(--tone-red-soft)', color: m.pct === 100 ? 'var(--tone-green-text)' : m.pct > 50 ? '#854D0E' : 'var(--tone-red-text)' }}>{m.pct}%</span>
                       </td>
                     </tr>
                   )
@@ -1947,7 +1950,7 @@ export default function Payments() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Dosud neuhrazené platby napříč firmami za {monthLabel}</div>
-            <span style={{ background: debtors.length > 0 ? '#FEE2E2' : '#DCFCE7', color: debtors.length > 0 ? '#991B1B' : '#166534', padding: '3px 12px', borderRadius: 8, fontSize: 13, fontWeight: 800 }}>
+            <span style={{ background: debtors.length > 0 ? 'var(--tone-red-soft)' : 'var(--tone-green-soft)', color: debtors.length > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)', padding: '3px 12px', borderRadius: 8, fontSize: 13, fontWeight: 800 }}>
               {debtors.length} {debtors.length === 1 ? 'smlouva' : debtors.length < 5 ? 'smlouvy' : 'smluv'}
             </span>
           </div>
@@ -1972,13 +1975,13 @@ export default function Payments() {
                   {debtors.map(({ contract: c, tenant, asset, rs, isGroup, groupLabel, groupTotal }) => (
                     <tr key={isGroup ? `group-${groupLabel}` : c.id} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', transition: '0.15s' }}
                       onClick={() => { setDetailContract(c); setActiveTab('overview'); handleSubChange(getContractSubject(c) || subjects[0] || '') }}
-                      onMouseOver={e => e.currentTarget.style.background = rs.status === 'partial' ? '#FFFBEB' : '#FEF2F2'}
+                      onMouseOver={e => e.currentTarget.style.background = rs.status === 'partial' ? 'var(--tone-amber-soft)' : 'var(--tone-red-soft)'}
                       onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                     >
                       <td style={{ padding: '14px 20px', boxShadow: firmStripeShadow(getContractSubject(c)) }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>
                         {tenant?.phone && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>📞 {tenant.phone}</div>}
-                        {isGroup && <div style={{ marginTop: 3 }}><span style={{ fontSize: 10, background: '#EDE9FE', color: '#6D28D9', padding: '1px 7px', borderRadius: 8, fontWeight: 700 }}>🔗 {groupLabel}</span></div>}
+                        {isGroup && <div style={{ marginTop: 3 }}><span style={{ fontSize: 10, background: 'var(--tone-violet-soft)', color: 'var(--tone-violet-text)', padding: '1px 7px', borderRadius: 8, fontWeight: 700 }}>🔗 {groupLabel}</span></div>}
                       </td>
                       <td style={{ padding: '14px 20px' }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{isGroup ? `Skupina (${new Set(activeContracts.filter(x => x.groupLabel === groupLabel).map(x => x.assetId)).size} předm.)` : (asset?.unit || '—')}</div>
@@ -2054,11 +2057,11 @@ export default function Payments() {
                 {isResidential ? (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
                     {/* Nájem + parkování */}
-                    <div style={{ background: rentIsPartial ? '#FFFBEB' : rentPayment ? '#F0FDF4' : 'var(--bg2)', border: `1px solid ${rentIsPartial ? '#FCD34D' : rentPayment ? '#BBF7D0' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: rentIsPartial ? '#D97706' : rentPayment ? '#166534' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>
+                    <div style={{ background: rentIsPartial ? 'var(--tone-amber-soft)' : rentPayment ? 'var(--tone-green-soft)' : 'var(--bg2)', border: `1px solid ${rentIsPartial ? 'var(--tone-amber-border)' : rentPayment ? 'var(--tone-green-border)' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: rentIsPartial ? '#D97706' : rentPayment ? 'var(--tone-green-text)' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>
                         Nájem{ev.parking > 0 ? ' + parkování' : ''}
                       </div>
-                      <div style={{ fontSize: 20, fontWeight: 900, color: rentIsPartial ? '#D97706' : rentPayment ? '#166534' : 'var(--text)', marginBottom: 10 }}>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: rentIsPartial ? '#D97706' : rentPayment ? 'var(--tone-green-text)' : 'var(--text)', marginBottom: 10 }}>
                         {rentTotal.toLocaleString('cs-CZ')} Kč
                       </div>
                       {rentPayment ? (
@@ -2096,9 +2099,9 @@ export default function Payments() {
 
                     {/* Zálohy */}
                     {depositAmt > 0 && (
-                      <div style={{ background: depIsPartial ? '#FFFBEB' : depositPayment ? '#F0FDF4' : 'var(--bg2)', border: `1px solid ${depIsPartial ? '#FCD34D' : depositPayment ? '#BBF7D0' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
-                        <div style={{ fontSize: 9, fontWeight: 800, color: depIsPartial ? '#D97706' : depositPayment ? '#166534' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Zálohy</div>
-                        <div style={{ fontSize: 20, fontWeight: 900, color: depIsPartial ? '#D97706' : depositPayment ? '#166534' : 'var(--text)', marginBottom: 10 }}>
+                      <div style={{ background: depIsPartial ? 'var(--tone-amber-soft)' : depositPayment ? 'var(--tone-green-soft)' : 'var(--bg2)', border: `1px solid ${depIsPartial ? 'var(--tone-amber-border)' : depositPayment ? 'var(--tone-green-border)' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: depIsPartial ? '#D97706' : depositPayment ? 'var(--tone-green-text)' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Zálohy</div>
+                        <div style={{ fontSize: 20, fontWeight: 900, color: depIsPartial ? '#D97706' : depositPayment ? 'var(--tone-green-text)' : 'var(--text)', marginBottom: 10 }}>
                           {depositAmt.toLocaleString('cs-CZ')} Kč
                         </div>
                         {depositPayment ? (
@@ -2145,14 +2148,14 @@ export default function Payments() {
                     return (
                       <div style={{ display: 'grid', gridTemplateColumns: depositAmt > 0 ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 18 }}>
                         {/* Nájem */}
-                        <div style={{ background: commIsPartial ? '#FFFBEB' : commPayment ? '#F0FDF4' : 'var(--bg2)', border: `1px solid ${commIsPartial ? '#FCD34D' : commPayment ? '#BBF7D0' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
-                          <div style={{ fontSize: 9, fontWeight: 800, color: commIsPartial ? '#D97706' : commPayment ? '#166534' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>
+                        <div style={{ background: commIsPartial ? 'var(--tone-amber-soft)' : commPayment ? 'var(--tone-green-soft)' : 'var(--bg2)', border: `1px solid ${commIsPartial ? 'var(--tone-amber-border)' : commPayment ? 'var(--tone-green-border)' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                          <div style={{ fontSize: 9, fontWeight: 800, color: commIsPartial ? '#D97706' : commPayment ? 'var(--tone-green-text)' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>
                             Nájem{ev.parking > 0 ? ' + parkování' : ''}
                           </div>
-                          <div style={{ fontSize: 20, fontWeight: 900, color: commIsPartial ? '#D97706' : commPayment ? '#166534' : 'var(--text)', marginBottom: 10 }}>
+                          <div style={{ fontSize: 20, fontWeight: 900, color: commIsPartial ? '#D97706' : commPayment ? 'var(--tone-green-text)' : 'var(--text)', marginBottom: 10 }}>
                             {commPayment?.agreed ? Number(commPayment.amount).toLocaleString('cs-CZ') : rentTotal.toLocaleString('cs-CZ')} Kč
                             {commPayment?.agreed && Number(commPayment.amount) !== rentTotal && (
-                              <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600, marginLeft: 6 }}>(sml. {rentTotal.toLocaleString('cs-CZ')})</span>
+                              <span style={{ fontSize: 11, color: 'var(--tone-green-text)', fontWeight: 600, marginLeft: 6 }}>(sml. {rentTotal.toLocaleString('cs-CZ')})</span>
                             )}
                           </div>
                           {commPayment ? (
@@ -2188,12 +2191,12 @@ export default function Payments() {
 
                         {/* Zálohy komerční */}
                         {depositAmt > 0 && (
-                          <div style={{ background: commDepIsPartial ? '#FFFBEB' : commDepPayment ? '#F0FDF4' : 'var(--bg2)', border: `1px solid ${commDepIsPartial ? '#FCD34D' : commDepPayment ? '#BBF7D0' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
-                            <div style={{ fontSize: 9, fontWeight: 800, color: commDepIsPartial ? '#D97706' : commDepPayment ? '#166534' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Zálohy</div>
-                            <div style={{ fontSize: 20, fontWeight: 900, color: commDepIsPartial ? '#D97706' : commDepPayment ? '#166534' : 'var(--text)', marginBottom: 10 }}>
+                          <div style={{ background: commDepIsPartial ? 'var(--tone-amber-soft)' : commDepPayment ? 'var(--tone-green-soft)' : 'var(--bg2)', border: `1px solid ${commDepIsPartial ? 'var(--tone-amber-border)' : commDepPayment ? 'var(--tone-green-border)' : 'var(--border)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                            <div style={{ fontSize: 9, fontWeight: 800, color: commDepIsPartial ? '#D97706' : commDepPayment ? 'var(--tone-green-text)' : 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Zálohy</div>
+                            <div style={{ fontSize: 20, fontWeight: 900, color: commDepIsPartial ? '#D97706' : commDepPayment ? 'var(--tone-green-text)' : 'var(--text)', marginBottom: 10 }}>
                               {commDepPayment?.agreed ? Number(commDepPayment.amount).toLocaleString('cs-CZ') : depositAmt.toLocaleString('cs-CZ')} Kč
                               {commDepPayment?.agreed && Number(commDepPayment.amount) !== depositAmt && (
-                                <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600, marginLeft: 6 }}>(sml. {depositAmt.toLocaleString('cs-CZ')})</span>
+                                <span style={{ fontSize: 11, color: 'var(--tone-green-text)', fontWeight: 600, marginLeft: 6 }}>(sml. {depositAmt.toLocaleString('cs-CZ')})</span>
                               )}
                             </div>
                             {commDepPayment ? (
@@ -2258,17 +2261,17 @@ export default function Payments() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-green-text)' }}>{formatMonthKey(p.month)}</div>
                             {p.paymentType === 'deposit' && (
-                              <span style={{ fontSize: 10, background: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>zálohy</span>
+                              <span style={{ fontSize: 10, background: 'var(--tone-blue-soft)', color: 'var(--tone-blue-text)', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>zálohy</span>
                             )}
                             {(p.paymentType === 'rent' || p.paymentType === '') && isResidential && (
-                              <span style={{ fontSize: 10, background: '#DCFCE7', color: '#166534', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>nájem</span>
+                              <span style={{ fontSize: 10, background: 'var(--tone-green-soft)', color: 'var(--tone-green-text)', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>nájem</span>
                             )}
                           </div>
                           {p.date && <div style={{ fontSize: 10, color: '#4ADE80', marginTop: 1 }}>Přijato: {p.date}</div>}
                           {p.note && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>📝 {p.note}</div>}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: '#166534' }}>{Number(p.amount || 0).toLocaleString('cs-CZ')} Kč</div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--tone-green-text)' }}>{Number(p.amount || 0).toLocaleString('cs-CZ')} Kč</div>
                           {!isReadOnly && (
                             <button
                               onClick={() => setEditAmountModal({ payment: p, monthLabel: formatMonthKey(p.month), tenantName: tenant?.name || '' })}

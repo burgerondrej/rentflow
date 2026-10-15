@@ -491,11 +491,11 @@ function genDepositReport(contracts, payments, assets, tenants, subjectFilter, s
 // ── KOMPONENTA ────────────────────────────────────────────────────────────────
 
 const EXPORT_TYPES = [
-  { id: 'portfolio', icon: '🏢', label: 'Přehled portfolia', sub: 'Aktivní smlouvy dle subjektů', color: '#12654A', bg: '#F0FDF4', border: '#BBF7D0' },
-  { id: 'tenant',   icon: '👤', label: 'Karta nájemce',     sub: 'Kontakty + smlouvy jednoho nájemce', color: '#4f46e5', bg: '#EEF2FF', border: '#C7D2FE' },
-  { id: 'expiry',   icon: '⏰', label: 'Expirační report',  sub: 'Smlouvy končící do 180 dnů', color: '#c2410c', bg: '#FFF7ED', border: '#FED7AA' },
-  { id: 'monthly',  icon: '💰', label: 'Měsíční předpis',   sub: 'Předpis nájemného pro aktuální měsíc', color: '#0369a1', bg: '#F0F9FF', border: '#BAE6FD' },
-  { id: 'deposits', icon: '💧', label: 'Zálohy za rok',     sub: 'Podklad pro vyúčtování služeb', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
+  { id: 'portfolio', icon: '🏢', label: 'Přehled portfolia', sub: 'Aktivní smlouvy dle subjektů', color: '#12654A', bg: 'var(--tone-green-soft)', border: 'var(--tone-green-border)' },
+  { id: 'tenant',   icon: '👤', label: 'Karta nájemce',     sub: 'Kontakty + smlouvy jednoho nájemce', color: 'var(--tone-violet-text)', bg: 'var(--tone-violet-soft)', border: 'var(--tone-violet-border)' },
+  { id: 'expiry',   icon: '⏰', label: 'Expirační report',  sub: 'Smlouvy končící do 180 dnů', color: '#c2410c', bg: 'var(--tone-amber-soft)', border: 'var(--tone-amber-border)' },
+  { id: 'monthly',  icon: '💰', label: 'Měsíční předpis',   sub: 'Předpis nájemného pro aktuální měsíc', color: 'var(--tone-blue-text)', bg: 'var(--tone-blue-soft)', border: 'var(--tone-blue-border)' },
+  { id: 'deposits', icon: '💧', label: 'Zálohy za rok',     sub: 'Podklad pro vyúčtování služeb', color: 'var(--tone-blue-text)', bg: 'var(--tone-blue-soft)', border: 'var(--tone-blue-border)' },
 ]
 
 export default function Export() {
@@ -654,7 +654,7 @@ export default function Export() {
         )}
 
         {activeType === 'expiry' && (
-          <div style={{ padding: '14px 18px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, marginBottom: 20, fontSize: 13, color: '#92400E' }}>
+          <div style={{ padding: '14px 18px', background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 10, marginBottom: 20, fontSize: 13, color: 'var(--tone-amber-text)' }}>
             📋 Export zahrne všechny aktivní smlouvy končící do 180 dnů, seřazené od nejblíže expirujících.
           </div>
         )}
@@ -719,13 +719,13 @@ export default function Export() {
         </div>
 
         {error && (
-          <div style={{ marginTop: 14, padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#991B1B', fontSize: 13 }}>
+          <div style={{ marginTop: 14, padding: '10px 14px', background: 'var(--tone-red-soft)', border: '1px solid var(--tone-red-border)', borderRadius: 8, color: 'var(--tone-red-text)', fontSize: 13 }}>
             ⚠️ {error}
           </div>
         )}
 
         {lastExport && (
-          <div style={{ marginTop: 14, padding: '12px 16px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, color: '#166534', fontSize: 13 }}>
+          <div style={{ marginTop: 14, padding: '12px 16px', background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, color: 'var(--tone-green-text)', fontSize: 13 }}>
             ✅ PDF uloženo: <strong>{lastExport.filename}</strong>
             <div style={{ fontSize: 11, color: '#4B7C64', marginTop: 3 }}>{lastExport.path}</div>
           </div>

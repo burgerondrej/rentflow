@@ -4,6 +4,7 @@ import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDat
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill, contractStatus } from '../StatusUI.jsx'
+import { Segmented, EmptyState } from '../UI.jsx'
 import { useNewShortcut, peekContractsFilter, clearContractsFilter } from '../shortcuts.js'
 
 export default function Contracts({ activeSubject, onOpen }) {
@@ -187,13 +188,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {[{ id: 'valid', label: `Platné (${validCount})` }, { id: 'ended', label: `Ukončené (${endedCount})` }].map(t => (
-              <button key={t.id} className={`btn btn-sm ${tab === t.id ? 'btn-primary' : ''}`} style={{ whiteSpace: 'nowrap' }} onClick={() => setTab(t.id)}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <Segmented size="sm" value={tab} onChange={setTab} items={[{ id: 'valid', label: 'Platné', count: validCount }, { id: 'ended', label: 'Ukončené', count: endedCount }]} />
           <div style={{ position: 'relative' }}>
             <input 
               type="text" 

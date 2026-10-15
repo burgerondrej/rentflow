@@ -294,7 +294,7 @@ export default function Dashboard({ onNav, onOpen }) {
                   <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{task.title}</div>
                   {task.tag && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{task.tag}</div>}
                 </div>
-                <div className="badge" style={{ background: task.status === 'progress' ? '#FEF08A' : task.status === 'waiting' ? '#FEE2E2' : task.status === 'longterm' ? '#EDE9FE' : task.status === 'signature' ? '#F5D0FE' : 'var(--bg3)', color: 'var(--text2)', marginBottom: 0 }}>
+                <div className="badge" style={{ background: task.status === 'progress' ? '#FEF08A' : task.status === 'waiting' ? 'var(--tone-red-soft)' : task.status === 'longterm' ? 'var(--tone-violet-soft)' : task.status === 'signature' ? '#F5D0FE' : 'var(--bg3)', color: 'var(--text2)', marginBottom: 0 }}>
                   {task.status === 'todo' ? 'Je třeba udělat' : task.status === 'progress' ? 'V řešení' : task.status === 'waiting' ? 'Čeká' : task.status === 'longterm' ? 'Dlouhodobé' : task.status === 'signature' ? 'Čeká na podpis' : 'Ostatní'}
                 </div>
               </div>
@@ -414,14 +414,14 @@ export default function Dashboard({ onNav, onOpen }) {
                             <div style={{ height: '100%', borderRadius: 99, background: data.remaining === 0 ? '#22c55e' : '#f59e0b', width: `${Math.min(100, data.total > 0 ? (data.paid / data.total) * 100 : 0)}%`, transition: 'width 0.5s ease' }} />
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                            <span style={{ fontSize: 9, color: '#15803d', fontWeight: 700 }}>✓ Již uhrazeno</span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d' }}>{Math.round(data.paid).toLocaleString('cs-CZ')} Kč</span>
+                            <span style={{ fontSize: 9, color: 'var(--tone-green-text)', fontWeight: 700 }}>✓ Již uhrazeno</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--tone-green-text)' }}>{Math.round(data.paid).toLocaleString('cs-CZ')} Kč</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: 9, color: data.remaining > 0 ? '#dc2626' : 'var(--text3)', fontWeight: 700 }}>
                               {data.remaining > 0 ? '⏳ Dosud neuhrazeno' : '✓ Vše uhrazeno'}
                             </span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: data.remaining > 0 ? '#dc2626' : '#15803d' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: data.remaining > 0 ? '#dc2626' : 'var(--tone-green-text)' }}>
                               {data.remaining > 0 ? `${Math.round(data.remaining).toLocaleString('cs-CZ')} Kč` : '—'}
                             </span>
                           </div>

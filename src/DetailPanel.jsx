@@ -6,6 +6,7 @@ import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
 import ContractHistory from './ContractHistory.jsx'
 import DialogShell, { isDialogOpen } from './DialogShell.jsx'
+import { SectionHeader, Segmented, EmptyState } from './UI.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
@@ -202,9 +203,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
     return (
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginTop: 0 }}>
-        <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>📎 Související dokumenty</span>
-          <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: 11, padding: '3px 10px' }}
+        <div className="sec-head">
+          <div className="sec-head-icon" style={{ background: 'var(--tone-gray-soft)', borderColor: 'var(--tone-gray-border)' }}>📎</div>
+          <div className="sec-head-title">Související dokumenty</div>
+          <button className="btn btn-sm" style={{ fontSize: 11.5, padding: '3px 10px', fontWeight: 700 }}
             onClick={() => { setDocForm(!docForm); setPickedFile(null); setDocName('') }}>
             {docForm ? 'Zrušit' : '+ Nahrát'}
           </button>
@@ -214,12 +216,12 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             <div style={{ background: 'var(--bg2)', padding: 12, borderRadius: 8, marginBottom: 12, border: '1px solid var(--border)' }}>
               {/* Drop zone / file picker */}
               {pickedFile ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, marginBottom: 8 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 6, background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: getExtColor(pickedFile.ext), fontWeight: 800, fontSize: 9, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, marginBottom: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--tone-green-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: getExtColor(pickedFile.ext), fontWeight: 800, fontSize: 9, flexShrink: 0 }}>
                     {getExtLabel(pickedFile.ext)}
                   </div>
                   <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickedFile.filename}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--tone-green-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickedFile.filename}</div>
                   </div>
                   <button type="button" className="btn btn-sm" style={{ flexShrink: 0, fontSize: 11 }} onClick={handlePickFile}>Změnit</button>
                 </div>
@@ -338,8 +340,9 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
     const diffEl = (v) => <b style={{ color: v < 0 ? '#DC2626' : v > 0 ? '#16A34A' : 'var(--text)' }}>{v > 0 ? '+' : v < 0 ? '−' : ''}{fmt(Math.abs(v))}</b>
     return (
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginTop: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'var(--tone-blue-soft)', borderBottom: '1px solid var(--tone-blue-border)' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--tone-blue-text)', flex: 1 }}>💧 Zálohy {depYear} – podklad pro vyúčtování</span>
+        <div className="sec-head">
+          <div className="sec-head-icon" style={{ background: 'var(--tone-blue-soft)', borderColor: 'var(--tone-blue-border)' }}>💧</div>
+          <div className="sec-head-title">Zálohy {depYear} – podklad pro vyúčtování</div>
           <select className="btn btn-sm" value={depYear} onChange={e => { setDepYear(Number(e.target.value)); setSettleEdit(null) }} style={{ cursor: 'pointer' }}>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -482,9 +485,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
     return (
       <>
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginTop: 0 }}>
-        <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>💳 Historie plateb</span>
-          {!isReadOnly && !contract.groupLabel && <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: 11, padding: '3px 10px' }} onClick={() => {
+        <div className="sec-head">
+          <div className="sec-head-icon" style={{ background: 'var(--tone-green-soft)', borderColor: 'var(--tone-green-border)' }}>💳</div>
+          <div className="sec-head-title">Historie plateb</div>
+          {!isReadOnly && !contract.groupLabel && <button className="btn btn-sm" style={{ fontSize: 11.5, padding: '3px 10px', fontWeight: 700 }} onClick={() => {
             setPayForm(!payForm)
             if (!payForm) {
               const t = new Date()
@@ -549,7 +553,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           {groupShareRows.length > 0 && (
             <div style={{ marginBottom: contractPayments.length > 0 ? 14 : 0 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>
-                <span style={{ fontSize: 10, background: '#EDE9FE', color: '#6D28D9', padding: '2px 7px', borderRadius: 8, fontWeight: 800, marginRight: 6 }}>🔗 {contract.groupLabel}</span>
+                <span style={{ fontSize: 10, background: 'var(--tone-violet-soft)', color: 'var(--tone-violet-text)', padding: '2px 7px', borderRadius: 8, fontWeight: 800, marginRight: 6 }}>🔗 {contract.groupLabel}</span>
                 podíl na platbě skupiny podle nájemného
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -877,7 +881,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)' }}>Kontaktní údaje</div>
               {t.tenantType && (
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: isCompany ? '#EFF6FF' : '#F0FDF4', color: isCompany ? '#1E40AF' : '#166534', border: `1px solid ${isCompany ? '#BFDBFE' : '#BBF7D0'}` }}>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: isCompany ? 'var(--tone-blue-soft)' : 'var(--tone-green-soft)', color: isCompany ? 'var(--tone-blue-text)' : 'var(--tone-green-text)', border: `1px solid ${isCompany ? 'var(--tone-blue-border)' : 'var(--tone-green-border)'}` }}>
                   {isCompany ? '🏢 Firma' : '👤 Fyzická osoba'}
                 </span>
               )}
@@ -1088,7 +1092,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                       return (
                         <div key={item.label} style={{ background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)', borderRadius: 14, overflow: 'hidden' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--tone-blue-border)' }}>
-                            <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{groupIcon}</div>
+                            <div style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{groupIcon}</div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--tone-blue-text)' }}>{item.label}</div>
                               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{groupTypeLabel} · {item.contracts.length} smluv</div>
@@ -1145,12 +1149,12 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                     >
                       {/* Header */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${bdr}`, background: `${bg}` }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{typeIcon[aType] || '📄'}</div>
+                        <div style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{typeIcon[aType] || '📄'}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 14, fontWeight: 800, color: col, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset?.unit || 'Neznámý předmět'}</div>
                           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{typeLabel[aType]} · {asset?.subject || ''}</div>
                         </div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: col, background: 'rgba(255,255,255,0.7)', padding: '3px 10px', borderRadius: 20, border: `1px solid ${bdr}`, flexShrink: 0 }}>Otevřít →</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: col, background: 'var(--bg)', padding: '3px 10px', borderRadius: 20, border: `1px solid ${bdr}`, flexShrink: 0 }}>Otevřít →</div>
                       </div>
                       {/* Finanční řádky */}
                       <div style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1293,14 +1297,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {tenantTab === 'overview' && !isReadOnly && <div style={{ display: 'flex', gap: 8, marginTop: 24, padding: '16px 0 4px', borderTop: '1px solid var(--border)' }}>
           <button
             className="btn btn-sm"
-            style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
+            style={{ flex: 1, background: 'var(--tone-amber-soft)', color: 'var(--tone-amber-text)', border: '1px solid var(--tone-amber-border)' }}
             onClick={() => { archiveTenant(id); onClose() }}
           >
             📦 Archivovat
           </button>
           <button
             className="btn btn-sm"
-            style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FECACA' }}
+            style={{ flex: 1, background: 'var(--tone-red-soft)', color: 'var(--tone-red-text)', border: '1px solid var(--tone-red-border)' }}
             onClick={() => setConfirmDialog({
               title: 'Smazat nájemce?',
               text: `„${t.name}" bude přesunut do koše. Odtud ho lze obnovit.`,
@@ -1633,7 +1637,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {!isReadOnly && <div style={{ display: 'flex', gap: 8, marginTop: 24, padding: '16px 0 4px', borderTop: '1px solid var(--border)' }}>
           <button
             className="btn btn-sm"
-            style={{ flex: 1, background: '#EFF6FF', color: '#1E40AF', border: '1px solid #BFDBFE' }}
+            style={{ flex: 1, background: 'var(--tone-blue-soft)', color: 'var(--tone-blue-text)', border: '1px solid var(--tone-blue-border)' }}
             onClick={async () => {
               const newId = await addAsset({
                 type: a.type,
@@ -1654,14 +1658,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           </button>
           <button
             className="btn btn-sm"
-            style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
+            style={{ flex: 1, background: 'var(--tone-amber-soft)', color: 'var(--tone-amber-text)', border: '1px solid var(--tone-amber-border)' }}
             onClick={() => { archiveAsset(id); onClose() }}
           >
             📦 Archivovat
           </button>
           <button
             className="btn btn-sm"
-            style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FECACA' }}
+            style={{ flex: 1, background: 'var(--tone-red-soft)', color: 'var(--tone-red-text)', border: '1px solid var(--tone-red-border)' }}
             onClick={() => setConfirmDialog({
               title: 'Smazat předmět nájmu?',
               text: `„${a.unit}" bude přesunut do koše. Odtud ho lze obnovit.`,
@@ -2016,7 +2020,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             </div>
           )}
           {a?.type === 'parking' && formData.paymentFrequency === 'Zahrnuto v nájemném' && (
-            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+            <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
               🅿️ Parkovací stání je zahrnuto v nájemném — částka se nezadává.
             </div>
           )}
@@ -2057,9 +2061,9 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                     )}
                   </div>
                   {a?.type === 'residential' && ((Number(formData.rent) || 0) + (Number(formData.includedParkingRent) || 0)) > 0 && (
-                    <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>Celkové měsíční nájemné</span>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: '#166534' }}>
+                    <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--tone-green-text)', fontWeight: 600 }}>Celkové měsíční nájemné</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--tone-green-text)' }}>
                         {((Number(formData.rent) || 0) + (Number(formData.includedParkingRent) || 0)).toLocaleString('cs-CZ')} Kč
                       </span>
                     </div>
@@ -2080,7 +2084,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           </div>
 
           {formData.paymentFrequency === 'Zahrnuto v nájemném' ? (
-            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+            <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
               🅿️ Splatnost se řídí nadřazenou smlouvou — parkovací stání je zahrnuto v nájemném.
             </div>
           ) : (
@@ -2122,7 +2126,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           {/* Podmínky smlouvy – komerční/reklamy/parking/ostatní */}
           {(a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'ostatni') && (
             formData.paymentFrequency === 'Zahrnuto v nájemném' ? (
-              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+              <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
                 🅿️ Způsob prodloužení smlouvy se řídí nadřazenou smlouvou — parkovací stání je zahrnuto v nájemném.
               </div>
             ) : (
@@ -2177,7 +2181,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 <option value="once_2y">Automatické (neopakované) prodloužení o 2 roky</option>
               </select>
               {formData.autoRenewalType && (
-                <div style={{ marginTop: 8, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: '#92400E' }}>
+                <div style={{ marginTop: 8, background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'var(--tone-amber-text)' }}>
                   ⚠️ Smlouva se automaticky prodlouží pokud nebude ukončena {formData.terminationMonths || 6} měsíců před koncem platnosti.
                 </div>
               )}
@@ -2421,11 +2425,11 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
         {/* Pronajímatel – jen když je přepsán (ne pro vlastní neplatčcovy ads/parking assety) */}
         {c.billingSubject && !((a?.type === 'ads' || a?.type === 'parking') && !(adsBillingOptions[0]?.label ? firmOf(a?.subject) === firmOf(adsBillingOptions[0].label) : false)) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 10 }}>
             <span style={{ fontSize: 13 }}>🏢</span>
             <div>
-              <div style={{ fontSize: 10, color: '#92400E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Pronajímatel</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>
+              <div style={{ fontSize: 10, color: 'var(--tone-amber-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Pronajímatel</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-amber-text)' }}>
                 {c.billingSubject}
                 <span style={{ fontWeight: 400, fontSize: 11 }}>
                   {' · '}{(billingGroups.find(g => firmOf(c.billingSubject) === g.val)?.isVatPayer ? 'Plátce DPH (21 %)' : 'Neplátce DPH')}
@@ -2440,19 +2444,19 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 10 }}>
             <span style={{ fontSize: 15 }}>🔗</span>
             <div>
-              <div style={{ fontSize: 10, color: '#6D28D9', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Skupina smluv</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#6D28D9' }}>{c.groupLabel}</div>
+              <div style={{ fontSize: 10, color: 'var(--tone-violet-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Skupina smluv</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-violet-text)' }}>{c.groupLabel}</div>
             </div>
           </div>
         )}
 
         {/* Zahrnuto parkovací stání – badge */}
         {c.includedParkingSpots > 0 && a?.type === 'residential' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)', borderRadius: 10 }}>
             <span style={{ fontSize: 15 }}>🅿️</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, color: '#1E40AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Nájemné zahrnuje parkovací stání</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1E40AF' }}>
+              <div style={{ fontSize: 10, color: 'var(--tone-blue-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Nájemné zahrnuje parkovací stání</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-blue-text)' }}>
                 {c.includedParkingSpots} {c.includedParkingSpots === 1 ? 'místo' : c.includedParkingSpots < 5 ? 'místa' : 'míst'}
                 {c.parking > 0 && <span style={{ fontWeight: 400, fontSize: 11, marginLeft: 8 }}>· {c.parking.toLocaleString('cs-CZ')} Kč/měs</span>}
               </div>
@@ -2462,7 +2466,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
 
         {/* Platnost + splatnost – pill karty nebo hláška */}
         {c.paymentFrequency === 'Zahrnuto v nájemném' ? (
-          <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+          <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
             🅿️ Platnost se řídí příslušnou nájemní smlouvou — parkovací stání je zahrnuto v nájemném.
           </div>
         ) : (
@@ -2472,9 +2476,9 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
             { label: 'Platnost do', value: c.end || 'Neurčito', icon: '⏹' },
             ...(c.dueDay && c.paymentFrequency !== 'Zahrnuto v nájemném' ? [{ label: 'Splatnost', value: c.dueDay, icon: '📅' }] : []),
           ].map(({ label, value, icon }) => (
-            <div key={label} style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, color: '#15803d', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }}>{label}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#0F4C2A' }}>{value}</div>
+            <div key={label} style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, color: 'var(--tone-green-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }}>{label}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{value}</div>
             </div>
           ))}
         </div>
@@ -2490,9 +2494,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           const effFlatFee = _eff.flatFee
           return (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>💰 Finanční přehled</span>
-          </div>
+          <SectionHeader icon="💰" tone="green" title="Finanční přehled" />
           <div style={{ padding: '4px 0' }}>
             {/* Frekvence plateb */}
             {c.paymentFrequency && c.paymentFrequency !== 'Měsíčně' && (
@@ -2622,14 +2624,12 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           : (c.terminationMonths || c.renewalMethod || c.invoiceDue || (a?.type === 'commercial' && c.valorizationEnabled))
         ) && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>📋 Podmínky smlouvy</span>
-            </div>
+            <SectionHeader icon="📋" tone="blue" title="Podmínky smlouvy" />
             <div style={{ padding: '4px 0' }}>
               {/* Bytové: text výpovědní doby */}
               {a?.type === 'residential' && (
                 <div style={{ padding: '10px 16px', borderBottom: c.renewalMethod ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ fontSize: 12, color: '#166534', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '8px 12px' }}>
+                  <div style={{ fontSize: 12, color: 'var(--tone-green-text)', background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '8px 12px' }}>
                     Výpovědní doba činí <strong>3 měsíce</strong> počítající se od 1. dne měsíce následujícího po obdržení výpovědi
                   </div>
                 </div>
@@ -2645,7 +2645,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                   {termDate && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                       <span style={{ fontSize: 13, color: 'var(--text2)' }}>Nejzazší termín výpovědi</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#92400E', background: '#FFF7ED', padding: '2px 10px', borderRadius: 6 }}>{termDate}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-amber-text)', background: 'var(--tone-amber-soft)', padding: '2px 10px', borderRadius: 6 }}>{termDate}</span>
                     </div>
                   )}
                 </>)
@@ -2659,9 +2659,9 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
               {c.autoRenewalType && (() => {
                 const labels = { repeat_2y: 'Opakované o 2 roky', repeat_5y: 'Opakované o 5 let', once_2y: 'Jednorázové o 2 roky' }
                 return (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)', background: '#FFFBEB' }}>
-                    <span style={{ fontSize: 13, color: '#92400E' }}>🔄 Automatické prodloužení</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', padding: '2px 10px', borderRadius: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--tone-amber-soft)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--tone-amber-text)' }}>🔄 Automatické prodloužení</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--tone-amber-text)', background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', padding: '2px 10px', borderRadius: 20 }}>
                       {labels[c.autoRenewalType] || c.autoRenewalType}
                     </span>
                   </div>
@@ -2677,7 +2677,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                 <div style={{ padding: '9px 16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 13, color: 'var(--text2)' }}>Valorizace nájemného</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: c.valorizationEnabled ? '#166534' : 'var(--text3)', background: c.valorizationEnabled ? '#F0FDF4' : 'var(--bg2)', border: `1px solid ${c.valorizationEnabled ? '#BBF7D0' : 'var(--border)'}`, padding: '2px 10px', borderRadius: 20 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: c.valorizationEnabled ? 'var(--tone-green-text)' : 'var(--text3)', background: c.valorizationEnabled ? 'var(--tone-green-soft)' : 'var(--bg2)', border: `1px solid ${c.valorizationEnabled ? 'var(--tone-green-border)' : 'var(--border)'}`, padding: '2px 10px', borderRadius: 20 }}>
                       {c.valorizationEnabled ? '✓ Lze uplatňovat' : '✗ Není sjednána'}
                     </span>
                   </div>
@@ -2696,9 +2696,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {/* Verze smlouvy + obsazenost */}
         {(c.contractVersion || c.occupants != null || c.coResidents) && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>👥 Obsazenost a verze smlouvy</span>
-            </div>
+            <SectionHeader icon="👥" tone="violet" title="Obsazenost a verze smlouvy" />
             <div style={{ padding: '4px 0' }}>
               {c.contractVersion && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
@@ -2731,9 +2729,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {/* Datum předání – jen residential + commercial */}
         {(a?.type === 'residential' || a?.type === 'commercial') && c.handoverDate && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>🔑 Předání předmětu nájmu</span>
-            </div>
+            <SectionHeader icon="🔑" tone="amber" title="Předání předmětu nájmu" />
             <div style={{ padding: '4px 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px' }}>
                 <span style={{ fontSize: 13, color: 'var(--text2)' }}>Datum předání předmětu nájmu Nájemci</span>
@@ -2746,9 +2742,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {/* Poznámky ke smlouvě – všechny typy */}
         {c.contractNotes && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>📝 Poznámky ke smlouvě</span>
-            </div>
+            <SectionHeader icon="📝" tone="gray" title="Poznámky ke smlouvě" />
             <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{c.contractNotes}</div>
           </div>
         )}
@@ -2756,16 +2750,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {/* Vyúčtování energií – jen residential + commercial */}
         {(a?.type === 'residential' || a?.type === 'commercial') && c.energySettlements && c.energySettlements.length > 0 && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ background: 'linear-gradient(135deg, #12654A 0%, #1A8A62 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>⚡ Vyúčtování energií a služeb za předchozí roky</span>
-            </div>
+            <SectionHeader icon="⚡" tone="amber" title="Vyúčtování energií a služeb za předchozí roky" />
             <div style={{ padding: '4px 0' }}>
               {[...c.energySettlements].sort((a, b) => b.year - a.year).map((s, i, arr) => {
                 const isDoplatek = Number(s.amount) > 0
                 return (
                   <div key={s.year} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
                     <span style={{ fontSize: 13, color: 'var(--text2)' }}>Rok {s.year}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: isDoplatek ? '#dc2626' : '#16a34a', background: isDoplatek ? '#fee2e2' : '#dcfce7', padding: '2px 10px', borderRadius: 20 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: isDoplatek ? '#dc2626' : '#16a34a', background: isDoplatek ? 'var(--tone-red-soft)' : '#dcfce7', padding: '2px 10px', borderRadius: 20 }}>
                       {isDoplatek ? '▲' : '▼'} {Math.abs(Number(s.amount)).toLocaleString('cs-CZ')} Kč {isDoplatek ? 'doplatek' : 'přeplatek'}
                     </span>
                   </div>
@@ -2780,11 +2772,12 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         {/* ── HISTORIE ZMĚN NÁJEMNÉHO / ZÁLOH (záložka Dodatky) ── */}
         {contractTab === 'amendments' && (a?.type === 'residential' || a?.type === 'commercial') && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 0 }}>
-            <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', letterSpacing: '0.8px' }}>📈 Valorizace / změny nájemného a záloh</span>
+            <div className="sec-head">
+              <div className="sec-head-icon" style={{ background: 'var(--tone-blue-soft)', borderColor: 'var(--tone-blue-border)' }}>📈</div>
+              <div className="sec-head-title">Dodatky – změny nájemného a záloh</div>
               {!isReadOnly && (
-                <button onClick={() => { setAmendForm(v => !v); setAmendData({ effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '' }) }}
-                  style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 7, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
+                <button className="btn btn-sm" onClick={() => { setAmendForm(v => !v); setAmendData({ effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '' }) }}
+                  style={{ fontSize: 11.5, padding: '3px 10px', fontWeight: 700 }}>
                   {amendForm ? '✕ Zrušit' : '+ Přidat změnu'}
                 </button>
               )}
@@ -2877,7 +2870,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {am.rent !== null && am.rent !== undefined && (
-                          <span style={{ fontSize: 11, background: '#DBEAFE', color: '#1e40af', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                          <span style={{ fontSize: 11, background: 'var(--tone-blue-soft)', color: '#1e40af', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
                             Nájem: {Number(am.rent).toLocaleString('cs-CZ')} Kč
                           </span>
                         )}
@@ -2887,7 +2880,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
                           </span>
                         )}
                         {am.depositWater !== null && am.depositWater !== undefined && (
-                          <span style={{ fontSize: 11, background: '#E0F2FE', color: '#0369a1', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                          <span style={{ fontSize: 11, background: 'var(--tone-blue-soft)', color: 'var(--tone-blue-text)', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
                             Voda: {Number(am.depositWater).toLocaleString('cs-CZ')} Kč
                           </span>
                         )}

@@ -319,9 +319,9 @@ function AppInner() {
                 onFocus={() => setIsSearchFocused(true)}
                 onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)} // Zpoždění, aby šlo kliknout na výsledek
                 style={{ 
-                  width: '100%', padding: '8px 14px', background: '#F0FDF4', 
-                  border: '1px solid #BBF7D0', borderRadius: 'var(--r)', 
-                  fontSize: 13, color: '#166534', fontWeight: 600, outline: 'none' 
+                  width: '100%', padding: '8px 14px', background: 'var(--tone-green-soft)', 
+                  border: '1px solid var(--tone-green-border)', borderRadius: 'var(--r)', 
+                  fontSize: 13, color: 'var(--tone-green-text)', fontWeight: 600, outline: 'none' 
                 }}
               />
               
@@ -415,7 +415,7 @@ function AppInner() {
               </>
             )}
             <span style={{ color: 'var(--text3)', fontWeight: 500 }}>Přihlášen jako:</span>
-            <select value={currentUser} onChange={e => handleUserChange(e.target.value)} style={{ padding: '8px 14px', border: '1px solid #BBF7D0', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, background: '#F0FDF4', color: '#115E59', cursor: 'pointer', outline: 'none' }}>
+            <select value={currentUser} onChange={e => handleUserChange(e.target.value)} style={{ padding: '8px 14px', border: '1px solid var(--tone-green-border)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, background: 'var(--tone-green-soft)', color: '#115E59', cursor: 'pointer', outline: 'none' }}>
               <option value="Ondra">Ondra</option>
               <option value="Pavel">Pavel</option>
             </select>
@@ -430,7 +430,7 @@ function AppInner() {
         </div>
         <div className="content" ref={contentRef}>
           {isReadOnly && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 18px', marginBottom: 20, color: '#92400E', fontSize: 13, fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 10, padding: '10px 18px', marginBottom: 20, color: 'var(--tone-amber-text)', fontSize: 13, fontWeight: 600 }}>
               <span style={{ fontSize: 16 }}>👁️</span>
               <span>Přihlášen jako <strong>Pavel</strong> — režim pouze ke čtení. Žádné změny nelze uložit.</span>
               {(() => {

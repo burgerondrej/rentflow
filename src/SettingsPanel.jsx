@@ -130,8 +130,8 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
             </div>
 
             <div style={{
-              background: '#F0FDF4', border: '1px solid #BBF7D0',
-              borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#166534'
+              background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)',
+              borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--tone-green-text)'
             }}>
               💡 Zálohy se ukládají do <code style={{ background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3 }}>%APPDATA%\rentflow\backups\</code>
               <br />Automatická záloha proběhne každý den v 19:00.
@@ -173,8 +173,8 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
             </div>
 
             <div style={{
-              background: '#EFF6FF', border: '1px solid #BFDBFE',
-              borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#1E40AF',
+              background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)',
+              borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--tone-blue-text)',
               lineHeight: 1.6
             }}>
               📂 Zadej cestu ke složce synchronizované přes <strong>Google Drive for Desktop</strong>.<br /><br />
@@ -219,8 +219,8 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
             {backupInfo.gdrivePath && (
               <div style={{
                 marginTop: 12, padding: '8px 12px',
-                background: '#F0FDF4', border: '1px solid #BBF7D0',
-                borderRadius: 8, fontSize: 12, color: '#166534'
+                background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)',
+                borderRadius: 8, fontSize: 12, color: 'var(--tone-green-text)'
               }}>
                 ✅ Drive sync aktivní: <code style={{ wordBreak: 'break-all' }}>{backupInfo.gdrivePath}</code>
               </div>
@@ -232,7 +232,7 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text3)', letterSpacing: '0.06em', marginBottom: 14 }}>
               Cesta k databázi
             </div>
-            <div style={{ background: '#FEF9C3', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#92400E', lineHeight: 1.6 }}>
+            <div style={{ background: '#FEF9C3', border: '1px solid var(--tone-amber-border)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--tone-amber-text)', lineHeight: 1.6 }}>
               <strong>🖥️ U Ondřeje:</strong> Nech prázdné — databáze se načítá z výchozího umístění <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 3 }}>%APPDATA%\\rentflow\\rentflow.db</code>.<br /><br />
               <strong>🖥️ U Pavla:</strong> Zadej plnou cestu k souboru <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 3 }}>rentflow.db</code> uvnitř sdílené GDrive složky,{''}
               např. <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 3 }}>C:\\Users\\pavel\\Google Drive\\RentFlow\\rentflow.db</code>.<br />

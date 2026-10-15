@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import DialogShell from './DialogShell.jsx'
+import { Segmented } from './UI.jsx'
 import { parseDate, toCzDate, getEffectiveValuesToday, contractSubject, ASSET_TYPES } from './utils.js'
 
 const dateToIso = (d) => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : ''
@@ -124,7 +125,7 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
             <input type="date" className="btn" style={{ ...inp, cursor: 'pointer', maxWidth: 260 }} value={startIso} onChange={e => setStartIso(e.target.value)} />
             <div style={{ fontSize: 12.5, color: 'var(--text2)', marginTop: 12, lineHeight: 1.6 }}>
               • Stávající smlouva se ukončí k <b>{dayBefore ? toCzDate(dayBefore) : '—'}</b>
-              {oldEnd && dayBefore && oldEnd < dayBefore && <span style={{ color: '#B45309' }}> (už končí {contract.end} – mezi smlouvami bude mezera)</span>}.<br />
+              {oldEnd && dayBefore && oldEnd < dayBefore && <span style={{ color: 'var(--tone-amber-text)' }}> (už končí {contract.end} – mezi smlouvami bude mezera)</span>}.<br />
               • V měsíci předávky se nájem krátí podle dní, zálohy platí oba nájemci v plné výši.<br />
               • Před změnou se automaticky udělá záloha databáze.
             </div>
@@ -133,10 +134,8 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
 
         {step === 2 && (
           <div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <button className={`btn btn-sm ${mode === 'existing' ? 'btn-primary' : ''}`} onClick={() => setMode('existing')}>Existující nájemce</button>
-              <button className={`btn btn-sm ${mode === 'new' ? 'btn-primary' : ''}`} onClick={() => setMode('new')}>+ Nový nájemce</button>
-            </div>
+            <Segmented size="sm" value={mode} onChange={setMode} style={{ marginBottom: 12 }}
+              items={[{ id: 'existing', label: 'Existující nájemce' }, { id: 'new', label: '+ Nový nájemce' }]} />
             {mode === 'existing' ? (
               <>
                 <label className="dlg-lbl">Nájemce *</label>

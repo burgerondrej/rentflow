@@ -907,10 +907,10 @@ export function AppProvider({ children }) {
 
   // Toast barvy dle typu
   const TOAST_STYLES = {
-    error:   { bg: '#FEF2F2', border: '#FECACA', color: '#991B1B', icon: '⚠️' },
-    warning: { bg: '#FFFBEB', border: '#FDE68A', color: '#92400E', icon: '⚠️' },
-    success: { bg: '#F0FDF4', border: '#BBF7D0', color: '#166534', icon: '✓' },
-    info:    { bg: '#EFF6FF', border: '#BFDBFE', color: '#1E40AF', icon: 'ℹ️' },
+    error:   { bg: 'var(--tone-red-soft)', border: 'var(--tone-red-border)', color: 'var(--tone-red-text)', icon: '⚠️' },
+    warning: { bg: 'var(--tone-amber-soft)', border: 'var(--tone-amber-border)', color: 'var(--tone-amber-text)', icon: '⚠️' },
+    success: { bg: 'var(--tone-green-soft)', border: 'var(--tone-green-border)', color: 'var(--tone-green-text)', icon: '✓' },
+    info:    { bg: 'var(--tone-blue-soft)', border: 'var(--tone-blue-border)', color: 'var(--tone-blue-text)', icon: 'ℹ️' },
   }
 
   return (

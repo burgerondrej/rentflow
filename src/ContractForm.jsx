@@ -242,7 +242,7 @@ export default function ContractForm({ onClose }) {
         </select>
         {availableAssets.length === 0 && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>Žádné volné předměty nájmu tohoto typu.</div>}
         {overlapContract && (
-          <div style={{ fontSize: 11, color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 6, padding: '6px 8px', marginTop: 6 }}>
+          <div style={{ fontSize: 11, color: 'var(--tone-amber-text)', background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 6, padding: '6px 8px', marginTop: 6 }}>
             ⚠️ Překryv s jinou smlouvou na tomto předmětu: {overlapTenant?.name || 'neznámý nájemce'} ({overlapContract.start || '?'} – {overlapContract.end || 'neurčito'}). Zkontrolujte data začátku a konce.
           </div>
         )}
@@ -374,9 +374,9 @@ export default function ContractForm({ onClose }) {
             const monthlyEq = periodTotal / pLen
             const isMulti = pLen > 1
             return (
-              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>{isMulti ? `Měsíční ekvivalent nájemného` : 'Celkové měsíční nájemné'}</span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#166534' }}>
+              <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--tone-green-text)', fontWeight: 600 }}>{isMulti ? `Měsíční ekvivalent nájemného` : 'Celkové měsíční nájemné'}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--tone-green-text)' }}>
                   {monthlyEq.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })} Kč / měsíc
                 </span>
               </div>
@@ -473,7 +473,7 @@ export default function ContractForm({ onClose }) {
         {card('📅', 'Platnost nájemní smlouvy',
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {datumyField}
-            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+            <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
               📋 Výpovědní doba činí <strong>3 měsíce</strong> počítající se od 1. dne měsíce následujícího po obdržení výpovědi
             </div>
           </div>
@@ -651,7 +651,7 @@ export default function ContractForm({ onClose }) {
               <div>{splatnostField}</div>
             </div>
             {terminationDate && (
-              <div style={{ fontSize: 12, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', color: '#92400E', fontWeight: 600 }}>
+              <div style={{ fontSize: 12, background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 8, padding: '8px 12px', color: 'var(--tone-amber-text)', fontWeight: 600 }}>
                 ⚠️ Krajní termín podání výpovědi: <strong>{terminationDate}</strong>
               </div>
             )}
@@ -674,7 +674,7 @@ export default function ContractForm({ onClose }) {
                 <option value="once_2y">Automatické (neopakované) prodloužení o 2 roky</option>
               </select>
               {formData.autoRenewalType && (
-                <div style={{ marginTop: 8, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400E' }}>
+                <div style={{ marginTop: 8, background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--tone-amber-text)' }}>
                   ⚠️ Pokud smlouva nebude ukončena nejpozději {formData.terminationMonths || 6} měsíců před koncem platnosti, RentFlow ji automaticky prodlouží při spuštění aplikace.
                 </div>
               )}
@@ -843,7 +843,7 @@ export default function ContractForm({ onClose }) {
                 </div>
               )}
               {parkingIncluded ? (
-                <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+                <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
                   🅿️ Parkovací stání je zahrnuto v nájemném — částka se nezadává.
                 </div>
               ) : (
@@ -880,7 +880,7 @@ export default function ContractForm({ onClose }) {
 
           {parkingIncluded ? (
             card('📅', 'Platnost nájemní smlouvy',
-              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+              <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
                 🅿️ Platnost se řídí příslušnou nájemní smlouvou — parkovací stání je zahrnuto v nájemném.
               </div>
             )
@@ -895,7 +895,7 @@ export default function ContractForm({ onClose }) {
 
           {card('📝', 'Podmínky nájemní smlouvy',
             parkingIncluded
-              ? <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+              ? <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
                   🅿️ Způsob prodloužení smlouvy se řídí nadřazenou smlouvou — parkovací stání je zahrnuto v nájemném.
                 </div>
               : zpusobProdlouzeni

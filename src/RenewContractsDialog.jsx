@@ -138,7 +138,7 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
                     <td style={{ padding: '8px 8px', fontSize: 11, color: 'var(--text3)', maxWidth: 220 }}>{c.groupLabel || '—'}</td>
                     <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>
                       <div style={{ fontSize: 12, color: 'var(--text2)' }}>{c.end || 'neurčito'}</div>
-                      {note && <div style={{ fontSize: 10, fontWeight: 600, color: note.warn ? '#92400E' : 'var(--text3)' }}>{note.warn ? '⚠️ ' : ''}{note.text}</div>}
+                      {note && <div style={{ fontSize: 10, fontWeight: 600, color: note.warn ? 'var(--tone-amber-text)' : 'var(--text3)' }}>{note.warn ? '⚠️ ' : ''}{note.text}</div>}
                     </td>
                     <td style={{ padding: '8px 8px', textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text2)' }}>
                       {incl ? 'zahrnuto' : `${getEffectiveValuesToday(c).rent.toLocaleString('cs-CZ')} Kč`}

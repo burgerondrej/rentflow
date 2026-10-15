@@ -6,10 +6,10 @@ export default function History() {
 
   const getActionBadge = (action) => {
     switch(action) {
-      case 'Přidání': return { bg: '#DCFCE7', color: '#166534', border: '#BBF7D0' }
+      case 'Přidání': return { bg: 'var(--tone-green-soft)', color: 'var(--tone-green-text)', border: 'var(--tone-green-border)' }
       case 'Úprava': return { bg: '#FEF9C3', color: '#854D0E', border: '#FEF08A' }
-      case 'Smazání': return { bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' }
-      case 'Obnova': return { bg: '#E0F2FE', color: '#0369A1', border: '#BAE6FD' }
+      case 'Smazání': return { bg: 'var(--tone-red-soft)', color: 'var(--tone-red-text)', border: 'var(--tone-red-border)' }
+      case 'Obnova': return { bg: 'var(--tone-blue-soft)', color: 'var(--tone-blue-text)', border: 'var(--tone-blue-border)' }
       default: return { bg: '#F1F5F9', color: '#475569', border: '#E2E8F0' }
     }
   }
@@ -45,7 +45,7 @@ export default function History() {
                   <td style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {/* TADY JE PŘEJMENOVÁNÍ NA PAVLA - BARVA AVATARU */}
-                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: log.user === 'Pavel' ? '#DBEAFE' : '#DCFCE7', color: log.user === 'Pavel' ? '#1E3A8A' : '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>
+                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: log.user === 'Pavel' ? 'var(--tone-blue-soft)' : 'var(--tone-green-soft)', color: log.user === 'Pavel' ? '#1E3A8A' : 'var(--tone-green-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>
                         {log.user.charAt(0)}
                       </div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{log.user}</span>

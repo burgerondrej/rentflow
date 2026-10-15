@@ -270,11 +270,11 @@ export function Docs() {
 
   const getTypeStyle = (type) => {
     switch(type) {
-      case 'Smlouva':      return { bg: '#DBEAFE', color: '#1E3A8A' }
+      case 'Smlouva':      return { bg: 'var(--tone-blue-soft)', color: '#1E3A8A' }
       case 'Dodatek k NS': return { bg: '#E0E7FF', color: '#3730A3' }
-      case 'Protokol':     return { bg: '#FEF3C7', color: '#92400E' }
-      case 'Faktura':      return { bg: '#DCFCE7', color: '#166534' }
-      case 'Revize':       return { bg: '#EDE9FE', color: '#5B21B6' }
+      case 'Protokol':     return { bg: 'var(--tone-amber-soft)', color: 'var(--tone-amber-text)' }
+      case 'Faktura':      return { bg: 'var(--tone-green-soft)', color: 'var(--tone-green-text)' }
+      case 'Revize':       return { bg: 'var(--tone-violet-soft)', color: '#5B21B6' }
       default:             return { bg: '#F1F5F9', color: '#475569' }
     }
   }
@@ -321,7 +321,7 @@ export function Docs() {
           {hasFile && (
             <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => handleOpen(d)}>Otevřít</button>
           )}
-          <button className="btn btn-sm" style={{ color: '#DC2626', background: '#FEF2F2', borderColor: '#FECACA', fontSize: 11 }} onClick={() => deleteDocument(d.id)}>Smazat</button>
+          <button className="btn btn-sm" style={{ color: '#DC2626', background: 'var(--tone-red-soft)', borderColor: 'var(--tone-red-border)', fontSize: 11 }} onClick={() => deleteDocument(d.id)}>Smazat</button>
         </div>
       </div>
     )
@@ -448,11 +448,11 @@ export function Docs() {
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>Soubor *</label>
               {pickedFile ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--tone-green-soft)', border: '1.5px solid var(--tone-green-border)', borderRadius: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: getExtColor(pickedFile.ext), fontWeight: 800, fontSize: 10, flexShrink: 0 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--tone-green-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: getExtColor(pickedFile.ext), fontWeight: 800, fontSize: 10, flexShrink: 0 }}>
                     {getExtLabel(pickedFile.ext)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickedFile.filename}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-green-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickedFile.filename}</div>
                     <div style={{ fontSize: 10, color: '#4ADE80' }}>Soubor vybrán</div>
                   </div>
                   <button type="button" className="btn btn-sm" style={{ flexShrink: 0 }} onClick={handlePickFile}>Změnit</button>
@@ -463,7 +463,7 @@ export function Docs() {
                   onDrop={handleDrop}
                   onClick={handlePickFile}
                   style={{ width: '100%', boxSizing: 'border-box', border: '2px dashed var(--border)', background: 'var(--bg2)', borderRadius: 10, padding: '20px 16px', cursor: 'pointer', textAlign: 'center', transition: 'border-color 0.15s, background 0.15s' }}
-                  onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = '#F0FDF4' }}
+                  onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--tone-green-soft)' }}
                   onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg2)' }}
                 >
                   <div style={{ fontSize: 24, marginBottom: 6 }}>📂</div>
@@ -634,8 +634,8 @@ export function Alerts() {
   // Určení stylů podle urgence
   const getAlertStyle = (urgency) => {
     switch (urgency) {
-      case 'critical': return { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', icon: '🚨' }
-      case 'high': return { bg: '#FFF7ED', border: '#FED7AA', text: '#9A3412', icon: '⚠️' }
+      case 'critical': return { bg: 'var(--tone-red-soft)', border: 'var(--tone-red-border)', text: 'var(--tone-red-text)', icon: '🚨' }
+      case 'high': return { bg: 'var(--tone-amber-soft)', border: 'var(--tone-amber-border)', text: '#9A3412', icon: '⚠️' }
       case 'medium': return { bg: '#FEFCE8', border: '#FEF08A', text: '#854D0E', icon: 'ℹ️' }
       default: return { bg: '#F1F5F9', border: '#E2E8F0', text: '#475569', icon: '📌' }
     }
@@ -662,7 +662,7 @@ export function Alerts() {
               <div style={{ fontSize: 24, marginRight: 20 }}>{style.icon}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', background: '#fff', color: style.text, padding: '2px 8px', borderRadius: 8, border: `1px solid ${style.border}` }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', background: 'var(--bg)', color: style.text, padding: '2px 8px', borderRadius: 8, border: `1px solid ${style.border}` }}>
                     {alert.category}
                   </span>
                   <span style={{ fontSize: 15, fontWeight: 800, color: style.text }}>{alert.title}</span>

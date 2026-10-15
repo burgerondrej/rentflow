@@ -22,7 +22,7 @@ export default function Trash() {
           <div className="page-sub">Obnova smazaných položek a trvalé odstranění</div>
         </div>
         {trash.length > 0 && (
-          <button className="btn" style={{ color: '#DC2626', borderColor: '#FECACA', background: '#FEF2F2' }} onClick={() => setConfirmEmpty(true)}>
+          <button className="btn" style={{ color: '#DC2626', borderColor: 'var(--tone-red-border)', background: 'var(--tone-red-soft)' }} onClick={() => setConfirmEmpty(true)}>
             Vysypat koš
           </button>
         )}
@@ -53,10 +53,10 @@ export default function Trash() {
                   {t.deletedAt}
                 </td>
                 <td style={{ padding: '18px 24px', textAlign: 'right' }}>
-                  <button className="btn btn-sm" style={{ background: '#F0FDF4', color: '#166534', borderColor: '#BBF7D0', marginRight: 10 }} onClick={() => restoreFromTrash(t.trashId)}>
+                  <button className="btn btn-sm" style={{ background: 'var(--tone-green-soft)', color: 'var(--tone-green-text)', borderColor: 'var(--tone-green-border)', marginRight: 10 }} onClick={() => restoreFromTrash(t.trashId)}>
                     Obnovit
                   </button>
-                  <button className="btn btn-sm" style={{ background: '#FEF2F2', color: '#991B1B', borderColor: '#FECACA' }} onClick={() => permanentDelete(t.trashId)}>
+                  <button className="btn btn-sm" style={{ background: 'var(--tone-red-soft)', color: 'var(--tone-red-text)', borderColor: 'var(--tone-red-border)' }} onClick={() => permanentDelete(t.trashId)}>
                     Smazat trvale
                   </button>
                 </td>

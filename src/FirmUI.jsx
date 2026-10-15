@@ -200,14 +200,14 @@ export function FirmPickerButton({ value, onChange, getStat, sections }) {
     <div ref={ref} style={{ position: 'relative' }}>
       <button onClick={() => setOpen(o => !o)} style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', minWidth: 230, cursor: 'pointer', textAlign: 'left',
-        border: `1px solid ${c ? c.mid + '88' : '#BBF7D0'}`, borderRadius: 10, background: c ? c.bg : '#F0FDF4',
+        border: `1px solid ${c ? c.mid + '88' : 'var(--tone-green-border)'}`, borderRadius: 10, background: c ? c.bg : 'var(--tone-green-soft)',
       }}>
         {firm ? <FirmBadge firm={firm} size={26} /> : <span style={{ width: 26, height: 26, borderRadius: 8, background: 'var(--accent)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▦</span>}
         <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: c ? c.sub : '#15803D' }}>{firm ? firm.name : 'Pronajímatel'}</span>
-          <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: c ? c.txt : '#15803D', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+          <span style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: c ? c.sub : 'var(--tone-green-text)' }}>{firm ? firm.name : 'Pronajímatel'}</span>
+          <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: c ? c.txt : 'var(--tone-green-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
         </span>
-        <span style={{ fontSize: 10, color: c ? c.sub : '#15803D' }}>{open ? '▲' : '▼'}</span>
+        <span style={{ fontSize: 10, color: c ? c.sub : 'var(--tone-green-text)' }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 1500, width: 640, boxShadow: '0 18px 48px rgba(0,0,0,0.22)', borderRadius: 16, background: 'var(--bg)' }}>

@@ -509,9 +509,9 @@ export default function Tenants({ onOpen }) {
                         {letter}
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                        {cGroup.length > 0 && <span style={{ color: '#1E40AF' }}>{cGroup.length} {cGroup.length === 1 ? 'firma' : cGroup.length < 5 ? 'firmy' : 'firem'}</span>}
+                        {cGroup.length > 0 && <span style={{ color: 'var(--tone-blue-text)' }}>{cGroup.length} {cGroup.length === 1 ? 'firma' : cGroup.length < 5 ? 'firmy' : 'firem'}</span>}
                         {cGroup.length > 0 && pGroup.length > 0 && <span style={{ color: 'var(--text3)', margin: '0 8px' }}>·</span>}
-                        {pGroup.length > 0 && <span style={{ color: '#166534' }}>{pGroup.length} {pGroup.length === 1 ? 'osoba' : pGroup.length < 5 ? 'osoby' : 'osob'}</span>}
+                        {pGroup.length > 0 && <span style={{ color: 'var(--tone-green-text)' }}>{pGroup.length} {pGroup.length === 1 ? 'osoba' : pGroup.length < 5 ? 'osoby' : 'osob'}</span>}
                       </div>
                       <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span>{isCollapsed ? 'Rozbalit' : 'Sbalit'}</span>
