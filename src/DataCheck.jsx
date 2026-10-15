@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import DialogShell from './DialogShell.jsx'
-import { parseDate, isContractBillable, isContractOccupying, getCurrentAssetContract, contractSubject } from './utils.js'
+import { parseDate, isContractBillable, isContractOccupying, getCurrentAssetContract, contractSubject, isContractInMonth } from './utils.js'
 
 /**
  * Kontrola dat (jen čtení): najde nesrovnalosti, které rozbíjejí přehledy a platby.
@@ -81,6 +81,26 @@ export default function DataCheck({ onClose, onOpen }) {
       dups.map(p => {
         const c = contracts.find(x => x.id === p.contractId)
         return { key: p.id, text: c ? label(c) : `skupina ${p.groupLabel}`, sub: `měsíc ${p.month} · ${Number(p.amount || 0).toLocaleString('cs-CZ')} Kč`, open: c ? ['contract', c.id] : null }
+      }), 'red')
+
+    // 8b) Platby nájmu zapsané na jednotlivou smlouvu, která je ve skupině – Platby/Dashboard je nezapočítají
+    const grouped = new Map(contracts.filter(c => c.groupLabel).map(c => [c.id, c]))
+    add('groupSingle', '🔗', 'Platby jednotlivé smlouvy ve skupině plateb', 'U skupiny se platí jednou za celou skupinu – tyto platby se nezapočítají. Smažte je a zapište platbu skupiny v Platbách.',
+      payments.filter(p => p.paymentType !== 'deposit' && grouped.has(p.contractId))
+        .map(p => { const c = grouped.get(p.contractId); return { key: p.id, text: label(c), sub: `skupina ${c.groupLabel} · měsíc ${p.month} · ${Number(p.amount || 0).toLocaleString('cs-CZ')} Kč`, open: ['contract', c.id] } }), 'red')
+
+    // 8c) Platby za měsíc, kdy smlouva neplatila (nikde se nezapočítají – typicky špatně zvolený měsíc)
+    const byId = new Map(contracts.map(c => [c.id, c]))
+    add('outside', '📅', 'Platby za měsíc mimo platnost smlouvy', 'Platba je zapsaná na měsíc před začátkem nebo po konci smlouvy, proto se nikde nezapočítá. Zkontrolujte měsíc platby.',
+      payments.filter(p => {
+        const c = byId.get(p.contractId)
+        if (!c || !p.month) return false
+        const [y, m] = p.month.split('-').map(Number)
+        return !isContractInMonth(c, y, m)
+      }).map(p => {
+        const c = byId.get(p.contractId)
+        const [y, m] = p.month.split('-').map(Number)
+        return { key: p.id, text: label(c), sub: `platba za ${m + 1}/${y} · ${Number(p.amount || 0).toLocaleString('cs-CZ')} Kč · smlouva ${range(c)}`, open: ['contract', c.id] }
       }), 'red')
 
     // 9) Budovy bez firmy

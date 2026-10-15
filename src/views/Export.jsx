@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import { save } from '@tauri-apps/api/dialog'
-import { getEffectiveValuesToday, getEffectiveValues, getMonthRentParking, getMonthDeposits, isContractBillable, isContractInMonth, isContractOccupying, parseDate, PERIOD_LEN, depositYearRows } from '../utils.js'
+import { getEffectiveValuesToday, getEffectiveValues, getMonthRentParking, getMonthDeposits, isContractBillable, isContractInMonth, isContractOccupying, parseDate, PERIOD_LEN, depositYearRows, currentPerAsset, hasSuccessor } from '../utils.js'
 import { FirmPickerButton } from '../FirmUI.jsx'
 import { contractSubject, selectionMatches, selectionLabel, firmColors } from '../utils.js'
 
@@ -98,7 +98,8 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
   const firmTotals = {} // součty STRIKTNĚ po firmách
 
   subjects.forEach(subject => {
-    const subjectContracts = activeContracts.filter(c => contractSubject(c, assets) === subject)
+    // Na každém předmětu smlouva platná dnes (navazující smlouva od budoucna se ukáže až po předávce)
+    const subjectContracts = currentPerAsset(activeContracts.filter(c => contractSubject(c, assets) === subject))
     if (subjectContracts.length === 0) return
 
     const subTotal = subjectContracts.reduce((s, c) => s + monthlyToday(c).total, 0)
@@ -209,7 +210,7 @@ function genTenantCard(tenant, contracts, assets, fi) {
         ${(() => {
           // Nájemné / měsíc STRIKTNĚ po firmách (pronajímatelích)
           const byFirm = {}
-          activeContracts.forEach(c => {
+          currentPerAsset(activeContracts).forEach(c => {
             const f = fi(contractSubject(c, assets))
             const k = f ? f.name : '—'
             byFirm[k] = byFirm[k] || { f, total: 0 }
@@ -258,7 +259,7 @@ function genTenantCard(tenant, contracts, assets, fi) {
 
 function genExpirationReport(contracts, assets, tenants, fi) {
   // Platné smlouvy vč. ukončených k budoucímu datu (jejich konec je právě ten termín)
-  const active = contracts.filter(c => isContractOccupying(c))
+  const active = contracts.filter(c => isContractOccupying(c) && !hasSuccessor(c, contracts))
   const enriched = active.map(c => ({
     ...c,
     days: daysLeft(c.end),
@@ -333,7 +334,7 @@ function genMonthlyReport(contracts, assets, tenants, subjectFilter, subjectOrde
     const rp = getMonthRentParking(c, yr, mo)
     const base = ev.rent + ev.parking
     const parking = base > 0 ? Math.round(rp * ev.parking / base) : 0
-    const d = getMonthDeposits(c, yr, mo)
+    const d = getMonthDeposits(c, yr, mo, contracts)
     const rent = (rp - parking) / n, pk = parking / n, flatFee = ev.flatFee / n
     const s = parseDate(c.start), e = parseDate(c.end)
     const from = s && s.getFullYear() === yr && s.getMonth() === mo && s.getDate() > 1 ? s.getDate() : null

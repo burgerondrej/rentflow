@@ -5,7 +5,7 @@ import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import DialogShell from '../DialogShell.jsx'
 import { isTyping, isOverlayOpen, peekPaymentsFilter, clearPaymentsFilter } from '../shortcuts.js'
-import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso } from '../utils.js'
+import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, isGroupPayment } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
 
@@ -513,6 +513,13 @@ export default function Payments() {
   const getAssetForContract  = (c) => assets.find(a => a.id === c.assetId)
   const getTenantForContract = (c) => tenants.find(t => t.id === c.tenantId)
 
+  // Jednotný stav měsíce (utils.js) – stejný výpočet jako Dashboard, detaily, saldo a report.
+  // Smlouva: nájem (+ zálohy u bytů); skupina: platba skupiny proti předpisu VŠECH členů (i z jiné sekce).
+  const payCtx = { payments, contracts, assets }
+  const cms = (c, y = selectedYear, m = selectedMonth) => contractMonthStatus(c, y, m, payCtx)
+  const gms = (label, y = selectedYear, m = selectedMonth) => groupMonthStatus(label, y, m, payCtx)
+  const itemStatus = (c, y, m) => c.groupLabel ? gms(c.groupLabel, y, m).status : cms(c, y, m).status
+
   // Najít platbu dle contractId + month + (volitelně) paymentType
   const getPayment = (contractId, key, paymentType) => {
     if (paymentType) {
@@ -528,7 +535,7 @@ export default function Payments() {
   const getDepositStatus = (c, key) => {
     const [yr, mo] = key.split('-').map(Number)
     const payment = getDepositPayment(c.id, key)
-    const expected = getMonthDeposits(c, yr, mo).deposit
+    const expected = getMonthDeposits(c, yr, mo, contracts).deposit
     if (!payment) return { status: 'unpaid', payment: null, remaining: expected }
     if (Number(payment.amount) < expected - 0.01) return { status: 'partial', payment, remaining: expected - Number(payment.amount) }
     return { status: 'paid', payment, remaining: 0 }
@@ -590,7 +597,7 @@ export default function Payments() {
       if (c.groupLabel) {
         if (!seenGroups.has(c.groupLabel)) {
           seenGroups.add(c.groupLabel)
-          const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
+          const gp = payments.find(p => p.groupLabel === c.groupLabel && isGroupPayment(p) && p.month === monthKey && p.paymentType !== 'deposit')
           if (gp) {
             total += Number(gp.amount) || 0
           }
@@ -641,21 +648,13 @@ export default function Payments() {
   }
 
   const globalPaidCount = (() => {
-    const seenG = new Set()
+    const seen = new Set()
     let count = 0
     for (const c of activeContracts) {
-      if (c.groupLabel) {
-        if (seenG.has(c.groupLabel)) continue
-        seenG.add(c.groupLabel)
-        const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
-        if (!gp) continue
-        if (gp.agreed) { count++; continue }
-        const members = activeContracts.filter(x => x.groupLabel === c.groupLabel)
-        const groupTotal = members.reduce((s, mc) => s + getMonthRent(mc, selectedYear, selectedMonth), 0)
-        if (Number(gp.amount) >= groupTotal - 0.01) count++
-      } else {
-        if (getRentStatus(c, monthKey).status === 'paid') count++
-      }
+      const k = c.groupLabel || c.id
+      if (seen.has(k)) continue
+      seen.add(k)
+      if (itemStatus(c) === 'paid') count++
     }
     return count
   })()
@@ -670,16 +669,7 @@ export default function Payments() {
       if (seen.has(key)) return
       seen.add(key)
       total++
-      if (c.groupLabel) {
-        const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
-        if (!gp) { unpaid++; return }
-        if (gp.agreed) return // paid
-        const members = sub.filter(x => x.groupLabel === c.groupLabel)
-        const groupTotal = members.reduce((s, mc) => s + getMonthRent(mc, selectedYear, selectedMonth), 0)
-        if (Number(gp.amount) < groupTotal - 0.01) unpaid++ // partial
-      } else {
-        if (getRentStatus(c, monthKey).status !== 'paid') unpaid++
-      }
+      if (itemStatus(c) !== 'paid') unpaid++
     })
     return { unpaid, total }
   }
@@ -725,18 +715,7 @@ export default function Payments() {
 
   const subContracts = contractsForSub(activeSub)
   // Filtr řádků Přehledu: stejná logika stavu jako řádky tabulky (skupina / jednotlivá smlouva vč. záloh u bytů)
-  const rowUnpaid = (g) => {
-    if (g.type === 'group') {
-      const total = g.members.reduce((s, c) => s + getMonthRent(c, selectedYear, selectedMonth), 0)
-      const gp = payments.find(p => p.groupLabel === g.label && p.month === monthKey)
-      return !gp || (!gp.agreed && Number(gp.amount) < total - 0.01)
-    }
-    const c = g.contract
-    const isMulti = (PERIOD_LEN[c.paymentFrequency] || 1) > 1
-    const rentPaid = isMulti ? isPeriodPaid(c, selectedYear, selectedMonth) : getRentStatus(c, monthKey).status === 'paid'
-    const hasDep = getAssetForContract(c)?.type === 'residential' && getMonthDeposits(c, selectedYear, selectedMonth).deposit > 0
-    return !rentPaid || (hasDep && !getDepositPayment(c.id, monthKey))
-  }
+  const rowUnpaid = (g) => g.type === 'group' ? gms(g.label).status !== 'paid' : !cms(g.contract).complete
   const rowOverdue = (g) => rowUnpaid(g) && overdueDays(g.type === 'group' ? g.members[0] : g.contract, selectedYear, selectedMonth) > 0
   const rowPasses = (g) => rowFilter === 'unpaid' ? rowUnpaid(g) : rowFilter === 'overdue' ? rowOverdue(g) : true
   const overviewGroups = (() => {
@@ -757,7 +736,7 @@ export default function Payments() {
       if (c.groupLabel) {
         if (!seenGroups.has(c.groupLabel)) {
           seenGroups.add(c.groupLabel)
-          const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
+          const gp = payments.find(p => p.groupLabel === c.groupLabel && isGroupPayment(p) && p.month === monthKey && p.paymentType !== 'deposit')
           if (gp && gp.paymentType !== 'deposit') {
             total += Number(gp.amount) || 0
           }
@@ -804,7 +783,7 @@ export default function Payments() {
     } else {
       if (isBytovySub(getContractSubject(contract))) {
         const tenant = tenants.find(t => t.id === contract.tenantId)
-        const ev = { ...getEffectiveValues(contract, selectedYear, selectedMonth), ...getMonthDeposits(contract, selectedYear, selectedMonth) }
+        const ev = { ...getEffectiveValues(contract, selectedYear, selectedMonth), ...getMonthDeposits(contract, selectedYear, selectedMonth, contracts) }
         const rentTotal = getMonthRentParking(contract, selectedYear, selectedMonth)
         const depositAmt = ev.deposit
         const existingRent = getPayment(contract.id, monthKey, 'rent')
@@ -914,7 +893,7 @@ export default function Payments() {
       if (c.groupLabel) {
         if (seenG.has(c.groupLabel)) return s
         seenG.add(c.groupLabel)
-        const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === key)
+        const gp = payments.find(p => p.groupLabel === c.groupLabel && isGroupPayment(p) && p.month === key && p.paymentType !== 'deposit')
         if (!gp || gp.paymentType === 'deposit') return s
         return s + (Number(gp.amount) || 0)
       }
@@ -936,26 +915,21 @@ export default function Payments() {
         // Skupinové smlouvy — zpracuj jednou za skupinu
         if (seenGroups.has(c.groupLabel)) continue
         seenGroups.add(c.groupLabel)
-        const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
-        // Agreed → paid, přeskočit
-        if (gp?.agreed) continue
-        // Spočítej celkový expected skupiny
-        const members = activeContracts.filter(x => x.groupLabel === c.groupLabel)
-        const groupTotal = members.reduce((s, mc) => s + getMonthRent(mc, selectedYear, selectedMonth), 0)
-        if (!gp) {
-          result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c), rs: { status: 'unpaid', payment: null, remaining: groupTotal }, isGroup: true, groupLabel: c.groupLabel, groupTotal })
-        } else if (Number(gp.amount) < groupTotal - 0.01) {
-          result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c), rs: { status: 'partial', payment: gp, remaining: groupTotal - Number(gp.amount) }, isGroup: true, groupLabel: c.groupLabel, groupTotal })
-        }
-        // Jinak paid → nepřidávat
+        const g = gms(c.groupLabel)
+        if (g.status === 'paid') continue
+        result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c),
+          rs: { status: g.status, payment: g.payment, paidTotal: g.paid, remaining: Math.round(g.expected - g.paid) }, isGroup: true, groupLabel: c.groupLabel, groupTotal: g.expected })
       } else {
-        const rs = getRentStatus(c, monthKey)
-        if (rs.status !== 'paid') {
-          result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c), rs, isGroup: false })
-        }
+        const ms = cms(c)
+        if (ms.complete) continue
+        const multi = (PERIOD_LEN[c.paymentFrequency] || 1) > 1
+        const rentRem = ms.rent.status === 'paid' ? 0 : multi ? getMonthRent(c, selectedYear, selectedMonth) : ms.rent.expected - ms.rent.paid
+        const depRem = ms.deposit && ms.deposit.status !== 'paid' ? ms.deposit.expected - ms.deposit.paid : 0
+        result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c),
+          rs: { status: ms.status, payment: ms.rent.payment || ms.deposit?.payment || null, paidTotal: ms.rent.paid + (ms.deposit?.paid || 0), remaining: Math.round(rentRem + depRem), depMissing: depRem > 0 }, isGroup: false })
       }
     }
-    return result.sort((a, b) => (b.groupTotal || effRent(b.contract)) - (a.groupTotal || effRent(a.contract)))
+    return result.sort((a, b) => b.rs.remaining - a.rs.remaining)
   })()
 
   const contractHistory = (contractId) =>
@@ -989,15 +963,8 @@ export default function Payments() {
 
   // ── Stav platby skupiny pro daný měsíc ───────────────────────────────────
   const getGroupStatus = (label, members, y, m) => {
-    const key = `${y}-${m}`
-    const groupPayment = payments.find(p => p.groupLabel === label && p.month === key)
-    const groupTotal = members.reduce((s, c) => s + getMonthRent(c, y, m), 0)
-    if (!groupPayment) return { status: 'unpaid', payment: null, remaining: groupTotal, expected: groupTotal }
-    // Odsouhlasená platba = vždy paid
-    if (groupPayment.agreed) return { status: 'paid', payment: groupPayment, remaining: 0, expected: groupTotal }
-    const paid = Number(groupPayment.amount)
-    if (paid < groupTotal - 0.01) return { status: 'partial', payment: groupPayment, remaining: groupTotal - paid, expected: groupTotal }
-    return { status: 'paid', payment: groupPayment, remaining: 0, expected: groupTotal }
+    const g = gms(label, y, m)
+    return { status: g.status, payment: g.payment, remaining: g.expected - g.paid, expected: g.expected, paid: g.paid }
   }
 
   // ── Report nezaplacených k poslednímu dni vybraného měsíce ────────────────
@@ -1023,8 +990,11 @@ export default function Payments() {
 
       // Sestavení dat per subjekt
       const subjectData = subjectsWithContracts.map(subName => {
-        // Všechny aktivní smlouvy pro tento subjekt v daném (vybraném) měsíci
-        const subContracts = contractsForSub(subName)
+        // Všechny smlouvy subjektu platné v kterémkoli měsíci reportu (i odešlý nájemce s dluhem)
+        const subContracts = applyOrder(contracts.filter(c =>
+          isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
+          selectionMatches(subName, getContractSubject(c)) &&
+          allReportMonths.some(({ year: y, month: m }) => isContractActiveInPeriod(c, y, m))))
 
         const tenantRows = []
         const seenGroups = new Set()
@@ -1041,8 +1011,10 @@ export default function Payments() {
             const tName   = tenant?.name || '—'
             const aUnit   = `${c.groupLabel} (${new Set(members.map(x => x.assetId)).size} ${asset?.type === 'commercial' ? 'prostory' : 'stání'})`
 
-            // Stav aktuálního měsíce
-            const currentStatus = getGroupStatus(c.groupLabel, members, selectedYear, selectedMonth)
+            // Stav aktuálního měsíce (skupina bez členů v měsíci = nic k úhradě)
+            const currentStatus = members.some(mc => isContractActiveInPeriod(mc, selectedYear, selectedMonth))
+              ? getGroupStatus(c.groupLabel, members, selectedYear, selectedMonth)
+              : { status: 'paid', payment: null, remaining: 0, expected: 0 }
 
             // Dluhy v předchozích měsících — jen od prvního zaznamenaného měsíce skupiny
             const groupPayments = payments.filter(p => p.groupLabel === c.groupLabel)
@@ -1061,8 +1033,8 @@ export default function Payments() {
               const [oy, om] = oldestGroupMonth.split('-').map(Number)
               if (y < oy || (y === oy && m < om)) return
               const st = getGroupStatus(c.groupLabel, members, y, m)
-              if (st.status !== 'paid') {
-                const paid = st.payment ? Number(st.payment.amount) : 0
+              if (st.status !== 'paid' && st.expected > 0) {
+                const paid = st.paid
                 pastDebts.push({
                   monthLabel: formatMonthKey(k),
                   expected: Math.round(st.expected),
@@ -1081,7 +1053,18 @@ export default function Payments() {
             const tName  = tenant?.name || '—'
             const aUnit  = asset?.unit || asset?.name || '—'
 
-            const currentStatus = getRentStatus(c, currentKey)
+            // Stav měsíce = nájem + zálohy u bytů; víceměsíční smlouva = měsíční díl (žádné násobení oknem)
+            const monthRow = (y, m) => {
+              const ms = cms(c, y, m)
+              const multi = (PERIOD_LEN[c.paymentFrequency] || 1) > 1
+              const rentPaid = multi && ms.rent.status === 'paid' ? ms.rent.expected : ms.rent.paid
+              const expected = ms.rent.expected + (ms.deposit?.expected || 0)
+              const paid = rentPaid + (ms.deposit?.paid || 0)
+              return { status: ms.status, expected, paid, remaining: Math.max(0, expected - paid), depMissing: !!ms.deposit && ms.deposit.status !== 'paid' }
+            }
+            const currentStatus = isContractActiveInPeriod(c, selectedYear, selectedMonth)
+              ? monthRow(selectedYear, selectedMonth)
+              : { status: 'paid', expected: 0, paid: 0, remaining: 0 }
 
             // Najdi nejstarší zaznamenanou platbu pro tuto smlouvu
             // — dluhy reportujeme jen od prvního zaznamenaného měsíce v systému
@@ -1100,15 +1083,13 @@ export default function Payments() {
               // Přeskočit měsíce starší než první zaznamenaná platba
               const [oy, om] = oldestPaymentMonth.split('-').map(Number)
               if (y < oy || (y === oy && m < om)) return
-              const st = getRentStatus(c, k)
-              if (st.status !== 'paid') {
-                const expected = getMonthRent(c, y, m)
-                const paid = st.payment ? Number(st.payment.amount) : 0
+              const st = monthRow(y, m)
+              if (st.status !== 'paid' && st.remaining > 0.5) {
                 pastDebts.push({
-                  monthLabel: formatMonthKey(k),
-                  expected: Math.round(expected),
-                  paid: Math.round(paid),
-                  remaining: Math.round(expected - paid),
+                  monthLabel: formatMonthKey(k) + (st.depMissing ? ' (vč. záloh)' : ''),
+                  expected: Math.round(st.expected),
+                  paid: Math.round(st.paid),
+                  remaining: Math.round(st.remaining),
                   status: st.status,
                 })
               }
@@ -1162,15 +1143,10 @@ export default function Payments() {
 
       const genTenantBlock = (row) => {
         const { tName, aUnit, currentStatus, pastDebts, isGroup } = row
-        let expected, paid, remaining
-        if (isGroup) {
-          // Skupiny: expected je v currentStatus.expected
-          expected = Math.round(currentStatus.expected || 0)
-        } else {
-          expected = Math.round(getMonthRent(row.contract, selectedYear, selectedMonth))
-        }
-        paid = currentStatus.payment ? Math.round(Number(currentStatus.payment.amount)) : 0
-        remaining = Math.round(expected - paid)
+        // Předpis a zaplaceno z jednotného stavu měsíce (smlouva: nájem + zálohy bytů; skupina: všichni členové)
+        const expected = Math.round(currentStatus.expected || 0)
+        const paid = Math.round(currentStatus.paid || 0)
+        const remaining = Math.max(0, expected - paid)
 
         let rows = ''
 
@@ -1423,14 +1399,9 @@ export default function Payments() {
                 const k = c.groupLabel || c.id
                 if (seen.has(k)) return
                 seen.add(k)
-                if (c.groupLabel) {
-                  const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
-                  if (!gp) unpaid++
-                } else {
-                  const s = getRentStatus(c, monthKey).status
-                  if (s === 'unpaid') unpaid++
-                  else if (s === 'partial') partial++
-                }
+                const s = itemStatus(c)
+                if (s === 'unpaid') unpaid++
+                else if (s === 'partial') partial++
               })
               const parts = []
               if (unpaid > 0)  parts.push(`${unpaid} nezaplatil${unpaid === 1 ? '' : 'o'}`)
@@ -1456,14 +1427,9 @@ export default function Payments() {
                 if (seen.has(k)) return
                 seen.add(k)
                 total++
-                if (c.groupLabel) {
-                  const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === monthKey)
-                  if (gp) paid++
-                } else {
-                  const s = getRentStatus(c, monthKey).status
-                  if (s === 'paid') paid++
-                  else if (s === 'partial') partial++
-                }
+                const s = itemStatus(c)
+                if (s === 'paid') paid++
+                else if (s === 'partial') partial++
               })
               return `${paid} plně · ${partial} částečně · z ${total} celkem`
             })()}
@@ -1533,7 +1499,7 @@ export default function Payments() {
                     <th style={{ padding: '14px 12px', textAlign: 'left', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Splatnost</th>
                     <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isBytovySub(activeSub) ? 'Nájemné + parkování' : 'Nájemné'}</th>
                     <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Zálohy</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Uhrazeno dne</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Komplet uhrazeno dne</th>
                     <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nájem uhrazen</th>
                   </tr>
                 </thead>
@@ -1550,12 +1516,13 @@ export default function Payments() {
                     return groups.map((g, gi) => {
                       if (g.type === 'group') {
                         const { label, members } = g
-                        const groupTotal = members.reduce((s, c) => s + getMonthRent(c, selectedYear, selectedMonth), 0)
+                        // Stav skupiny: platba skupiny proti předpisu všech členů (jednotně s Dashboardem a saldem)
+                        const gStat = gms(label)
+                        const groupTotal = gStat.expected
                         const tenant = getTenantForContract(members[0])
-                        // Skupina je uhrazena pokud existuje platba se stejným group_label v daném měsíci
-                        const groupPayment = payments.find(p => p.groupLabel === label && p.month === monthKey)
+                        const groupPayment = gStat.payment
                         const isPaid = !!groupPayment
-                        const isPartial = groupPayment && Number(groupPayment.amount) < groupTotal - 0.01
+                        const isPartial = gStat.status === 'partial'
                         const effectiveSub = members[0].billingSubject || getAssetForContract(members[0])?.subject || ''
                         const showDph = getAssetForContract(members[0])?.type !== 'residential' && (billingGroups.find(g => firmOf(effectiveSub) === g.val)?.isVatPayer ?? true)
 
@@ -1614,8 +1581,8 @@ export default function Payments() {
                             <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: isPaid ? '#16A34A' : '#DC2626' }}>
                               {(() => {
                                 const isComm = getAssetForContract(members[0])?.type === 'commercial'
-                                const dep  = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth).deposit, 0)
-                                const depW = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth).depositWater, 0)
+                                const dep  = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth, contracts).deposit, 0)
+                                const depW = members.reduce((s,c) => s + getMonthDeposits(c, selectedYear, selectedMonth, contracts).depositWater, 0)
                                 if (!isComm || (dep === 0 && depW === 0)) return <span style={{ color: 'var(--text3)', fontWeight: 400 }}>—</span>
                                 return (
                                   <>
@@ -1636,10 +1603,9 @@ export default function Payments() {
                               })()}
                             </td>
                             <td style={{ padding: '14px 12px', textAlign: 'right' }}>
-                              {groupPayment?.date
-                                ? <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A' }}>{groupPayment.date}</span>
+                              {gStat.completeDate
+                                ? <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A' }}>{gStat.completeDate}</span>
                                 : <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>}
-                              {groupPayment?.note && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, maxWidth: 200, marginLeft: 'auto', lineHeight: 1.35, whiteSpace: 'normal' }}>📝 {groupPayment?.note}</div>}
                             </td>
                             <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
@@ -1686,7 +1652,7 @@ export default function Payments() {
                       const asset    = getAssetForContract(c)
                       const freq     = c.paymentFrequency || 'Měsíčně'
                       const isMultiMonth = freq === 'Čtvrtletně' || freq === 'Pololetně' || freq === 'Ročně'
-                      const ev       = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth) }
+                      const ev       = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth, contracts) }
                       const rs       = isMultiMonth
                         ? { status: isPeriodPaid(c, selectedYear, selectedMonth) ? 'paid' : 'unpaid', payment: getPayment(c.id, monthKey) || null, remaining: effPeriodRent(c) }
                         : getRentStatus(c, monthKey)
@@ -1698,8 +1664,10 @@ export default function Payments() {
                       const depPaidRow    = !!depPaymentRow
                       const hasDeposit    = isRes && ev.deposit > 0
                       // Výsledný stav řádku — zohledňuje nájem i zálohy pro bytové
-                      const rowAllPaid    = isPaid && (!hasDeposit || depPaidRow)
-                      const rowSomePaid   = !rowAllPaid && (isPaid || isPartial || depPaidRow)
+                      // Výsledný stav řádku = jednotný stav měsíce (nájem + zálohy u bytů, částečné zálohy = částečně)
+                      const ms            = cms(c)
+                      const rowAllPaid    = ms.complete
+                      const rowSomePaid   = ms.status === 'partial'
                       const rst    = ROW_STATUS[rowAllPaid ? 'ok' : rowSomePaid ? 'part' : 'bad']
                       const rowBg  = rst.bg
                       const rowBgH = rst.bgH
@@ -1726,6 +1694,9 @@ export default function Payments() {
                               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, fontStyle: 'italic' }}>
                                 💬 {payment.note}
                               </div>
+                            )}
+                            {depPaymentRow?.note && depPaymentRow.note !== payment?.note && (
+                              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, fontStyle: 'italic' }}>💬 zálohy: {depPaymentRow.note}</div>
                             )}
                             {isMultiMonth && (() => {
                               const keys = getPeriodMonthKeys(c, selectedYear, selectedMonth)
@@ -1791,11 +1762,9 @@ export default function Payments() {
                             })()}
                           </td>
                           <td style={{ padding: '14px 12px', textAlign: 'right' }}>
-                            {payment?.date
-                              ? <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A' }}>{payment.date}</span>
+                            {ms.completeDate
+                              ? <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A' }}>{ms.completeDate}</span>
                               : <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>}
-                            {payment?.note && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, maxWidth: 200, marginLeft: 'auto', lineHeight: 1.35, whiteSpace: 'normal' }}>📝 {payment?.note}</div>}
-                            {depPaymentRow?.note && depPaymentRow.note !== payment?.note && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, maxWidth: 200, marginLeft: 'auto', lineHeight: 1.35, whiteSpace: 'normal' }}>📝 zálohy: {depPaymentRow.note}</div>}
                           </td>
                           <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
@@ -1992,7 +1961,7 @@ export default function Payments() {
                         {rs.status === 'partial' ? (
                           <>
                             <div style={{ fontSize: 12, fontWeight: 800, color: '#D97706' }}>
-                              ⚠ Částečně: {Number(rs.payment.amount).toLocaleString('cs-CZ')} Kč
+                              ⚠ Částečně: {Math.round(rs.paidTotal || 0).toLocaleString('cs-CZ')} Kč
                             </div>
                             <div style={{ fontSize: 11, fontWeight: 700, color: '#D97706', marginTop: 2 }}>
                               Zbývá doplatit: {rs.remaining.toLocaleString('cs-CZ')} Kč
@@ -2000,7 +1969,8 @@ export default function Payments() {
                           </>
                         ) : (
                           <div style={{ fontWeight: 900, fontSize: 15, color: '#DC2626' }}>
-                            {(isGroup ? groupTotal : effRent(c)).toLocaleString('cs-CZ')} Kč
+                            {rs.remaining.toLocaleString('cs-CZ')} Kč
+                            {rs.depMissing && <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>vč. záloh</div>}
                           </div>
                         )}
                       </td>
@@ -2027,7 +1997,7 @@ export default function Payments() {
         const history = contractHistory(c.id)
         const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️' }
         const isResidential = asset?.type === 'residential'
-        const ev            = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth) }
+        const ev            = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth, contracts) }
         const rentTotal     = getMonthRentParking(c, selectedYear, selectedMonth)
         const depositAmt    = ev.deposit
         const rentPayment    = getPayment(c.id, monthKey, 'rent') || (!isResidential && getPayment(c.id, monthKey))

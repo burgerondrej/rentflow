@@ -21,7 +21,7 @@ import ActivationScreen from './ActivationScreen.jsx'
 import { FirmPickerButton, FirmBadge } from './FirmUI.jsx'
 import DialogShell from './DialogShell.jsx'
 import { isOverlayOpen } from './shortcuts.js'
-import { contractSubject, selectionMatches, parseDate, isContractOccupying } from './utils.js'
+import { contractSubject, selectionMatches, parseDate, isContractOccupying, hasSuccessor } from './utils.js'
 import { invoke } from '@tauri-apps/api/tauri'
 
 function AppWithActivation() {
@@ -368,7 +368,7 @@ function AppInner() {
                 // Platné smlouvy ve výběru + kolik z nich končí do 60 dní
                 const today = new Date(); today.setHours(0, 0, 0, 0)
                 const act = contracts.filter(c => isContractOccupying(c) && selectionMatches(sel, contractSubject(c, assets)))
-                const ending = act.filter(c => { const e = parseDate(c.end); return e && e >= today && (e - today) / 86400000 <= 60 }).length
+                const ending = act.filter(c => { const e = parseDate(c.end); return e && e >= today && (e - today) / 86400000 <= 60 && !hasSuccessor(c, contracts) }).length
                 return { count: `${act.length} sml.`, text: ending > 0 ? `${ending} brzy končí` : `${act.length} platných smluv`, tone: ending > 0 ? 'warn' : 'muted' }
               }}
             />

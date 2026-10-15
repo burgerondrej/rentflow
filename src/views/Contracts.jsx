@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../AppContext.jsx'
-import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDate, firmOf, firmColors, selectionMatches, assetTypeStyle } from '../utils.js'
+import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDate, firmOf, firmColors, selectionMatches, assetTypeStyle, hasSuccessor } from '../utils.js'
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill, contractStatus } from '../StatusUI.jsx'
@@ -170,7 +170,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           <div className="page-title">Smlouvy</div>
           <div className="page-sub">
             {validCount} platných · {endedCount} ukončených{(() => {
-              const soon = filtered.filter(c => isValid(c) && c.daysLeft !== null && c.daysLeft >= 0 && c.daysLeft <= 30 && selectionMatches(activeSubject, c.assetSubject)).length
+              const soon = filtered.filter(c => isValid(c) && !hasSuccessor(c, contracts) && c.daysLeft !== null && c.daysLeft >= 0 && c.daysLeft <= 30 && selectionMatches(activeSubject, c.assetSubject)).length
               return soon ? ` · ${soon} končí do 30 dní` : ''
             })()}
           </div>

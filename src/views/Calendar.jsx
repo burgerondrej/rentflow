@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
-import { parseDate, contractSubject, firmOf, firmColors, isContractBillable, noticeDeadline } from '../utils.js'
+import { parseDate, contractSubject, firmOf, firmColors, isContractBillable, noticeDeadline, hasSuccessor } from '../utils.js'
 
 // ─────────────────────────────────────────
 // KALENDÁŘ – konce smluv, revize, termíny úkolů (bez splatností)
@@ -25,7 +25,8 @@ const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 export function buildCalendarEvents({ contracts = [], assets = [], tenants = [], revisions = [], tasks = [], firms = [], firmOfObject, onOpen, onNav }) {
   const events = []
   // Konce smluv: aktivní + ukončené s datem konce (i minulé měsíce kalendáře)
-  contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
+  // (bez smluv prodloužených tomuž nájemci – tam nájem pokračuje navazující smlouvou)
+  contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' && !hasSuccessor(c, contracts, true)).forEach(c => {
     const d = parseDate(c.end)
     if (!d) return
     const a = assets.find(x => x.id === c.assetId)

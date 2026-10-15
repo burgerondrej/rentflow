@@ -219,7 +219,6 @@ export default function Kanban() {
       </div>
 
       {showForm && (() => {
-        const ck = ckForStatus(formData.status)
         return (
           <DialogShell icon="✏️" title={formMode === 'add' ? 'Nový úkol' : 'Upravit úkol'}
             subtitle={COLUMNS.find(c => c.id === formData.status)?.title} width={560} zIndex={1000} onClose={() => setShowForm(false)}

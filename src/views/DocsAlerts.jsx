@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { FirmPicker } from '../FirmUI.jsx'
-import { selectionMatches, contractSubject, isContractOccupying } from '../utils.js'
+import { selectionMatches, contractSubject, isContractOccupying, hasSuccessor } from '../utils.js'
 import { StatusPill, contractStatus } from '../StatusUI.jsx'
 import DialogShell from '../DialogShell.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
@@ -582,7 +582,7 @@ export function Alerts() {
   const alertsList = []
 
   // A) KONČÍCÍ SMLOUVY (méně než 60 dnů) – platné vč. ukončených s budoucím koncem
-  contracts.filter(c => isContractOccupying(c)).forEach(c => {
+  contracts.filter(c => isContractOccupying(c) && !hasSuccessor(c, contracts)).forEach(c => {
     const d = parseDate(c.end)
     if (d) {
       const diff = Math.round((d - today) / (1000 * 60 * 60 * 24))

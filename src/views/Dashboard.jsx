@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
 import DialogShell from '../DialogShell.jsx'
 import { setPaymentsFilterOnOpen } from '../shortcuts.js'
-import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, getPeriodMonthKeys, overdueDays } from '../utils.js'
+import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, overdueDays, contractMonthStatus, groupMonthStatus, hasSuccessor } from '../utils.js'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
 
@@ -13,8 +13,9 @@ export default function Dashboard({ onNav, onOpen }) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Platné smlouvy (aktivní + ukončené s budoucím koncem – jejich konec je také termín)
-  const activeContracts = contracts.filter(c => c && isContractOccupying(c))
+  // Platné smlouvy (aktivní + ukončené s budoucím koncem) BEZ navazující smlouvy na předmětu –
+  // prodloužená / předaná smlouva už není „končící“
+  const activeContracts = contracts.filter(c => c && isContractOccupying(c) && !hasSuccessor(c, contracts))
 
   const enrichedForExpirations = activeContracts.map(c => {
     let daysLeft = null
@@ -123,21 +124,20 @@ export default function Dashboard({ onNav, onOpen }) {
   }
   // Počet neuhrazených položek po splatnosti za aktuální měsíc (smlouvy / skupiny firmy)
   const firmOverdue = (firmName) => {
-    const y = today.getFullYear(), m = today.getMonth(), key = `${y}-${m}`
+    const y = today.getFullYear(), m = today.getMonth()
     const cs = contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
       isContractInMonth(c, y, m) && firmOf(contractSubject(c, assets)) === firmName)
     let n = 0
     const seen = new Set()
     for (const c of cs) {
+      // Stejné pravidlo jako filtr „Po splatnosti“ v Platbách: neuhrazeno úplně (vč. záloh bytů) a po splatnosti
+      const ctx = { payments, contracts, assets }
       if (c.groupLabel) {
         if (seen.has(c.groupLabel)) continue
         seen.add(c.groupLabel)
-        const paid = payments.some(p => p.groupLabel === c.groupLabel && p.month === key && p.paymentType !== 'deposit')
-        if (!paid && overdueDays(c, y, m) > 0) n++
+        if (groupMonthStatus(c.groupLabel, y, m, ctx).status !== 'paid' && overdueDays(c, y, m) > 0) n++
       } else {
-        const keys = getPeriodMonthKeys(c, y, m)
-        const paid = payments.some(p => p.contractId === c.id && p.paymentType !== 'deposit' && keys.includes(p.month))
-        if (!paid && overdueDays(c, y, m) > 0) n++
+        if (!contractMonthStatus(c, y, m, ctx).complete && overdueDays(c, y, m) > 0) n++
       }
     }
     return n
@@ -168,7 +168,8 @@ export default function Dashboard({ onNav, onOpen }) {
     .sort((a, b) => a.date - b.date)
     .slice(0, 5)
 
-  const activeTasks       = tasks.filter(t => t.status !== 'done').slice(0, 5)
+  // Aktivní úkoly bez dlouhodobých (sloupec „Dlouhodobé úkoly“ zůstává jen v Kanbanu)
+  const activeTasks       = tasks.filter(t => t.status !== 'done' && t.status !== 'longterm').slice(0, 5)
   const upcomingRevisions = revisions.slice(0, 5)
 
   return (

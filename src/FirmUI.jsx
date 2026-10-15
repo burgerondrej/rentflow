@@ -49,12 +49,12 @@ export function FirmRentSummary({ rows, large = false }) {
             </div>
             {r.dph > 0 && (
               <>
-                <div style={{ fontSize: large ? 15 : 13, fontWeight: 900, color: c.txt }}>{fmt(r.dph)} <span style={{ fontSize: 10, fontWeight: 600, color: c.sub }}>Kč bez DPH</span></div>
+                <div style={{ fontSize: large ? 15 : 13, fontWeight: 900, color: c.txt }}>{fmt(r.dph)} <span style={{ fontSize: 10, fontWeight: 600, color: c.sub }}>Kč bez DPH / měsíc</span></div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: c.sub }}>{(r.dph * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč s DPH</div>
               </>
             )}
             {r.noDph > 0 && (
-              <div style={{ fontSize: large ? 15 : 13, fontWeight: 900, color: c.txt, marginTop: r.dph > 0 ? 3 : 0 }}>{fmt(r.noDph)} <span style={{ fontSize: 10, fontWeight: 600, color: c.sub }}>Kč{r.isVatPayer ? '' : ' · neplátce DPH'}</span></div>
+              <div style={{ fontSize: large ? 15 : 13, fontWeight: 900, color: c.txt, marginTop: r.dph > 0 ? 3 : 0 }}>{fmt(r.noDph)} <span style={{ fontSize: 10, fontWeight: 600, color: c.sub }}>Kč / měsíc{r.isVatPayer ? '' : ' · neplátce DPH'}</span></div>
             )}
           </div>
         )

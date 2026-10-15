@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { parseDate, toCzDate, getEffectiveValuesToday, firmOf, contractSubject, isContractOccupying } from './utils.js'
+import { parseDate, toCzDate, getEffectiveValuesToday, firmOf, contractSubject, isContractOccupying, hasSuccessor } from './utils.js'
 
 const AppContext = createContext()
 
@@ -181,7 +181,7 @@ export function AppProvider({ children }) {
   today.setHours(0, 0, 0, 0)
 
   let realAlertsCount = 0
-  contracts.filter(c => isContractOccupying(c)).forEach(c => {
+  contracts.filter(c => isContractOccupying(c) && !hasSuccessor(c, contracts)).forEach(c => {
     const d = parseDate(c.end)
     if (d && (d - today) / (1000 * 60 * 60 * 24) <= 60) realAlertsCount++
   })
@@ -204,7 +204,7 @@ export function AppProvider({ children }) {
   const unreadCount = realAlertsCount
   const urgentContracts = contracts.filter(c => {
     const d = parseDate(c.end)
-    return isContractOccupying(c) && d && (d - today) / (1000 * 60 * 60 * 24) <= 30
+    return isContractOccupying(c) && !hasSuccessor(c, contracts) && d && (d - today) / (1000 * 60 * 60 * 24) <= 30
   }).length
 
   // ─── POMOCNÝ LOG ───

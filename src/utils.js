@@ -93,7 +93,8 @@ export function contractSubject(c, assets) {
  */
 export function tenantRentsByFirm(activeContracts, assets, firms) {
   const out = []
-  for (const c of activeContracts) {
+  // Navazující smlouva od budoucího data + stará do konce → počítat jen tu, která platí dnes
+  for (const c of currentPerAsset(activeContracts)) {
     if (c.paymentFrequency === 'Zahrnuto v nájemném') continue
     const asset = (assets || []).find(a => a.id === c.assetId)
     const fname = firmOf(contractSubject(c, assets))
@@ -105,7 +106,8 @@ export function tenantRentsByFirm(activeContracts, assets, firms) {
     }
     const ev = getEffectiveValuesToday(c)
     const isRes = asset?.type === 'residential'
-    const rent = (ev.rent + (isRes ? ev.parking : 0) + ev.flatFee) / (PERIOD_LEN[c.paymentFrequency] || 1)
+    // Stejné složky jako předpis v Platbách (getMonthRent): nájem + parkování + paušál, měsíční ekvivalent
+    const rent = (ev.rent + ev.parking + ev.flatFee) / (PERIOD_LEN[c.paymentFrequency] || 1)
     const withDph = !isRes && (c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : row.isVatPayer)
     if (withDph) row.dph += rent
     else row.noDph += rent
@@ -248,11 +250,145 @@ export function getMonthRent(c, year, month) {
 
 /**
  * Zálohy (energie, voda) za měsíc – nekrátí se, hodnota k 1. dni měsíce.
- * V měsíci předávky platí plné zálohy odcházející i nový nájemce (krátí se jen nájem + parking).
+ * - Předávka JINÉMU nájemci uprostřed měsíce: plné zálohy platí odcházející i nový nájemce.
+ * - Navazující smlouva TÉHOŽ nájemce uprostřed měsíce (prodloužení): zálohy za ten měsíc jen jednou –
+ *   platí je předchozí smlouva, nová až od dalšího měsíce. Proto VŽDY předávat allContracts.
  */
-export function getMonthDeposits(c, year, month) {
+export function getMonthDeposits(c, year, month, allContracts = []) {
   const v = getEffectiveValues(c, year, month)
+  const first = new Date(year, month, 1)
+  const startD = parseDate(c.start)
+  if (startD && startD > first && startD.getFullYear() === year && startD.getMonth() === month) {
+    const sameTenantOnFirst = allContracts.some(o => {
+      if (o.id === c.id || o.assetId !== c.assetId || o.tenantId !== c.tenantId || !isContractBillable(o)) return false
+      const os = parseDate(o.start), oe = parseDate(o.end)
+      return (!os || os <= first) && (!oe || oe >= first)
+    })
+    if (sameTenantOnFirst) return { deposit: 0, depositWater: 0 }
+  }
   return { deposit: v.deposit, depositWater: v.depositWater }
+}
+
+// ─────────────────────────────────────────
+// STAV PLATBY ZA MĚSÍC – JEDINÁ implementace pro Platby, Dashboard, detaily, saldo i report.
+// ctx = { payments, contracts, assets }
+// ─────────────────────────────────────────
+
+/** Skupinová platba? (v DB contract_id NULL, načtená jako contractId "group:<název>") */
+export const isGroupPayment = (p) => !p.contractId || String(p.contractId).startsWith('group:')
+
+/** Nejpozdější z CZ dat ("D. M. RRRR"), nebo null. */
+export function latestCzDate(dates) {
+  let best = null, bestTs = -Infinity
+  for (const d of dates) {
+    const t = parseDate(d)?.getTime()
+    if (t != null && !isNaN(t) && t > bestTs) { bestTs = t; best = d }
+  }
+  return best
+}
+
+/**
+ * Stav smlouvy (MIMO skupinu) za měsíc.
+ * - Nájem měsíčně: předpis getMonthRent (krácení podle dní); agreed = uhrazeno; méně než předpis = částečně.
+ * - Nájem čtvrtletně/pololetně/ročně: měsíční díl = předpis / délka okna; okno je uhrazené jakoukoli platbou v okně.
+ * - Zálohy jen u bytů (jako v Platbách): předpis getMonthDeposits (s pravidlem navazující smlouvy), méně = částečně.
+ * Vrací { rent, deposit|null, status: 'paid'|'partial'|'unpaid', complete, completeDate }.
+ */
+export function contractMonthStatus(c, y, m, ctx) {
+  const { payments = [], contracts = [], assets = [] } = ctx || {}
+  const key = `${y}-${m}`
+  const n = PERIOD_LEN[c.paymentFrequency] || 1
+  let rent
+  if (n > 1) {
+    const keys = getPeriodMonthKeys(c, y, m)
+    const win = payments.filter(p => p.contractId === c.id && p.paymentType !== 'deposit' && keys.includes(p.month))
+    const p = win.find(x => x.month === key) || null
+    const expected = getMonthRent(c, y, m) / n
+    const paid = p ? (p.agreed ? expected : (Number(p.amount) || 0)) : 0
+    rent = { expected, paid, status: win.length ? 'paid' : 'unpaid', payment: p || win[0] || null, date: (p || win[0])?.date || null }
+  } else {
+    const expected = getMonthRent(c, y, m)
+    const p = payments.find(x => x.contractId === c.id && x.month === key && x.paymentType !== 'deposit') || null
+    const paid = p ? (p.agreed ? expected : (Number(p.amount) || 0)) : 0
+    const status = !p ? 'unpaid' : (p.agreed || paid >= expected - 0.01) ? 'paid' : 'partial'
+    rent = { expected, paid, status, payment: p, date: p?.date || null }
+  }
+  let deposit = null
+  const a = assets.find(x => x.id === c.assetId)
+  if (a?.type === 'residential') {
+    const expected = getMonthDeposits(c, y, m, contracts).deposit
+    if (expected > 0) {
+      const p = payments.find(x => x.contractId === c.id && x.month === key && x.paymentType === 'deposit') || null
+      const paid = p ? (p.agreed ? expected : (Number(p.amount) || 0)) : 0
+      const status = !p ? 'unpaid' : (p.agreed || paid >= expected - 0.01) ? 'paid' : 'partial'
+      deposit = { expected, paid, status, payment: p, date: p?.date || null }
+    }
+  }
+  const complete = rent.status === 'paid' && (!deposit || deposit.status === 'paid')
+  const some = rent.status !== 'unpaid' || (deposit && deposit.status !== 'unpaid')
+  return { rent, deposit, complete, status: complete ? 'paid' : some ? 'partial' : 'unpaid',
+    completeDate: complete ? latestCzDate([rent.date, deposit?.date]) : null }
+}
+
+/** Členové skupiny účtovaní v měsíci (všechny smlouvy se stejným group_label, i ukončené v tom měsíci). */
+export function groupMembersInMonth(label, y, m, contracts = []) {
+  return contracts.filter(x => x.groupLabel === label && isContractBillable(x) && x.paymentFrequency !== 'Zahrnuto v nájemném' && isContractInMonth(x, y, m))
+}
+
+/** Stav skupinové platby za měsíc: { expected, paid, status, payment, members, completeDate }. */
+export function groupMonthStatus(label, y, m, ctx) {
+  const { payments = [], contracts = [] } = ctx || {}
+  const key = `${y}-${m}`
+  const members = groupMembersInMonth(label, y, m, contracts)
+  const expected = members.reduce((s, x) => s + getMonthRent(x, y, m), 0)
+  const p = payments.find(x => x.groupLabel === label && isGroupPayment(x) && x.month === key && x.paymentType !== 'deposit') || null
+  const paid = p ? (p.agreed ? expected : (Number(p.amount) || 0)) : 0
+  const status = !p ? 'unpaid' : (p.agreed || paid >= expected - 0.01) ? 'paid' : 'partial'
+  return { expected, paid, status, payment: p, members, completeDate: status === 'paid' ? (p?.date || null) : null }
+}
+
+// ─────────────────────────────────────────
+// NAVAZUJÍCÍ SMLOUVY – aby se nic nepočítalo dvakrát
+// ─────────────────────────────────────────
+
+/** Má smlouva na stejném předmětu pozdější (navazující) smlouvu? sameTenant = jen prodloužení téhož nájemce. */
+export function hasSuccessor(c, contracts = [], sameTenant = false) {
+  const sd = parseDate(c.start)
+  if (!sd) return false // bez data začátku nelze určit pořadí smluv
+  const s = sd.getTime()
+  return contracts.some(o => o.id !== c.id && o.assetId === c.assetId && (o.status === 'active' || isContractBillable(o)) &&
+    (!sameTenant || o.tenantId === c.tenantId) && (parseDate(o.start)?.getTime() ?? -Infinity) > s)
+}
+
+/** Smlouva „končí“ ve smyslu upozornění: platná, s datem konce a BEZ navazující smlouvy na předmětu. */
+export function isEndingWithoutSuccessor(c, contracts = []) {
+  return isContractOccupying(c) && !!parseDate(c.end) && !hasSuccessor(c, contracts)
+}
+
+/**
+ * Z platných smluv vybere na každém předmětu tu, která platí DNES (začala); když dnes neplatí žádná,
+ * vezme nejbližší budoucí. Pro součty nájmu – stará smlouva do konce + navazující od zítřka se nesečtou.
+ */
+export function currentPerAsset(list = []) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const byAsset = new Map()
+  for (const c of list) {
+    const k = c.assetId || c.id
+    if (!byAsset.has(k)) byAsset.set(k, [])
+    byAsset.get(k).push(c)
+  }
+  const out = []
+  for (const cs of byAsset.values()) {
+    const started = cs.filter(c => { const s = parseDate(c.start); return !s || s <= today })
+    if (started.length) {
+      // více současně platných smluv na předmětu (např. Ostatní / skupinové) → všechny, které dnes platí
+      out.push(...started)
+    } else {
+      const sorted = [...cs].sort((a, b) => (parseDate(a.start)?.getTime() || 0) - (parseDate(b.start)?.getTime() || 0))
+      out.push(sorted[0])
+    }
+  }
+  return out
 }
 
 /**
@@ -419,13 +555,14 @@ export const SALDO_FROM = { y: 2026, m: 0 }
  * - Měsíc se počítá, jen když už uplynula splatnost (dueDateFor); bez určitelné splatnosti jen celé minulé měsíce.
  * - Nájem: předpis getMonthRent (víceměsíční smlouvy měsíční díl = předpis / délka okna, platba je uložená rozdělená).
  * - Skupina (group_label): předpis = součet členů, platba skupiny; nájemci připadá podíl jeho členů.
- * - Zálohy (jen energie, jako v Platbách): bytové vždy; ostatní jen když se u smlouvy zálohy evidují (existuje platba záloh).
+ * - Stav měsíce přes contractMonthStatus / groupMonthStatus (stejně jako Platby); zálohy jen u bytů.
  * - agreed = odsouhlaseno → měsíc vyrovnán.
  * Vrací { firms: [{ firm, rent, deposit }], items: [{ key, y, m, firm, label, kind, expected, paid, diff }] }; diff < 0 = dluh.
  */
 export function tenantSaldo(tenantId, contracts = [], payments = [], assets = []) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const curY = today.getFullYear(), curM = today.getMonth()
+  const ctx = { payments, contracts, assets }
   const mine = contracts.filter(c => c.tenantId === tenantId && isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném')
   const items = []
   const isDue = (c, y, m) => {
@@ -433,44 +570,31 @@ export function tenantSaldo(tenantId, contracts = [], payments = [], assets = []
     if (due) return due < today
     return y < curY || (y === curY && m < curM)
   }
-  const pay = (pred) => payments.find(pred)
-  const amt = (p, expected) => !p ? 0 : p.agreed ? expected : (Number(p.amount) || 0)
-  const assetOf = (c) => assets.find(a => a.id === c.assetId)
-  const tracksDeposits = new Set(payments.filter(p => p.paymentType === 'deposit' && p.contractId).map(p => p.contractId))
-
   for (let y = SALDO_FROM.y, m = SALDO_FROM.m; y < curY || (y === curY && m <= curM); m === 11 ? (y++, m = 0) : m++) {
     const key = `${y}-${m}`
     const seenGroups = new Set()
     for (const c of mine) {
       if (!isContractInMonth(c, y, m) || !isDue(c, y, m)) continue
       const firm = firmOf(contractSubject(c, assets))
-      const a = assetOf(c)
-      // Nájem
+      const unit = assets.find(a => a.id === c.assetId)?.unit || '—'
       if (c.groupLabel) {
-        if (!seenGroups.has(c.groupLabel)) {
-          seenGroups.add(c.groupLabel)
-          const members = contracts.filter(x => x.groupLabel === c.groupLabel && isContractBillable(x) && isContractInMonth(x, y, m))
-          const groupExp = members.reduce((s, x) => s + getMonthRent(x, y, m), 0)
-          const mineExp = members.filter(x => x.tenantId === tenantId).reduce((s, x) => s + getMonthRent(x, y, m), 0)
-          // skupinová platba: v DB contract_id NULL, načtená jako contractId "group:<název>"
-          const gp = pay(p => p.groupLabel === c.groupLabel && (!p.contractId || p.contractId.startsWith('group:')) && p.month === key && p.paymentType !== 'deposit')
-          const share = groupExp > 0 ? mineExp / groupExp : 0
-          const paid = amt(gp, groupExp) * share
-          items.push({ key, y, m, firm, label: `🔗 ${c.groupLabel}`, kind: 'rent', expected: mineExp, paid, diff: paid - mineExp, groupLabel: c.groupLabel, groupExpected: groupExp, hasPayment: !!gp })
-        }
-      } else {
-        const n = PERIOD_LEN[c.paymentFrequency] || 1
-        const expected = getMonthRent(c, y, m) / n
-        const p = pay(x => x.contractId === c.id && x.month === key && x.paymentType !== 'deposit')
-        const paid = amt(p, expected)
-        items.push({ key, y, m, firm, label: a?.unit || '—', kind: 'rent', expected, paid, diff: paid - expected, contractId: c.id, multi: n > 1, hasPayment: !!p })
+        if (seenGroups.has(c.groupLabel)) continue
+        seenGroups.add(c.groupLabel)
+        const g = groupMonthStatus(c.groupLabel, y, m, ctx)
+        // nájemci připadá podíl jeho členů skupiny
+        const mineExp = g.members.filter(x => x.tenantId === tenantId).reduce((s, x) => s + getMonthRent(x, y, m), 0)
+        const share = g.expected > 0 ? mineExp / g.expected : 0
+        const paid = g.paid * share
+        items.push({ key, y, m, firm, label: `🔗 ${c.groupLabel}`, kind: 'rent', expected: mineExp, paid, diff: paid - mineExp, groupLabel: c.groupLabel, groupExpected: g.expected, hasPayment: !!g.payment })
+        continue
       }
-      // Zálohy
-      const dep = getMonthDeposits(c, y, m).deposit
-      if (dep > 0 && (a?.type === 'residential' || tracksDeposits.has(c.id))) {
-        const p = pay(x => x.contractId === c.id && x.month === key && x.paymentType === 'deposit')
-        const paid = amt(p, dep)
-        items.push({ key, y, m, firm, label: a?.unit || '—', kind: 'deposit', expected: dep, paid, diff: paid - dep, contractId: c.id, hasPayment: !!p })
+      const st = contractMonthStatus(c, y, m, ctx)
+      const n = PERIOD_LEN[c.paymentFrequency] || 1
+      // víceměsíční: okno uhrazené kteroukoli platbou → měsíc vyrovnán (platba je rozdělená po měsících)
+      const rentPaid = n > 1 && st.rent.status === 'paid' ? Math.max(st.rent.paid, st.rent.expected) : st.rent.paid
+      items.push({ key, y, m, firm, label: unit, kind: 'rent', expected: st.rent.expected, paid: rentPaid, diff: rentPaid - st.rent.expected, contractId: c.id, multi: n > 1, hasPayment: !!st.rent.payment })
+      if (st.deposit) {
+        items.push({ key, y, m, firm, label: unit, kind: 'deposit', expected: st.deposit.expected, paid: st.deposit.paid, diff: st.deposit.paid - st.deposit.expected, contractId: c.id, hasPayment: !!st.deposit.payment })
       }
     }
   }
@@ -491,14 +615,14 @@ export function tenantSaldo(tenantId, contracts = [], payments = [], assets = []
 // ─────────────────────────────────────────
 
 /** Zálohy smlouvy po měsících roku: { tracked, months: [{ m, key, exp, water, paid }] } */
-export function depositMonths(c, payments = [], assets = [], year) {
+export function depositMonths(c, payments = [], assets = [], year, contracts = []) {
   const a = assets.find(x => x.id === c.assetId)
   const tracked = a?.type === 'residential' || payments.some(p => p.contractId === c.id && p.paymentType === 'deposit')
   const months = []
   if (!isContractBillable(c)) return { tracked, months }
   for (let m = 0; m < 12; m++) {
     if (!isContractInMonth(c, year, m)) continue
-    const d = getMonthDeposits(c, year, m)
+    const d = getMonthDeposits(c, year, m, contracts)
     if (d.deposit <= 0 && d.depositWater <= 0) continue
     const key = `${year}-${m}`
     const p = payments.find(x => x.contractId === c.id && x.month === key && x.paymentType === 'deposit')
@@ -512,7 +636,7 @@ export function depositMonths(c, payments = [], assets = [], year) {
 export function depositYearRows(contracts = [], payments = [], assets = [], year) {
   const rows = []
   for (const c of contracts) {
-    const { tracked, months } = depositMonths(c, payments, assets, year)
+    const { tracked, months } = depositMonths(c, payments, assets, year, contracts)
     if (!months.length) continue
     const exp = months.reduce((s, x) => s + x.exp, 0)
     const water = months.reduce((s, x) => s + x.water, 0)

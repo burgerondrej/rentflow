@@ -3,7 +3,7 @@ import { useApp } from './AppContext.jsx'
 import DialogShell from './DialogShell.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { FirmBadge } from './FirmUI.jsx'
-import { firmOf, sectionOf, firmColors, FIRM_COLOR_KEYS, ASSET_TYPES, SUBJECT_SEP } from './utils.js'
+import { sectionOf, firmColors, FIRM_COLOR_KEYS, ASSET_TYPES, SUBJECT_SEP } from './utils.js'
 
 const TYPE_OPTIONS = Object.entries(ASSET_TYPES).map(([k, v]) => ({ k, label: `${v.icon} ${v.label}` }))
 const COLOR_LABEL = { wine: 'Bordó', royal: 'Modrá', violet: 'Fialová', teal: 'Tyrkysová', orange: 'Oranžová', slate: 'Břidlicová' }
