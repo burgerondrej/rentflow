@@ -310,7 +310,7 @@ function AppInner() {
     docs: () => <Docs />, 
     alerts: () => <Alerts />, 
     trash: () => <Trash />, 
-    history: History
+    history: () => <History />,
   }
   
   const ActiveView = VIEWS[view] || (() => <div style={{ padding: 60, textAlign: 'center' }}>Sekce se připravuje.</div>)
