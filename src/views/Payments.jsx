@@ -7,7 +7,7 @@ import DialogShell from '../DialogShell.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
 import { isTyping, isOverlayOpen, peekPaymentsFilter, clearPaymentsFilter } from '../shortcuts.js'
 import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, isGroupPayment } from '../utils.js'
-import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
+import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, overdueItems, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
@@ -490,7 +490,8 @@ export default function Payments() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectsWithContracts.join('\0')])
   const [detailContract, setDetailContract] = useState(null)
-  const [activeTab, setActiveTab]           = useState('overview')
+  const [activeTab, setActiveTab]           = useState(() => peekPaymentsFilter()?.tab || 'overview') // karta firmy → { tab: 'overdue' }
+  const [overdueSort, setOverdueSort]       = useState('month') // záložka Po splatnosti: month | tenant
   const [rowFilter, setRowFilter]           = useState(() => { const f = peekPaymentsFilter(); return (typeof f === 'string' ? f : f?.filter) || 'all' }) // all | unpaid | overdue
   useEffect(() => { clearPaymentsFilter() }, [])
   const [pendingPayment, setPendingPayment] = useState(null)   // { contract, tenantName, paymentType }
@@ -982,6 +983,9 @@ export default function Payments() {
     }
     return result.sort((a, b) => b.rs.remaining - a.rs.remaining)
   })()
+
+  // ── Po splatnosti – všechny měsíce od 1. 1. 2026 za vybranou firmu / sekci (stejný výpočet jako karta firmy) ──
+  const overdueList = overdueItems(payCtx, s => selectionMatches(activeSub, s))
 
   const contractHistory = (contractId) =>
     payments.filter(p => p.contractId === contractId)
@@ -1483,9 +1487,10 @@ export default function Payments() {
       {/* VNITŘNÍ ZÁLOŽKY */}
       <div style={{ display: 'flex', gap: 12, margin: '0 0 20px', alignItems: 'center', flexWrap: 'wrap' }}>
         <Segmented value={activeTab} onChange={setActiveTab} items={[
-          { id: 'overview', label: '📋 Přehled měsíce' },
-          { id: 'history', label: '📈 Historie 6 měsíců' },
-          { id: 'debtors', label: '🔴 Neuhrazené napříč firmami', count: debtors.length },
+          { id: 'overview', label: '📋 Přehled za aktuální kalendářní měsíc' },
+          { id: 'history', label: '📈 Historie za posledních 6 měsíců' },
+          { id: 'debtors', label: '🔴 Neuhrazené platby napříč pronajímateli za aktuální měsíc', count: debtors.length },
+          { id: 'overdue', label: '⚠ Po splatnosti', count: overdueList.length },
         ]} />
         <div style={{ flex: 1 }} />
         {!isReadOnly && (
@@ -2018,6 +2023,112 @@ export default function Payments() {
           )}
         </div>
       )}
+
+      {/* ══ TAB: PO SPLATNOSTI (všechny měsíce) ══ */}
+      {activeTab === 'overdue' && (() => {
+        const kc = (n) => `${Math.round(n).toLocaleString('cs-CZ')} Kč`
+        const days = (n) => `${n} ${n === 1 ? 'den' : n < 5 ? 'dny' : 'dní'}`
+        const total = overdueList.reduce((sum, it) => sum + it.owe, 0)
+        const th = (txt, right) => <th style={{ padding: '14px 14px', textAlign: right ? 'right' : 'left', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{txt}</th>
+        const remCell = (part) => !part ? <span style={{ color: 'var(--text3)' }}>—</span>
+          : part.rem > 0.5 ? <><div style={{ fontWeight: 800, color: '#DC2626' }}>{kc(part.rem)}</div><div style={{ fontSize: 11, color: 'var(--text3)' }}>z {kc(part.expected)}</div></>
+          : <span style={{ color: '#16A34A', fontWeight: 800 }}>✓</span>
+        const monthText = (it) => {
+          if (it.periodKeys.length > 1) {
+            const [fy, fm] = it.periodKeys[0].split('-').map(Number)
+            const [ly, lm] = it.periodKeys[it.periodKeys.length - 1].split('-').map(Number)
+            return `${MONTHS[fm]} ${fy} – ${MONTHS[lm]} ${ly}`
+          }
+          return `${MONTHS[it.m]} ${it.y}`
+        }
+        const openItem = (it) => {
+          setSelectedYear(it.y); setSelectedMonth(it.m); setRowFilter('overdue'); setActiveTab('overview')
+          if (!it.groupLabel) setDetailContract(it.contract)
+        }
+        const row = (it, showTenant = true) => {
+          const c = it.contract, tenant = getTenantForContract(c)
+          return (
+            <tr key={`${it.key}|${it.groupLabel || c.id}`} onClick={() => openItem(it)} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', transition: '0.15s' }}
+              onMouseOver={e => e.currentTarget.style.background = it.status === 'partial' ? 'var(--tone-amber-soft)' : 'var(--tone-red-soft)'}
+              onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+              <td style={{ padding: '11px 14px', boxShadow: firmStripeShadow(it.subject) }}>
+                {showTenant && <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>}
+                <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>{it.groupLabel ? `🔗 ${it.groupLabel}` : (getAssetForContract(c)?.unit || '—')} · {it.subject || '—'}</div>
+              </td>
+              <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap' }}>{monthText(it)}</td>
+              <td style={{ padding: '11px 14px', fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>
+                {it.due ? `${it.due.getDate()}. ${it.due.getMonth() + 1}. ${it.due.getFullYear()}` : '—'}
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: '#DC2626' }}>⚠ {days(it.od)}</div>
+              </td>
+              <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap' }}>{remCell(it.rent)}</td>
+              <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap' }}>{remCell(it.deposit)}</td>
+              <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 14.5, fontWeight: 900, color: '#DC2626', whiteSpace: 'nowrap' }}>{kc(it.owe)}</td>
+              <td style={{ padding: '11px 14px', textAlign: 'right' }}><UiStatusPill kind={it.status} size="sm" /></td>
+            </tr>
+          )
+        }
+        let body
+        if (overdueSort === 'tenant') {
+          const byTenant = new Map()
+          overdueList.forEach(it => { const k = it.contract.tenantId || ''; if (!byTenant.has(k)) byTenant.set(k, []); byTenant.get(k).push(it) })
+          body = [...byTenant.entries()]
+            .map(([k, list]) => ({ k, list, sum: list.reduce((sum, it) => sum + it.owe, 0) }))
+            .sort((a, b) => b.sum - a.sum)
+            .flatMap(({ k, list, sum }) => [
+              <tr key={`t|${k}`} style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--border2)' }}>
+                <td colSpan={5} style={{ padding: '8px 14px', fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>
+                  {getTenantForContract(list[0].contract)?.name || 'Neznámý'} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>· {list.length} {list.length === 1 ? 'položka' : list.length < 5 ? 'položky' : 'položek'}</span>
+                </td>
+                <td style={{ padding: '8px 14px', textAlign: 'right', fontSize: 13, fontWeight: 900, color: '#DC2626', whiteSpace: 'nowrap' }}>{kc(sum)}</td>
+                <td />
+              </tr>,
+              ...list.map(it => row(it, false)),
+            ])
+        } else {
+          body = [...overdueList].sort((a, b) => b.od - a.od).map(it => row(it))
+        }
+        return (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
+                Po splatnosti – {selectionLabel(activeSub)} <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text3)' }}>· všechny měsíce od 1. 1. 2026</span>
+              </div>
+              <span style={{ background: overdueList.length > 0 ? 'var(--tone-red-soft)' : 'var(--tone-green-soft)', color: overdueList.length > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)', padding: '3px 12px', borderRadius: 8, fontSize: 13, fontWeight: 800 }}>
+                {overdueList.length} {overdueList.length === 1 ? 'položka' : overdueList.length < 5 ? 'položky' : 'položek'}{overdueList.length > 0 ? ` · ${kc(total)}` : ''}
+              </span>
+              <div style={{ flex: 1 }} />
+              {overdueList.length > 1 && (
+                <Segmented value={overdueSort} onChange={setOverdueSort} items={[
+                  { id: 'month', label: 'Od nejstaršího' },
+                  { id: 'tenant', label: 'Podle nájemce' },
+                ]} />
+              )}
+            </div>
+            {overdueList.length === 0 ? (
+              <EmptyState good icon="✓" title="Nic není po splatnosti" text={`${selectionLabel(activeSub)} · všechny měsíce od 1. 1. 2026`} />
+            ) : (
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'clip' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg2)', borderBottom: '2px solid var(--border)' }}>
+                      {th('Nájemce / Jednotka')}{th('Za měsíc')}{th('Splatnost')}{th('Nájem', true)}{th('Zálohy', true)}{th('Dluží', true)}{th('Stav', true)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {body}
+                    <tr style={{ background: 'var(--bg2)' }}>
+                      <td colSpan={5} style={{ padding: '12px 14px', fontSize: 13, fontWeight: 900, color: 'var(--text)' }}>Celkem po splatnosti</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontSize: 15, fontWeight: 900, color: '#DC2626', whiteSpace: 'nowrap' }}>{kc(total)}</td>
+                      <td />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 8 }}>Nájem / zálohy = zbývá doplatit (z předpisu). Klik na řádek otevře daný měsíc v přehledu.</div>
+          </div>
+        )
+      })()}
 
       {/* ══ DETAIL MODAL ══ */}
       {detailContract && (() => {

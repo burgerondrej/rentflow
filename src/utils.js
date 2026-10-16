@@ -503,6 +503,64 @@ export function overdueDays(c, y, m) {
 }
 
 /**
+ * Položky PO SPLATNOSTI za všechny měsíce od SALDO_FROM do příštího měsíce (při platbě předem je po 15. po splatnosti
+ * i příští měsíc). JEDINÝ výpočet pro kartu firmy (Dashboard) i záložku „Po splatnosti“ v Platbách.
+ * - match(subject) = filtr pronajímatele (firma / sekce – selectionMatches / firmOf); skupina podle prvního člena.
+ * - Stav přes contractMonthStatus / groupMonthStatus; zálohy jen u bytů.
+ * - Víceměsíční smlouva = jedna položka za neuhrazené platební okno (předpis celého období).
+ * Vrací od nejstaršího měsíce: [{ key, y, m, contract, groupLabel, subject, rent: { expected, rem }, deposit: { expected, rem } | null,
+ *   owe, status, od, due, periodKeys }]
+ */
+export function overdueItems(ctx, match = () => true) {
+  const { contracts = [], assets = [] } = ctx || {}
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const curY = today.getFullYear(), curM = today.getMonth()
+  const endY = curM === 11 ? curY + 1 : curY, endM = (curM + 1) % 12
+  const billable = contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném')
+  const items = [], seenWindows = new Set()
+  for (let y = SALDO_FROM.y, m = SALDO_FROM.m; y < endY || (y === endY && m <= endM); m === 11 ? (y++, m = 0) : m++) {
+    const key = `${y}-${m}`
+    const seenGroups = new Set()
+    for (const c of billable) {
+      if (!isContractInMonth(c, y, m)) continue
+      if (c.groupLabel) {
+        if (seenGroups.has(c.groupLabel)) continue
+        seenGroups.add(c.groupLabel)
+      }
+      const subject = contractSubject(c, assets)
+      if (!match(subject)) continue
+      const od = overdueDays(c, y, m)
+      if (od <= 0) continue
+      const base = { key, y, m, contract: c, groupLabel: c.groupLabel || null, subject, od, due: dueDateFor(c, y, m), periodKeys: [key] }
+      if (c.groupLabel) {
+        const g = groupMonthStatus(c.groupLabel, y, m, ctx)
+        if (g.status === 'paid') continue
+        const rem = Math.max(0, g.expected - g.paid)
+        items.push({ ...base, rent: { expected: g.expected, rem }, deposit: null, owe: rem, status: g.status })
+        continue
+      }
+      const s = contractMonthStatus(c, y, m, ctx)
+      if ((PERIOD_LEN[c.paymentFrequency] || 1) > 1) {
+        const win = getPeriodMonthKeys(c, y, m)
+        const wk = `${c.id}|${win[0]}`
+        if (seenWindows.has(wk)) continue
+        seenWindows.add(wk)
+        if (s.rent.status === 'paid') continue
+        const expected = getMonthRent(c, y, m)
+        items.push({ ...base, rent: { expected, rem: expected }, deposit: null, owe: expected, status: 'unpaid', periodKeys: win })
+        continue
+      }
+      if (s.complete) continue
+      const rentRem = s.rent.status === 'paid' ? 0 : Math.max(0, s.rent.expected - s.rent.paid)
+      const depRem = s.deposit && s.deposit.status !== 'paid' ? Math.max(0, s.deposit.expected - s.deposit.paid) : 0
+      items.push({ ...base, rent: { expected: s.rent.expected, rem: rentRem }, deposit: s.deposit ? { expected: s.deposit.expected, rem: depRem } : null,
+        owe: rentRem + depRem, status: s.status })
+    }
+  }
+  return items
+}
+
+/**
  * Platební okno (klíče "RRRR-M") víceměsíční smlouvy, do kterého patří refYear/refMonth.
  * Měsíčně → jen daný měsíc.
  */
