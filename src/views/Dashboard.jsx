@@ -105,7 +105,7 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
     }
   })
 
-  // ── Karty firem: plnění za aktuální měsíc, neuhrazeno, 6 měsíců, končící smlouvy ──
+  // ── Karty firem: plnění za aktuální měsíc, neuhrazeno, po splatnosti, končící smlouvy ──
   // Vždy STRIKTNĚ za jednu firmu (přesná shoda názvu firmy)
   const firmMonth = (firmName, y, m) => {
     const key = `${y}-${m}`
@@ -151,15 +151,11 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
     return n
   }
   const firmCards = firms.map(f => {
-    const months = [-5, -4, -3, -2, -1, 0].map(o => {
-      const d = new Date(today.getFullYear(), today.getMonth() + o, 1)
-      const st = firmMonth(f.name, d.getFullYear(), d.getMonth())
-      return { ...st, pct: st.exp > 0 ? Math.min(1, st.rec / st.exp) : null }
-    })
-    const cur = months[months.length - 1]
+    const st = firmMonth(f.name, today.getFullYear(), today.getMonth())
+    const cur = { ...st, pct: st.exp > 0 ? Math.min(1, st.rec / st.exp) : null }
     const ending = activeContracts.filter(c => firmOf(contractSubject(c, assets)) === f.name && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
       (() => { const e = parseDate(c.end); return e && e >= today && (e - today) / 86400000 <= 60 })()).length
-    return { firm: f, months, cur, unpaid: Math.max(0, cur.exp - cur.rec), ending, overdue: firmOverdue(f.name) }
+    return { firm: f, cur, unpaid: Math.max(0, cur.exp - cur.rec), ending, overdue: firmOverdue(f.name) }
   }).filter(x => x.cur.n > 0)
   const openFirmPayments = (f, filter) => {
     setPaymentsFilterOnOpen(filter || null)
@@ -219,7 +215,7 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
       {/* 0. KARTY FIREM – kliknutím do Plateb dané firmy */}
       {firmCards.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14, marginBottom: 28 }}>
-          {firmCards.map(({ firm: f, months, cur, unpaid, ending, overdue }) => {
+          {firmCards.map(({ firm: f, cur, unpaid, ending, overdue }) => {
             const c = firmColors(f.color, theme)
             const pct = cur.pct ?? 1
             const r = 19, circ = 2 * Math.PI * r
@@ -246,11 +242,7 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
                     <div style={{ fontSize: 17, fontWeight: 900, color: unpaid > 0.5 ? '#DC2626' : '#16A34A' }}>{Math.round(unpaid).toLocaleString('cs-CZ')} Kč</div>
                   </div>
                 </div>
-                <div title="Plnění posledních 6 měsíců" style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 26, margin: '10px 0 8px' }}>
-                  {months.map((m, i) => (
-                    <span key={i} style={{ flex: 1, height: Math.max(3, Math.round((m.pct ?? 0) * 26)), borderRadius: 3, background: i === months.length - 1 ? c.mid : c.mid + '55' }} />
-                  ))}
-                </div>
+                <div style={{ height: 10 }} />
                 {overdue > 0 && (
                   <div title="Otevřít Platby jen s položkami po splatnosti" onClick={e => { e.stopPropagation(); openFirmPayments(f, 'overdue') }}
                     style={{ fontSize: 11.5, fontWeight: 800, color: '#DC2626', marginBottom: 3, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>⚠ {overdue} po splatnosti ➔</div>
