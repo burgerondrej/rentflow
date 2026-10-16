@@ -192,7 +192,7 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
             onClick={() => { setDismissedSig(checkAlert.signature); try { localStorage.setItem('rf_datacheck_dismissed', checkAlert.signature) } catch { /* ignore */ } }}>✕</button>
         </div>
       )}
-      {showCheck && <DataCheck onClose={() => setShowCheck(false)} onOpen={(type, id) => { setShowCheck(false); onOpenDetail ? onOpenDetail(type, id) : (type === 'contract' && onOpen && onOpen(id)) }} />}
+      {showCheck && <DataCheck onClose={() => setShowCheck(false)} onOpen={(type, id) => { setShowCheck(false); onOpenDetail ? onOpenDetail(type, id, { onReturn: () => setShowCheck(true) }) : (type === 'contract' && onOpen && onOpen(id)) }} />}
 
       {/* 0. KARTY FIREM – kliknutím do Plateb dané firmy */}
       {firmCards.length > 0 && (

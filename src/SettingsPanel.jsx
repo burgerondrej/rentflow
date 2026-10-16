@@ -6,7 +6,7 @@ import FirmsSettings from './FirmsSettings.jsx'
 import { SectionHeader } from './UI.jsx'
 import DataCheck from './DataCheck.jsx'
 
-export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
+export default function SettingsPanel({ onClose, onBackupDone, onOpen, initialCheck = false }) {
   const { createBackup, getBackupInfo, saveSettings, getSettings, isReadOnly } = useApp()
 
   const [backupInfo, setBackupInfo] = useState({ lastBackup: '…', backupCount: 0, gdrivePath: '' })
@@ -19,7 +19,7 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen }) {
   const [appVersion, setAppVersion] = useState('…')
   const [cleanupState, setCleanupState] = useState(null) // null | 'running' | number
   const [showFirms, setShowFirms] = useState(false)
-  const [showCheck, setShowCheck] = useState(false)
+  const [showCheck, setShowCheck] = useState(initialCheck) // initialCheck = návrat z detailu otevřeného z Kontroly dat
 
   useEffect(() => {
     getBackupInfo().then(info => {

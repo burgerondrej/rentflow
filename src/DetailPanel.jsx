@@ -25,7 +25,7 @@ const TYPE_META = {
   contract:    { headerClass: 'modal-header-contract',   icon: '📄', label: 'Detail smlouvy' },
 }
 
-export default function DetailPanel({ type, id, onClose, onOpen }) {
+export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange }) {
   const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
 
   const SEP = ' – '
@@ -46,10 +46,19 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const [formData, setFormData] = useState({})
   const [customTagInput, setCustomTagInput] = useState('')
   const [confirmDialog, setConfirmDialog] = useState(null)
-  const [contractTab, setContractTab] = useState('overview') // záložka detailu smlouvy
-  const [assetTab, setAssetTab] = useState('overview')       // záložka detailu předmětu
-  const [tenantTab, setTenantTab] = useState('overview')     // záložka detailu nájemce
-  useEffect(() => { setContractTab('overview'); setAssetTab('overview'); setTenantTab('overview') }, [id])
+  // initialTab = záložka při návratu o krok zpět (zásobník detailů v App.jsx); změny se hlásí přes onTabChange
+  const [contractTab, setContractTab] = useState(() => (type === 'contract' && initialTab) || 'overview') // záložka detailu smlouvy
+  const [assetTab, setAssetTab] = useState(() => (type === 'asset' && initialTab) || 'overview')          // záložka detailu předmětu
+  const [tenantTab, setTenantTab] = useState(() => (type === 'tenant' && initialTab) || 'overview')       // záložka detailu nájemce
+  const firstIdRef = useRef(id)
+  useEffect(() => {
+    if (firstIdRef.current === id) return
+    firstIdRef.current = id
+    setContractTab('overview'); setAssetTab('overview'); setTenantTab('overview')
+  }, [id])
+  useEffect(() => {
+    if (onTabChange) onTabChange(type === 'contract' ? contractTab : type === 'asset' ? assetTab : tenantTab)
+  }, [type, contractTab, assetTab, tenantTab])
   const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
   const [renewFor, setRenewFor] = useState(null) // smlouva, ze které se zakládají navazující smlouvy
   const [changeFor, setChangeFor] = useState(null) // smlouva, u které se mění nájemce (předávka předmětu)
@@ -85,6 +94,11 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
   const handleClose = () => {
     setClosing(true)
     setTimeout(() => onClose(), 160)
+  }
+  // Klik mimo okno = zavřít všechny detaily (Esc / ✕ = o krok zpět)
+  const handleCloseAll = () => {
+    setClosing(true)
+    setTimeout(() => (onCloseAll || onClose)(), 160)
   }
 
   useEffect(() => {
@@ -3048,7 +3062,7 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
       {/* Backdrop */}
       <div
         className="modal-backdrop"
-        onClick={handleClose}
+        onClick={handleCloseAll}
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 200, backdropFilter: 'blur(4px)' }}
       />
 

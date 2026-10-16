@@ -73,8 +73,16 @@ function AppInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uiZoom])
   const [subject, setSubject] = useState('all')
-  const [detail, setDetail] = useState(null)
+  // Zásobník detailů: detail otevřený z detailu se přidá navrch; Esc / ✕ = o krok zpět (i na původní záložku),
+  // klik mimo okno = zavřít vše. onReturn prvního detailu = znovu otevřít okno, odkud přišel (Kontrola dat, Nastavení).
+  const [detailStack, setDetailStack] = useState([])
+  const detailStackRef = useRef([])
+  const detailDataRef = useRef({})
+  detailDataRef.current = { contracts, tenants, assets }
+  const setStack = (next) => { detailStackRef.current = next; setDetailStack(next) }
+  const detail = detailStack[detailStack.length - 1] || null
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsCheck, setSettingsCheck] = useState(false) // Nastavení otevřít rovnou s Kontrolou dat (návrat z detailu)
   const [backupStatus, setBackupStatus] = useState({ lastBackup: '…', syncing: false })
   const [unsavedSinceBackup, setUnsavedSinceBackup] = useState(false)
 
@@ -175,7 +183,33 @@ function AppInner() {
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp)
   }, [sbWidth, uiZoom])
 
-  const openDetail = (type, id) => setDetail({ type, id })
+  const openDetail = useCallback((type, id, opts) => {
+    const s = detailStackRef.current
+    const top = s[s.length - 1]
+    if (top && top.type === type && top.id === id) return
+    setStack([...s, { type, id, tab: null, onReturn: s.length === 0 ? opts?.onReturn : undefined }])
+  }, [])
+  const detailExists = (e) => {
+    const d = detailDataRef.current
+    const list = e.type === 'contract' ? d.contracts : e.type === 'tenant' ? d.tenants : e.type === 'asset' ? d.assets : null
+    return !list || list.some(x => x.id === e.id)
+  }
+  const closeDetail = useCallback(() => {
+    const s = detailStackRef.current
+    if (!s.length) return
+    const next = s.slice(0, -1).filter(detailExists) // přeskočit smazané položky
+    setStack(next)
+    if (!next.length && s[0].onReturn) s[0].onReturn()
+  }, [])
+  const closeAllDetails = useCallback(() => {
+    const s = detailStackRef.current
+    setStack([])
+    if (s[0]?.onReturn) s[0].onReturn()
+  }, [])
+  const setDetailTab = useCallback((tab) => {
+    const s = detailStackRef.current
+    if (s.length) s[s.length - 1] = { ...s[s.length - 1], tab }
+  }, [])
 
   // Logika fulltextového vyhledávání
   const getSearchResults = () => {
@@ -246,7 +280,7 @@ function AppInner() {
   }
 
   const VIEWS = { 
-    dashboard: () => <Dashboard onNav={handleNav} onOpen={(id) => openDetail('contract', id)} onOpenDetail={(type, id) => openDetail(type, id)} />, 
+    dashboard: () => <Dashboard onNav={handleNav} onOpen={(id) => openDetail('contract', id)} onOpenDetail={(type, id, opts) => openDetail(type, id, opts)} />, 
     tenants: () => <Tenants onOpen={(id) => openDetail('tenant', id)} />, 
     residential: () => <Assets type="residential" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     commercial: () => <Assets type="commercial" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
@@ -450,8 +484,9 @@ function AppInner() {
           {ActiveView()}
         </div>
       </div>
-      {detail && <DetailPanel type={detail.type} id={detail.id} onClose={() => setDetail(null)} onOpen={openDetail} />}
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} onOpen={(type, id) => { setShowSettings(false); openDetail(type, id) }} onBackupDone={() => {
+      {detail && <DetailPanel key={`${detailStack.length}|${detail.type}|${detail.id}`} type={detail.type} id={detail.id} initialTab={detail.tab}
+        onTabChange={setDetailTab} onClose={closeDetail} onCloseAll={closeAllDetails} onOpen={openDetail} />}
+      {showSettings && <SettingsPanel initialCheck={settingsCheck} onClose={() => { setShowSettings(false); setSettingsCheck(false) }} onOpen={(type, id) => { setShowSettings(false); openDetail(type, id, { onReturn: () => { setSettingsCheck(true); setShowSettings(true) } }) }} onBackupDone={() => {
         setUnsavedSinceBackup(false)
         getBackupInfo && getBackupInfo().then(info => {
           if (info) setBackupStatus(prev => ({ ...prev, lastBackup: info.lastBackup }))

@@ -490,6 +490,7 @@ export default function Payments() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectsWithContracts.join('\0')])
   const [detailContract, setDetailContract] = useState(null)
+  const [detailReturn, setDetailReturn]     = useState(null) // { y, m } – měsíc, na který se vrátit po zavření detailu (záložka Po splatnosti)
   const [activeTab, setActiveTab]           = useState(() => peekPaymentsFilter()?.tab || 'overview') // karta firmy → { tab: 'overdue' }
   const [overdueSort, setOverdueSort]       = useState('month') // záložka Po splatnosti: month | tenant
   const [rowFilter, setRowFilter]           = useState(() => { const f = peekPaymentsFilter(); return (typeof f === 'string' ? f : f?.filter) || 'all' }) // all | unpaid | overdue
@@ -1976,7 +1977,7 @@ export default function Payments() {
                 <tbody>
                   {debtors.map(({ contract: c, tenant, asset, rs, isGroup, groupLabel, groupTotal }) => (
                     <tr key={isGroup ? `group-${groupLabel}` : c.id} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', transition: '0.15s' }}
-                      onClick={() => { setDetailContract(c); setActiveTab('overview'); handleSubChange(getContractSubject(c) || subjects[0] || '') }}
+                      onClick={() => setDetailContract(c)}
                       onMouseOver={e => e.currentTarget.style.background = rs.status === 'partial' ? 'var(--tone-amber-soft)' : 'var(--tone-red-soft)'}
                       onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                     >
@@ -2041,9 +2042,13 @@ export default function Payments() {
           }
           return `${MONTHS[it.m]} ${it.y}`
         }
+        // Smlouva: detail za daný měsíc nad touto záložkou (po zavření zpět sem, měsíc se vrátí).
+        // Skupina nemá detail → přepne na daný měsíc v přehledu.
         const openItem = (it) => {
-          setSelectedYear(it.y); setSelectedMonth(it.m); setRowFilter('overdue'); setActiveTab('overview')
-          if (!it.groupLabel) setDetailContract(it.contract)
+          if (it.groupLabel) { setSelectedYear(it.y); setSelectedMonth(it.m); setRowFilter('overdue'); setActiveTab('overview'); return }
+          setDetailReturn({ y: selectedYear, m: selectedMonth })
+          setSelectedYear(it.y); setSelectedMonth(it.m)
+          setDetailContract(it.contract)
         }
         const row = (it, showTenant = true) => {
           const c = it.contract, tenant = getTenantForContract(c)
@@ -2149,7 +2154,7 @@ export default function Payments() {
         return (
           <DialogShell icon={typeIcon[asset?.type] || '📄'} iconStyle={{ background: assetTypeStyle(asset?.type).bg, borderColor: assetTypeStyle(asset?.type).border }}
             title={asset?.unit || 'Neznámý předmět'} subtitle={asset?.subject || ''} width={600} zIndex={1000}
-            onClose={() => setDetailContract(null)}>
+            onClose={() => { setDetailContract(null); if (detailReturn) { setSelectedYear(detailReturn.y); setSelectedMonth(detailReturn.m); setDetailReturn(null) } }}>
                 {/* Nájemce */}
                 {tenant && (
                   <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 16px', marginBottom: 18 }}>
