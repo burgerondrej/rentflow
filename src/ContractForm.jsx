@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
-import { parseDate, getCurrentAssetContract, isEndingArchived, firmOf, assetTypeStyle } from './utils.js'
+import { parseDate, getCurrentAssetContract, isEndingArchived, firmOf, assetTypeStyle, DUE_PREPAID } from './utils.js'
 import DialogShell from './DialogShell.jsx'
 
 
@@ -254,9 +254,10 @@ export default function ContractForm({ onClose }) {
     <div>
       {lbl('Splatnost nájemného')}
       <select className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
-        value={['15. den v měsíci','Dle vystavené faktury','Konkrétní datum','Vlastní'].includes(formData.dueDay) ? formData.dueDay : 'Vlastní'}
+        value={['15. den v měsíci',DUE_PREPAID,'Dle vystavené faktury','Konkrétní datum','Vlastní'].includes(formData.dueDay) ? formData.dueDay : 'Vlastní'}
         onChange={e => { set('dueDay', e.target.value); set('dueDayCustom', '') }}>
         <option value="15. den v měsíci">15. den v měsíci</option>
+        <option value={DUE_PREPAID}>{DUE_PREPAID}</option>
         <option value="Dle vystavené faktury">Dle vystavené faktury</option>
         <option value="Konkrétní datum">Konkrétní datum (vždy stejný den v roce)…</option>
         <option value="Vlastní">Vlastní text…</option>

@@ -467,12 +467,19 @@ export function isEndingArchived(c) {
 /**
  * Datum splatnosti za měsíc (y, m) podle pole dueDay; null = nelze určit (např. "Dle vystavené faktury").
  * - "15. den v měsíci" (měsíční smlouvy) → 15. den daného měsíce
+ * - "15. den předchozího měsíce …" (platba předem, byty) → 15. den předchozího měsíce (říjen do 15. 9.)
  * - "30. 4." (roční smlouvy) → toto datum v platebním okně, do kterého měsíc patří
  */
+export const DUE_PREPAID = '15. den předchozího měsíce na měsíc následující'
 export function dueDateFor(c, y, m) {
   const s = (c?.dueDay || '').trim()
   const freq = c?.paymentFrequency || 'Měsíčně'
-  let mm = s.match(/^(\d{1,2})\.\s*den/)
+  let mm = s.match(/^(\d{1,2})\.\s*den\s+předchozího/i)
+  if (mm && (PERIOD_LEN[freq] || 1) === 1) {
+    const dim = new Date(y, m, 0).getDate()
+    return new Date(y, m - 1, Math.min(parseInt(mm[1]), dim))
+  }
+  mm = s.match(/^(\d{1,2})\.\s*den/)
   if (mm && (PERIOD_LEN[freq] || 1) === 1) {
     const dim = new Date(y, m + 1, 0).getDate()
     return new Date(y, m, Math.min(parseInt(mm[1]), dim))
@@ -570,7 +577,9 @@ export function tenantSaldo(tenantId, contracts = [], payments = [], assets = []
     if (due) return due < today
     return y < curY || (y === curY && m < curM)
   }
-  for (let y = SALDO_FROM.y, m = SALDO_FROM.m; y < curY || (y === curY && m <= curM); m === 11 ? (y++, m = 0) : m++) {
+  // až do příštího měsíce – při platbě předem (DUE_PREPAID) je po 15. už po splatnosti i příští měsíc
+  const endY = curM === 11 ? curY + 1 : curY, endM = (curM + 1) % 12
+  for (let y = SALDO_FROM.y, m = SALDO_FROM.m; y < endY || (y === endY && m <= endM); m === 11 ? (y++, m = 0) : m++) {
     const key = `${y}-${m}`
     const seenGroups = new Set()
     for (const c of mine) {

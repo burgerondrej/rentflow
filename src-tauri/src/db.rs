@@ -380,6 +380,17 @@ impl Database {
         ] {
             let _ = self.conn.execute("UPDATE objects SET firm = ?1 WHERE name = ?2 AND firm = ''", params![firm, name]);
         }
+        // v1.4.1 — byty a ubytovací jednotky se platí předem (říjen do 15. 9.); jednorázově (user_version),
+        // aby se pozdější ruční změna splatnosti nepřepsala
+        let ver: i64 = self.conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        if ver < 1 {
+            let _ = self.conn.execute(
+                "UPDATE contracts SET due_day = '15. den předchozího měsíce na měsíc následující' \
+                 WHERE due_day = '15. den v měsíci' AND asset_id IN (SELECT id FROM assets WHERE asset_type = 'residential')",
+                [],
+            );
+            self.conn.execute_batch("PRAGMA user_version = 1")?;
+        }
 
         Ok(())
     }

@@ -128,21 +128,24 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
     return { exp, rec, n: cs.length }
   }
   // Počet neuhrazených položek po splatnosti za aktuální měsíc (smlouvy / skupiny firmy)
+  // + příští měsíc, pokud už je po splatnosti (platba předem – „15. den předchozího měsíce“)
   const firmOverdue = (firmName) => {
-    const y = today.getFullYear(), m = today.getMonth()
-    const cs = contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
-      isContractInMonth(c, y, m) && firmOf(contractSubject(c, assets)) === firmName)
+    const cy = today.getFullYear(), cm = today.getMonth()
     let n = 0
-    const seen = new Set()
-    for (const c of cs) {
-      // Stejné pravidlo jako filtr „Po splatnosti“ v Platbách: neuhrazeno úplně (vč. záloh bytů) a po splatnosti
-      const ctx = { payments, contracts, assets }
-      if (c.groupLabel) {
-        if (seen.has(c.groupLabel)) continue
-        seen.add(c.groupLabel)
-        if (groupMonthStatus(c.groupLabel, y, m, ctx).status !== 'paid' && overdueDays(c, y, m) > 0) n++
-      } else {
-        if (!contractMonthStatus(c, y, m, ctx).complete && overdueDays(c, y, m) > 0) n++
+    for (const [y, m] of [[cy, cm], cm === 11 ? [cy + 1, 0] : [cy, cm + 1]]) {
+      const cs = contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
+        isContractInMonth(c, y, m) && firmOf(contractSubject(c, assets)) === firmName)
+      const seen = new Set()
+      for (const c of cs) {
+        // Stejné pravidlo jako filtr „Po splatnosti“ v Platbách: neuhrazeno úplně (vč. záloh bytů) a po splatnosti
+        const ctx = { payments, contracts, assets }
+        if (c.groupLabel) {
+          if (seen.has(c.groupLabel)) continue
+          seen.add(c.groupLabel)
+          if (groupMonthStatus(c.groupLabel, y, m, ctx).status !== 'paid' && overdueDays(c, y, m) > 0) n++
+        } else {
+          if (!contractMonthStatus(c, y, m, ctx).complete && overdueDays(c, y, m) > 0) n++
+        }
       }
     }
     return n

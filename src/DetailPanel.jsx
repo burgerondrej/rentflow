@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -1407,9 +1407,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           <div>
             <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Den splatnosti</label>
             <select className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }}
-              value={formData.dueDay === 'Vlastní' || formData.dueDay === '15. den v měsíci' || formData.dueDay === 'Dle vystavené faktury' || formData.dueDay === 'Konkrétní datum' ? formData.dueDay : 'Vlastní'}
+              value={formData.dueDay === 'Vlastní' || formData.dueDay === '15. den v měsíci' || formData.dueDay === DUE_PREPAID || formData.dueDay === 'Dle vystavené faktury' || formData.dueDay === 'Konkrétní datum' ? formData.dueDay : 'Vlastní'}
               onChange={e => setFormData({...formData, dueDay: e.target.value, dueDayCustom: ''})}>
               <option value="15. den v měsíci">15. den v měsíci</option>
+              <option value={DUE_PREPAID}>{DUE_PREPAID}</option>
               <option value="Dle vystavené faktury">Dle vystavené faktury</option>
               <option value="Konkrétní datum">Konkrétní datum (vždy stejný den v roce)…</option>
               <option value="Vlastní">Vlastní text…</option>
@@ -1742,14 +1743,14 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
         end: czToIso(c.end),
         dueDay: (() => {
           const d = c.dueDay || '15. den v měsíci'
-          if (d === '15. den v měsíci' || d === 'Dle vystavené faktury') return d
+          if (d === '15. den v měsíci' || d === DUE_PREPAID || d === 'Dle vystavené faktury') return d
           if (/^\d+\.\s*\d+\.?$/.test(d.trim())) return 'Konkrétní datum'
           return 'Vlastní'
         })(),
         dueDayCustom: (() => {
           const d = c.dueDay || ''
           if (/^\d+\.\s*\d+\.?$/.test(d.trim())) return d  // Konkrétní datum
-          if (d === '15. den v měsíci' || d === 'Dle vystavené faktury' || !d) return ''
+          if (d === '15. den v měsíci' || d === DUE_PREPAID || d === 'Dle vystavené faktury' || !d) return ''
           return d  // Vlastní text
         })(),
         terminationMonths: c.terminationMonths ? String(c.terminationMonths) : '',
@@ -2090,9 +2091,10 @@ export default function DetailPanel({ type, id, onClose, onOpen }) {
           <div>
             <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Den splatnosti</label>
             <select className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }}
-              value={['15. den v měsíci','Dle vystavené faktury','Konkrétní datum','Vlastní'].includes(formData.dueDay) ? formData.dueDay : 'Vlastní'}
+              value={['15. den v měsíci',DUE_PREPAID,'Dle vystavené faktury','Konkrétní datum','Vlastní'].includes(formData.dueDay) ? formData.dueDay : 'Vlastní'}
               onChange={e => setFormData({...formData, dueDay: e.target.value, dueDayCustom: ''})}>
               <option value="15. den v měsíci">15. den v měsíci</option>
+              <option value={DUE_PREPAID}>{DUE_PREPAID}</option>
               <option value="Dle vystavené faktury">Dle vystavené faktury</option>
               <option value="Konkrétní datum">Konkrétní datum (vždy stejný den v roce)…</option>
               <option value="Vlastní">Vlastní text…</option>
