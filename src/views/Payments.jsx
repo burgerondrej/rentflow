@@ -441,6 +441,46 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
   )
 }
 
+// Styl PDF reportů (Report nezaplacených, Report po splatnosti) – v PDF jen hex barvy, žádné CSS proměnné
+const REPORT_CSS = `
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, 'Helvetica Neue', sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; }
+        .page { max-width: 860px; margin: 0 auto; padding: 32px 40px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #12654A; }
+        .header-title { font-size: 22px; font-weight: 800; color: #12654A; }
+        .header-sub { font-size: 12px; color: #666; margin-top: 4px; }
+        .header-right { text-align: right; }
+        .header-date { font-size: 13px; font-weight: 700; color: #374151; }
+        .header-gen { font-size: 11px; color: #9CA3AF; margin-top: 3px; }
+        .section { margin-bottom: 24px; break-inside: avoid; }
+        .section-title { font-size: 13px; font-weight: 800; color: #12654A; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; padding: 6px 12px; background: #F0FDF4; border-left: 3px solid #12654A; border-radius: 0 6px 6px 0; display: flex; justify-content: space-between; align-items: center; }
+        .ok-badge { font-size: 11px; font-weight: 700; color: #166534; background: #DCFCE7; padding: 2px 10px; border-radius: 20px; letter-spacing: 0; text-transform: none; }
+        .ok-msg { font-size: 13px; color: #166534; font-style: italic; padding: 10px 14px; background: #F0FDF4; border-radius: 8px; border: 1px solid #BBF7D0; }
+        .tenant-block { margin-bottom: 14px; border: 1px solid #E5E7EB; border-radius: 10px; overflow: hidden; }
+        .tenant-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; }
+        .tenant-name { font-size: 13px; font-weight: 700; color: #111827; }
+        .tenant-unit { font-size: 11px; color: #6B7280; margin-top: 2px; }
+        .debt-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid #F3F4F6; }
+        .debt-row:last-child { border-bottom: none; }
+        .debt-month { font-size: 12px; font-weight: 600; color: #374151; }
+        .debt-current { background: #FFF7ED; }
+        .debt-current .debt-month { color: #92400E; }
+        .debt-amounts { display: flex; gap: 18px; align-items: center; font-size: 12px; }
+        .debt-label { color: #9CA3AF; font-size: 10px; margin-bottom: 1px; }
+        .debt-val { font-weight: 700; }
+        .debt-exp { color: #374151; }
+        .debt-paid { color: #16A34A; }
+        .debt-rem { color: #DC2626; }
+        .badge-unpaid { background: #FEF2F2; color: #991B1B; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+        .badge-partial { background: #FFFBEB; color: #92400E; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+        .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #E5E5E5; font-size: 10px; color: #9CA3AF; display: flex; justify-content: space-between; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+        .tenant-sum { font-size: 13px; font-weight: 800; color: #DC2626; }
+        .debt-due { font-size: 11px; color: #6B7280; margin-top: 2px; }
+        .grand { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: #FEF2F2; border: 1px solid #FECACA; display: flex; justify-content: space-between; font-size: 14px; font-weight: 800; color: #991B1B; }
+`
+
 export default function Payments() {
   const { contracts = [], tenants = [], assets = [], payments = [], firms = [], getFirm, theme, addPayment, deletePayment, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
   // Otevření z karty firmy („po splatnosti“) může předat i měsíc: { filter, year, month }
@@ -491,6 +531,8 @@ export default function Payments() {
   }, [subjectsWithContracts.join('\0')])
   const [detailContract, setDetailContract] = useState(null)
   const [detailReturn, setDetailReturn]     = useState(null) // { y, m } – měsíc, na který se vrátit po zavření detailu (záložka Po splatnosti)
+  const [queuedPay, setQueuedPay]           = useState(null) // položka Po splatnosti → po přepnutí měsíce otevřít zápis platby
+  const [payReturn, setPayReturn]           = useState(null) // { y, m } – měsíc, na který se vrátit po zápisu platby z Po splatnosti
   const [activeTab, setActiveTab]           = useState(() => peekPaymentsFilter()?.tab || 'overview') // karta firmy → { tab: 'overdue' }
   const [overdueSort, setOverdueSort]       = useState('month') // záložka Po splatnosti: month | tenant
   const [rowFilter, setRowFilter]           = useState(() => { const f = peekPaymentsFilter(); return (typeof f === 'string' ? f : f?.filter) || 'all' }) // all | unpaid | overdue
@@ -865,6 +907,21 @@ export default function Payments() {
     }
   }
 
+  // „Zapsat“ v záložce Po splatnosti: přepnout na měsíc položky, otevřít stejný zápis jako v přehledu,
+  // po zavření okna vrátit původní měsíc (záložka zůstává).
+  useEffect(() => {
+    if (!queuedPay || selectedYear !== queuedPay.y || selectedMonth !== queuedPay.m) return
+    const it = queuedPay
+    setQueuedPay(null)
+    if (it.groupLabel) setPendingPayment({ groupLabel: it.groupLabel, tenantName: getTenantForContract(it.contract)?.name || '', paymentType: 'rent', fullAmount: it.rent.expected })
+    else handleToggle({ stopPropagation: () => {} }, it.contract, null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedPay, selectedYear, selectedMonth])
+  useEffect(() => {
+    if (!payReturn || queuedPay || pendingPayment || combinedModal || periodPicker || detailContract) return
+    setSelectedYear(payReturn.y); setSelectedMonth(payReturn.m); setPayReturn(null)
+  }, [payReturn, queuedPay, pendingPayment, combinedModal, periodPicker, detailContract])
+
   const handleConfirmPayment = async (dateStr, customAmount, note) => {
     if (!pendingPayment) return
     const { contract, groupLabel, paymentType, fullAmount, isMultiMonth } = pendingPayment
@@ -1162,40 +1219,7 @@ export default function Payments() {
       })
 
       // ── Generuj HTML ──────────────────────────────────────────────────────
-      const PRINT_CSS = `
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, 'Helvetica Neue', sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; }
-        .page { max-width: 860px; margin: 0 auto; padding: 32px 40px; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #12654A; }
-        .header-title { font-size: 22px; font-weight: 800; color: #12654A; }
-        .header-sub { font-size: 12px; color: #666; margin-top: 4px; }
-        .header-right { text-align: right; }
-        .header-date { font-size: 13px; font-weight: 700; color: #374151; }
-        .header-gen { font-size: 11px; color: #9CA3AF; margin-top: 3px; }
-        .section { margin-bottom: 24px; break-inside: avoid; }
-        .section-title { font-size: 13px; font-weight: 800; color: #12654A; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; padding: 6px 12px; background: #F0FDF4; border-left: 3px solid #12654A; border-radius: 0 6px 6px 0; display: flex; justify-content: space-between; align-items: center; }
-        .ok-badge { font-size: 11px; font-weight: 700; color: #166534; background: #DCFCE7; padding: 2px 10px; border-radius: 20px; letter-spacing: 0; text-transform: none; }
-        .ok-msg { font-size: 13px; color: #166534; font-style: italic; padding: 10px 14px; background: #F0FDF4; border-radius: 8px; border: 1px solid #BBF7D0; }
-        .tenant-block { margin-bottom: 14px; border: 1px solid #E5E7EB; border-radius: 10px; overflow: hidden; }
-        .tenant-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; }
-        .tenant-name { font-size: 13px; font-weight: 700; color: #111827; }
-        .tenant-unit { font-size: 11px; color: #6B7280; margin-top: 2px; }
-        .debt-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid #F3F4F6; }
-        .debt-row:last-child { border-bottom: none; }
-        .debt-month { font-size: 12px; font-weight: 600; color: #374151; }
-        .debt-current { background: #FFF7ED; }
-        .debt-current .debt-month { color: #92400E; }
-        .debt-amounts { display: flex; gap: 18px; align-items: center; font-size: 12px; }
-        .debt-label { color: #9CA3AF; font-size: 10px; margin-bottom: 1px; }
-        .debt-val { font-weight: 700; }
-        .debt-exp { color: #374151; }
-        .debt-paid { color: #16A34A; }
-        .debt-rem { color: #DC2626; }
-        .badge-unpaid { background: #FEF2F2; color: #991B1B; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-        .badge-partial { background: #FFFBEB; color: #92400E; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-        .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #E5E5E5; font-size: 10px; color: #9CA3AF; display: flex; justify-content: space-between; }
-        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-      `
+      const PRINT_CSS = REPORT_CSS
 
       const genTenantBlock = (row) => {
         const { tName, aUnit, currentStatus, pastDebts, isGroup } = row
@@ -1316,6 +1340,101 @@ export default function Payments() {
       await invoke('export_to_pdf', { html, outPath })
     } catch (e) {
       console.error('Report error:', e)
+    } finally {
+      setReportLoading(false)
+    }
+  }
+
+  // ── Report PO SPLATNOSTI – všechny měsíce od 1. 1. 2026 za vybranou firmu / sekci (= záložka Po splatnosti) ──
+  const generateOverdueReport = async () => {
+    setReportLoading(true)
+    try {
+      const now = new Date()
+      const todayStr = now.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
+      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const kc = (n) => `${Math.round(n).toLocaleString('cs-CZ')} Kč`
+      const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const monthText = (it) => {
+        if (it.periodKeys.length > 1) {
+          const [fy, fm] = it.periodKeys[0].split('-').map(Number)
+          const [ly, lm] = it.periodKeys[it.periodKeys.length - 1].split('-').map(Number)
+          return `${MONTHS[fm]} ${fy} – ${MONTHS[lm]} ${ly}`
+        }
+        return `${MONTHS[it.m]} ${it.y}`
+      }
+      const byTenant = new Map()
+      overdueList.forEach(it => { const k = it.contract.tenantId || ''; if (!byTenant.has(k)) byTenant.set(k, []); byTenant.get(k).push(it) })
+      const blocks = [...byTenant.values()]
+        .map(list => ({ list, sum: list.reduce((s2, it) => s2 + it.owe, 0) }))
+        .sort((a, b) => b.sum - a.sum)
+        .map(({ list, sum }) => {
+          const tenant = getTenantForContract(list[0].contract)
+          const units = [...new Set(list.map(it => it.groupLabel ? `🔗 ${it.groupLabel}` : (getAssetForContract(it.contract)?.unit || '—')))].join(', ')
+          const rows = list.map(it => `
+            <div class="debt-row">
+              <div>
+                <div class="debt-month">${esc(monthText(it))}${list.length > 1 && units.includes(',') ? ` · ${esc(it.groupLabel || getAssetForContract(it.contract)?.unit || '')}` : ''}</div>
+                <div class="debt-due">splatnost ${it.due ? `${it.due.getDate()}. ${it.due.getMonth() + 1}. ${it.due.getFullYear()}` : '—'} · ${it.od} ${it.od === 1 ? 'den' : it.od < 5 ? 'dny' : 'dní'} po splatnosti</div>
+              </div>
+              <div class="debt-amounts">
+                <div style="text-align:right"><div class="debt-label">Nájem</div><div class="debt-val ${it.rent.rem > 0.5 ? 'debt-rem' : 'debt-paid'}">${it.rent.rem > 0.5 ? kc(it.rent.rem) : '✓'}</div></div>
+                ${it.deposit ? `<div style="text-align:right"><div class="debt-label">Zálohy</div><div class="debt-val ${it.deposit.rem > 0.5 ? 'debt-rem' : 'debt-paid'}">${it.deposit.rem > 0.5 ? kc(it.deposit.rem) : '✓'}</div></div>` : ''}
+                <div style="text-align:right"><div class="debt-label">Dluh</div><div class="debt-val debt-rem">${kc(it.owe)}</div></div>
+                <span class="${it.status === 'partial' ? 'badge-partial' : 'badge-unpaid'}">${it.status === 'partial' ? 'Částečně' : 'Nezaplaceno'}</span>
+              </div>
+            </div>`).join('')
+          return `
+            <div class="tenant-block">
+              <div class="tenant-header">
+                <div>
+                  <div class="tenant-name">${esc(tenant?.name || '—')}</div>
+                  <div class="tenant-unit">${esc(units)}${tenant?.phone ? ` · tel. ${esc(tenant.phone)}` : ''}</div>
+                </div>
+                <div class="tenant-sum">${kc(sum)}</div>
+              </div>
+              ${rows}
+            </div>`
+        }).join('')
+      const total = overdueList.reduce((s2, it) => s2 + it.owe, 0)
+      const label = selectionLabel(activeSub)
+      const html = `<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RentFlow — Po splatnosti — ${stamp}</title>
+  <style>${REPORT_CSS}</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="header-title">Platby po splatnosti</div>
+      <div class="header-sub">RentFlow · ${esc(label)} · všechny měsíce od 1. 1. 2026</div>
+    </div>
+    <div class="header-right">
+      <div class="header-date">Stav k ${todayStr}</div>
+      <div class="header-gen">${overdueList.length} ${overdueList.length === 1 ? 'položka' : overdueList.length < 5 ? 'položky' : 'položek'}</div>
+    </div>
+  </div>
+  ${overdueList.length === 0 ? '<div class="ok-msg">Nic není po splatnosti.</div>' : blocks}
+  ${overdueList.length > 0 ? `<div class="grand"><span>Celkem po splatnosti</span><span>${kc(total)}</span></div>` : ''}
+  <div class="footer">
+    <span>RentFlow</span>
+    <span>Stav k ${todayStr}</span>
+  </div>
+</div>
+</body>
+</html>`
+      const safeLabel = label.replace(/[\\/:*?"<>|–]+/g, '-').replace(/\s+/g, '-').replace(/-+/g, '-')
+      const outPath = await save({
+        defaultPath: `RentFlow-Po-splatnosti-${safeLabel}-${stamp}.pdf`,
+        filters: [{ name: 'PDF soubor', extensions: ['pdf'] }],
+      })
+      if (!outPath) return
+      await invoke('export_to_pdf', { html, outPath })
+    } catch (e) {
+      console.error('Report po splatnosti error:', e)
     } finally {
       setReportLoading(false)
     }
@@ -2050,6 +2169,13 @@ export default function Payments() {
           setSelectedYear(it.y); setSelectedMonth(it.m)
           setDetailContract(it.contract)
         }
+        // Zapsat jde jen část bez jakékoli platby (částečnou platbu upravíš v detailu – klik na řádek)
+        const canPay = (it) => (it.rent.rem > 0.5 && !it.rent.hasPayment) || (!!it.deposit && it.deposit.rem > 0.5 && !it.deposit.hasPayment)
+        const payItem = (it) => {
+          setPayReturn({ y: selectedYear, m: selectedMonth })
+          setSelectedYear(it.y); setSelectedMonth(it.m)
+          setQueuedPay(it)
+        }
         const row = (it, showTenant = true) => {
           const c = it.contract, tenant = getTenantForContract(c)
           return (
@@ -2069,6 +2195,12 @@ export default function Payments() {
               <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap' }}>{remCell(it.deposit)}</td>
               <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 14.5, fontWeight: 900, color: '#DC2626', whiteSpace: 'nowrap' }}>{kc(it.owe)}</td>
               <td style={{ padding: '11px 14px', textAlign: 'right' }}><UiStatusPill kind={it.status} size="sm" /></td>
+              <td style={{ padding: '11px 14px', textAlign: 'right' }}>
+                {!isReadOnly && canPay(it) && (
+                  <button className="btn btn-sm" title={`Zapsat platbu za ${monthText(it)}`} onClick={e => { e.stopPropagation(); payItem(it) }}
+                    style={{ background: '#22C55E', color: '#fff', borderColor: '#22C55E', fontWeight: 800, borderRadius: 8, whiteSpace: 'nowrap' }}>Zapsat</button>
+                )}
+              </td>
             </tr>
           )
         }
@@ -2085,7 +2217,7 @@ export default function Payments() {
                   {getTenantForContract(list[0].contract)?.name || 'Neznámý'} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>· {list.length} {list.length === 1 ? 'položka' : list.length < 5 ? 'položky' : 'položek'}</span>
                 </td>
                 <td style={{ padding: '8px 14px', textAlign: 'right', fontSize: 13, fontWeight: 900, color: '#DC2626', whiteSpace: 'nowrap' }}>{kc(sum)}</td>
-                <td />
+                <td colSpan={2} />
               </tr>,
               ...list.map(it => row(it, false)),
             ])
@@ -2102,6 +2234,12 @@ export default function Payments() {
                 {overdueList.length} {overdueList.length === 1 ? 'položka' : overdueList.length < 5 ? 'položky' : 'položek'}{overdueList.length > 0 ? ` · ${kc(total)}` : ''}
               </span>
               <div style={{ flex: 1 }} />
+              {!isReadOnly && overdueList.length > 0 && (
+                <button onClick={generateOverdueReport} disabled={reportLoading} className="btn btn-sm"
+                  style={{ border: '1.5px solid var(--accent)', background: 'transparent', color: 'var(--accent)', fontWeight: 700, whiteSpace: 'nowrap', opacity: reportLoading ? 0.6 : 1, cursor: reportLoading ? 'wait' : 'pointer' }}>
+                  {reportLoading ? '⏳ Generuji…' : '📄 Report PDF'}
+                </button>
+              )}
               {overdueList.length > 1 && (
                 <Segmented value={overdueSort} onChange={setOverdueSort} items={[
                   { id: 'month', label: 'Od nejstaršího' },
@@ -2116,7 +2254,7 @@ export default function Payments() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--bg2)', borderBottom: '2px solid var(--border)' }}>
-                      {th('Nájemce / Jednotka')}{th('Za měsíc')}{th('Splatnost')}{th('Nájem', true)}{th('Zálohy', true)}{th('Dluží', true)}{th('Stav', true)}
+                      {th('Nájemce / Jednotka')}{th('Za měsíc')}{th('Splatnost')}{th('Nájem', true)}{th('Zálohy', true)}{th('Dluží', true)}{th('Stav', true)}<th />
                     </tr>
                   </thead>
                   <tbody>
@@ -2124,13 +2262,13 @@ export default function Payments() {
                     <tr style={{ background: 'var(--bg2)' }}>
                       <td colSpan={5} style={{ padding: '12px 14px', fontSize: 13, fontWeight: 900, color: 'var(--text)' }}>Celkem po splatnosti</td>
                       <td style={{ padding: '12px 14px', textAlign: 'right', fontSize: 15, fontWeight: 900, color: '#DC2626', whiteSpace: 'nowrap' }}>{kc(total)}</td>
-                      <td />
+                      <td colSpan={2} />
                     </tr>
                   </tbody>
                 </table>
               </div>
             )}
-            <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 8 }}>Nájem / zálohy = zbývá doplatit (z předpisu). Klik na řádek otevře daný měsíc v přehledu.</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 8 }}>Nájem / zálohy = zbývá doplatit (z předpisu). „Zapsat“ = platba za daný měsíc; klik na řádek otevře detail (úprava částečné platby).</div>
           </div>
         )
       })()}

@@ -244,8 +244,23 @@ pub fn add_payment(payment: Payment, user: String, state: State<AppState>) -> st
 }
 
 #[tauri::command]
-pub fn delete_payment(id: String, state: State<AppState>) -> std::result::Result<(), AppError> {
-    db!(state).delete_payment(&id)
+pub fn delete_payment(id: String, user: Option<String>, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    // popis zjistit PŘED smazáním
+    let payment = db.get_payments().ok().and_then(|ps| ps.into_iter().find(|p| p.id == id));
+    db.delete_payment(&id)?;
+    if let Some(p) = payment {
+        let kind = if p.payment_type == "deposit" { "zálohy" } else { "nájem" };
+        let context = match &p.group_label {
+            Some(g) => format!("skupina \"{}\"", g),
+            None => contract_label(&db, &p.contract_id).unwrap_or_else(|| format!("ID {}", id)),
+        };
+        let amount = if (p.amount - p.amount.round()).abs() < 0.005 { format!("{}", p.amount.round() as i64) } else { format!("{:.2}", p.amount) };
+        let date_info = if p.date.is_empty() { String::new() } else { format!(", datum: {}", p.date) };
+        db.add_log(user.as_deref().unwrap_or("Ondra"), "Smazání", "Platby",
+            &format!("Smazána platba {} {}: {} Kč{} | {}", kind, month_label(&p.month), amount, date_info, context))?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

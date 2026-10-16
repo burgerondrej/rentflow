@@ -206,6 +206,19 @@ function AppInner() {
     setStack([])
     if (s[0]?.onReturn) s[0].onReturn()
   }, [])
+  // Popisek předchozího detailu pro tlačítko „← Zpět“ (jen když je detail otevřený z jiného detailu)
+  const detailBackLabel = () => {
+    const prev = detailStack[detailStack.length - 2]
+    if (!prev) return null
+    if (prev.type === 'contract') {
+      const c = contracts.find(x => x.id === prev.id)
+      const unit = c && assets.find(a => a.id === c.assetId)?.unit
+      return `Smlouva ${unit || ''}`.trim()
+    }
+    if (prev.type === 'tenant') return tenants.find(t => t.id === prev.id)?.name || 'Nájemce'
+    if (prev.type === 'asset') return assets.find(a => a.id === prev.id)?.unit || 'Předmět'
+    return 'Zpět'
+  }
   const setDetailTab = useCallback((tab) => {
     const s = detailStackRef.current
     if (s.length) s[s.length - 1] = { ...s[s.length - 1], tab }
@@ -485,7 +498,7 @@ function AppInner() {
         </div>
       </div>
       {detail && <DetailPanel key={`${detailStack.length}|${detail.type}|${detail.id}`} type={detail.type} id={detail.id} initialTab={detail.tab}
-        onTabChange={setDetailTab} onClose={closeDetail} onCloseAll={closeAllDetails} onOpen={openDetail} />}
+        backLabel={detailBackLabel()} onTabChange={setDetailTab} onClose={closeDetail} onCloseAll={closeAllDetails} onOpen={openDetail} />}
       {showSettings && <SettingsPanel initialCheck={settingsCheck} onClose={() => { setShowSettings(false); setSettingsCheck(false) }} onOpen={(type, id) => { setShowSettings(false); openDetail(type, id, { onReturn: () => { setSettingsCheck(true); setShowSettings(true) } }) }} onBackupDone={() => {
         setUnsavedSinceBackup(false)
         getBackupInfo && getBackupInfo().then(info => {

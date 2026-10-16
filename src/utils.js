@@ -508,7 +508,7 @@ export function overdueDays(c, y, m) {
  * - match(subject) = filtr pronajímatele (firma / sekce – selectionMatches / firmOf); skupina podle prvního člena.
  * - Stav přes contractMonthStatus / groupMonthStatus; zálohy jen u bytů.
  * - Víceměsíční smlouva = jedna položka za neuhrazené platební okno (předpis celého období).
- * Vrací od nejstaršího měsíce: [{ key, y, m, contract, groupLabel, subject, rent: { expected, rem }, deposit: { expected, rem } | null,
+ * Vrací od nejstaršího měsíce: [{ key, y, m, contract, groupLabel, subject, rent: { expected, rem, hasPayment }, deposit: { … } | null,
  *   owe, status, od, due, periodKeys }]
  */
 export function overdueItems(ctx, match = () => true) {
@@ -536,7 +536,7 @@ export function overdueItems(ctx, match = () => true) {
         const g = groupMonthStatus(c.groupLabel, y, m, ctx)
         if (g.status === 'paid') continue
         const rem = Math.max(0, g.expected - g.paid)
-        items.push({ ...base, rent: { expected: g.expected, rem }, deposit: null, owe: rem, status: g.status })
+        items.push({ ...base, rent: { expected: g.expected, rem, hasPayment: !!g.payment }, deposit: null, owe: rem, status: g.status })
         continue
       }
       const s = contractMonthStatus(c, y, m, ctx)
@@ -547,13 +547,14 @@ export function overdueItems(ctx, match = () => true) {
         seenWindows.add(wk)
         if (s.rent.status === 'paid') continue
         const expected = getMonthRent(c, y, m)
-        items.push({ ...base, rent: { expected, rem: expected }, deposit: null, owe: expected, status: 'unpaid', periodKeys: win })
+        items.push({ ...base, rent: { expected, rem: expected, hasPayment: false }, deposit: null, owe: expected, status: 'unpaid', periodKeys: win })
         continue
       }
       if (s.complete) continue
       const rentRem = s.rent.status === 'paid' ? 0 : Math.max(0, s.rent.expected - s.rent.paid)
       const depRem = s.deposit && s.deposit.status !== 'paid' ? Math.max(0, s.deposit.expected - s.deposit.paid) : 0
-      items.push({ ...base, rent: { expected: s.rent.expected, rem: rentRem }, deposit: s.deposit ? { expected: s.deposit.expected, rem: depRem } : null,
+      items.push({ ...base, rent: { expected: s.rent.expected, rem: rentRem, hasPayment: !!s.rent.payment },
+        deposit: s.deposit ? { expected: s.deposit.expected, rem: depRem, hasPayment: !!s.deposit.payment } : null,
         owe: rentRem + depRem, status: s.status })
     }
   }

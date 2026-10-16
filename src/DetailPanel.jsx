@@ -25,7 +25,7 @@ const TYPE_META = {
   contract:    { headerClass: 'modal-header-contract',   icon: '📄', label: 'Detail smlouvy' },
 }
 
-export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange }) {
+export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange, backLabel }) {
   const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
 
   const SEP = ' – '
@@ -3098,10 +3098,19 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 {getSubtitle() && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', marginTop: 4 }}>{getSubtitle()}</div>}
               </div>
             </div>
-            <button
-              onClick={handleClose}
-              style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)', width: 38, height: 38, borderRadius: 10, cursor: 'pointer', color: '#fff', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, backdropFilter: 'blur(4px)' }}
-            >✕</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {/* Detail otevřený z jiného detailu – kam se vrátí Esc / ✕ */}
+              {backLabel && (
+                <button onClick={handleClose} title="Zpět (Esc)"
+                  style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)', height: 38, maxWidth: 260, padding: '0 14px', borderRadius: 10, cursor: 'pointer', color: '#fff', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', backdropFilter: 'blur(4px)' }}
+                >← {backLabel}</button>
+              )}
+              <button
+                onClick={handleClose}
+                title={backLabel ? 'Zpět (Esc)' : 'Zavřít (Esc)'}
+                style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)', width: 38, height: 38, borderRadius: 10, cursor: 'pointer', color: '#fff', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, backdropFilter: 'blur(4px)' }}
+              >✕</button>
+            </div>
           </div>
         </div>
 

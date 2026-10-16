@@ -557,7 +557,7 @@ export function AppProvider({ children }) {
   const deletePayment = async (id) => {
     if (guardWrite()) return
     try {
-      await invoke('delete_payment', { id })
+      await invoke('delete_payment', { id, user: currentUser })
       setPayments(prev => prev.filter(p => p.id !== id))
     } catch (err) {
       console.error('deletePayment error:', err)

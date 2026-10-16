@@ -3,7 +3,7 @@ import { useApp } from '../AppContext.jsx'
 import DialogShell from '../DialogShell.jsx'
 import { setPaymentsFilterOnOpen } from '../shortcuts.js'
 import DataCheck, { computeDataChecks, dataCheckAlerts } from '../DataCheck.jsx'
-import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, overdueItems, hasSuccessor } from '../utils.js'
+import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, overdueItems, contractMonthStatus, groupMonthStatus, hasSuccessor } from '../utils.js'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
 
@@ -109,23 +109,24 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
   })
 
   // ── Karty firem: plnění za aktuální měsíc, neuhrazeno, po splatnosti, končící smlouvy ──
-  // Vždy STRIKTNĚ za jednu firmu (přesná shoda názvu firmy)
+  // Vždy STRIKTNĚ za jednu firmu (přesná shoda názvu firmy). Plnění přes jednotný stav měsíce
+  // (contractMonthStatus / groupMonthStatus): nájem + zálohy bytů, každá položka zvlášť – přeplatek jedné neschová dluh jiné.
   const firmMonth = (firmName, y, m) => {
-    const key = `${y}-${m}`
+    const ctx = { payments, contracts, assets }
     const cs = contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
       isContractInMonth(c, y, m) && firmOf(contractSubject(c, assets)) === firmName)
     let exp = 0, rec = 0
+    const add = (part) => { exp += part.expected; rec += part.status === 'paid' ? part.expected : Math.min(part.paid, part.expected) }
     const seenGroups = new Set()
     for (const c of cs) {
-      exp += getMonthRent(c, y, m) / (PERIOD_LEN[c.paymentFrequency] || 1)
       if (c.groupLabel) {
         if (seenGroups.has(c.groupLabel)) continue
         seenGroups.add(c.groupLabel)
-        const gp = payments.find(p => p.groupLabel === c.groupLabel && p.month === key && p.paymentType !== 'deposit')
-        if (gp) rec += Number(gp.amount) || 0
+        add(groupMonthStatus(c.groupLabel, y, m, ctx))
       } else {
-        const p = payments.find(p => p.contractId === c.id && p.month === key && p.paymentType !== 'deposit')
-        if (p) rec += Number(p.amount) || 0
+        const st = contractMonthStatus(c, y, m, ctx)
+        add(st.rent)
+        if (st.deposit) add(st.deposit)
       }
     }
     return { exp, rec, n: cs.length }
