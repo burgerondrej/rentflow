@@ -307,16 +307,6 @@ impl Database {
         // Migrace: oprava billing_subject pro typ Ostatní (staré hodnoty 'X – Ostatní' → čistý název pronajímatele)
         let _ = self.conn.execute("UPDATE contracts SET billing_subject = 'METROPOLE CB' WHERE billing_subject = 'METROPOLE CB – Ostatní'", []);
         let _ = self.conn.execute("UPDATE contracts SET billing_subject = 'Bürger Pavel' WHERE billing_subject = 'Bürger Pavel – Ostatní'", []);
-        // Migrace: smazat billing_subject u reklam a parkování kde asset patří přímo Bürger Pavel
-        let _ = self.conn.execute(
-            "UPDATE contracts SET billing_subject = NULL \
-             WHERE asset_id IN (SELECT id FROM assets WHERE type IN ('ads','parking') AND subject NOT LIKE 'METROPOLE CB%')",
-            [],
-        );
-        let _ = self.conn.execute(
-            "UPDATE contracts SET invoice_due = NULL WHERE invoice_due IS NOT NULL AND asset_id IN (SELECT id FROM assets WHERE type != 'commercial')",
-            [],
-        );
 
         // Cleanup: uvolni předměty nájmu bez aktivní smlouvy
         let _ = self.conn.execute(
@@ -753,6 +743,14 @@ impl Database {
         result.id = id;
         result.added = Some(added);
         Ok(result)
+    }
+
+    /// (contract_id, effective_from) dodatku – pro záznam do historie před smazáním
+    pub fn get_amendment_brief(&self, id: &str) -> Option<(String, String)> {
+        self.conn.query_row(
+            "SELECT contract_id, COALESCE(effective_from, '') FROM contract_amendments WHERE id=?1",
+            params![id], |r| Ok((r.get(0)?, r.get(1)?)),
+        ).ok()
     }
 
     pub fn delete_amendment(&self, id: &str) -> Result<()> {

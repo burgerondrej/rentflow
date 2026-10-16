@@ -177,7 +177,7 @@ pub fn delete_contract(id: String, user: String, state: State<AppState>) -> std:
                 let _ = db.update_asset(&asset_id, &a);
             }
         }
-        db.add_log(&user, "Smazání", "Smlouvy", &format!("Smazána smlouva: {} ({})", asset_unit, id))?;
+        db.add_log(&user, "Smazání", "Smlouvy", &format!("Smazána smlouva: {} – {}", asset_unit, tenant_name))?;
         Ok(trash_item)
     } else {
         Err(AppError::Other(format!("Contract {} not found", id)))
@@ -187,6 +187,26 @@ pub fn delete_contract(id: String, user: String, state: State<AppState>) -> std:
 // ─────────────────────────────────────────
 // PAYMENTS
 // ─────────────────────────────────────────
+
+/// "předmět – nájemce" pro historii změn (Historie smlouvy podle něj dohledává záznamy)
+fn contract_label(db: &crate::db::Database, contract_id: &str) -> Option<String> {
+    let c = db.get_contracts().ok()?.into_iter().find(|c| c.id == contract_id)?;
+    let unit = db.get_assets().ok()
+        .and_then(|assets| assets.into_iter().find(|a| a.id == c.asset_id))
+        .map(|a| a.unit).unwrap_or_else(|| "?".to_string());
+    let tenant = db.get_tenants().ok()
+        .and_then(|tenants| tenants.into_iter().find(|t| t.id == c.tenant_id))
+        .map(|t| t.name).unwrap_or_else(|| "?".to_string());
+    Some(format!("{} – {}", unit, tenant))
+}
+
+/// Měsíc platby "RRRR-M" (M od 0) → "M/RRRR"
+fn month_label(m: &str) -> String {
+    match m.split_once('-') {
+        Some((y, mm)) => mm.trim().parse::<u32>().map(|n| format!("{}/{}", n + 1, y)).unwrap_or_else(|_| m.to_string()),
+        None => m.to_string(),
+    }
+}
 
 #[tauri::command]
 pub fn get_payments(state: State<AppState>) -> std::result::Result<Vec<Payment>, AppError> {
@@ -238,7 +258,19 @@ pub fn update_payment_amount(id: String, amount: f64, agreed: bool, date: Option
     let db = db!(state);
     db.update_payment_amount(&id, amount, agreed, date.clone())?;
     let date_info = date.as_deref().map(|d| format!(", datum: {}", d)).unwrap_or_default();
-    db.add_log(&user, "Úprava", "Platby", &format!("Upravena platba ID {}: {} Kč{}{}", id, amount, if agreed { " (odsouhlaseno)" } else { "" }, date_info))?;
+    let agreed_info = if agreed { " (odsouhlaseno)" } else { "" };
+    let detail = match db.get_payments().ok().and_then(|ps| ps.into_iter().find(|p| p.id == id)) {
+        Some(p) => {
+            let kind = if p.payment_type == "deposit" { "zálohy" } else { "nájem" };
+            let context = match &p.group_label {
+                Some(g) => format!("skupina \"{}\"", g),
+                None => contract_label(&db, &p.contract_id).unwrap_or_else(|| format!("ID {}", id)),
+            };
+            format!("Upravena platba {} {}: {} Kč{}{} | {}", kind, month_label(&p.month), amount, agreed_info, date_info, context)
+        }
+        None => format!("Upravena platba ID {}: {} Kč{}{}", id, amount, agreed_info, date_info),
+    };
+    db.add_log(&user, "Úprava", "Platby", &detail)?;
     Ok(())
 }
 
@@ -820,8 +852,14 @@ pub fn add_amendment(amendment: ContractAmendment, user: String, state: State<Ap
 #[tauri::command]
 pub fn delete_amendment(id: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
     let db = db!(state);
+    // kontext zjistit PŘED smazáním
+    let detail = match db.get_amendment_brief(&id) {
+        Some((contract_id, effective_from)) => format!("Smazán dodatek od {} | {}", effective_from,
+            contract_label(&db, &contract_id).unwrap_or(contract_id)),
+        None => format!("Smazán dodatek id: {}", id),
+    };
     db.delete_amendment(&id)?;
-    db.add_log(&user, "Smazání", "Dodatek smlouvy", &format!("Smazán dodatek id: {}", id))?;
+    db.add_log(&user, "Smazání", "Dodatek smlouvy", &detail)?;
     Ok(())
 }
 

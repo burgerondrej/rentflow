@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import { EmptyState } from './UI.jsx'
+import { prettyLogDetail } from './utils.js'
 
 const ACTION_TONE = { 'Přidání': 'green', 'Úprava': 'blue', 'Smazání': 'red', 'Archivace': 'amber', 'Obnova': 'violet', 'Automatické prodloužení': 'violet' }
 
@@ -10,7 +11,7 @@ const ACTION_TONE = { 'Přidání': 'green', 'Úprava': 'blue', 'Smazání': 're
  * a skupina plateb. Pozn.: u navazujících smluv stejného nájemce na stejném předmětu se zobrazí i starší záznamy.
  */
 export default function ContractHistory({ contract }) {
-  const { tenants = [], assets = [], payments = [], searchLogs } = useApp()
+  const { tenants = [], assets = [], payments = [], contracts = [], searchLogs } = useApp()
   const [rows, setRows] = useState(null)
   const unit = assets.find(a => a.id === contract.assetId)?.unit
   const tenant = tenants.find(t => t.id === contract.tenantId)?.name
@@ -19,7 +20,7 @@ export default function ContractHistory({ contract }) {
     let alive = true
     const terms = [contract.id]
     if (unit && tenant) terms.push(`${unit} – ${tenant}`)
-    if (contract.groupLabel) terms.push(`group:${contract.groupLabel}`)
+    if (contract.groupLabel) terms.push(`group:${contract.groupLabel}`, `skupina "${contract.groupLabel}"`)
     payments.filter(p => p.contractId === contract.id || (contract.groupLabel && p.groupLabel === contract.groupLabel))
       .slice(0, 150).forEach(p => terms.push(p.id))
     setRows(null)
@@ -46,7 +47,7 @@ export default function ContractHistory({ contract }) {
                 <span style={{ fontSize: 10.5, fontWeight: 800, padding: '1px 8px', borderRadius: 999, background: `var(--tone-${tone}-soft)`, color: `var(--tone-${tone}-text)`, border: `1px solid var(--tone-${tone}-border)` }}>{l.action}</span>
                 <span style={{ fontSize: 11.5, color: 'var(--text2)', fontWeight: 600 }}>{l.module}</span>
               </div>
-              <div style={{ fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-word' }}>{l.detail}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-word' }}>{prettyLogDetail(l.detail, { contracts, payments, assets, tenants })}</div>
             </div>
           </div>
         )

@@ -157,7 +157,7 @@ export default function Contracts({ activeSubject, onOpen }) {
                     <span style={{ fontSize: 11 }}>💰</span>
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)' }}>{{ 'Čtvrtletně': 'Čtvrtletní nájem', 'Pololetně': 'Pololetní nájem', 'Ročně': 'Roční nájem' }[c.paymentFrequency] || 'Měsíční nájem'}</div>
                   </div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: showDph ? 'var(--price-netto)' : 'var(--text)' }}>{((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: showDph ? 'var(--price-netto)' : 'var(--text)', whiteSpace: 'nowrap' }}>{((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč</div>
                   {showDph && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>bez DPH</div>}
                 </div>
                 {c.totalDeposit > 0 && (
@@ -166,7 +166,7 @@ export default function Contracts({ activeSubject, onOpen }) {
                       <span style={{ fontSize: 11 }}>⚡</span>
                       <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)' }}>Zálohy celkem</div>
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: showDph ? 'var(--price-netto)' : 'var(--text)' }}>{c.totalDeposit.toLocaleString('cs-CZ')} Kč</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: showDph ? 'var(--price-netto)' : 'var(--text)', whiteSpace: 'nowrap' }}>{c.totalDeposit.toLocaleString('cs-CZ')} Kč</div>
                     {showDph && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>bez DPH</div>}
                   </div>
                 )}

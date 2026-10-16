@@ -553,6 +553,47 @@ export function getPeriodMonthKeys(contract, refYear, refMonth) {
 }
 
 // ─────────────────────────────────────────
+// HISTORIE ZMĚN – starší záznamy obsahují ID (smlouvy, platby…) místo názvu
+// ─────────────────────────────────────────
+const LOG_ID_RE = /(\s*)([([]?)(?:ID:?\s*|id:\s*)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})([)\]]?)/gi
+
+/**
+ * Text záznamu historie pro ZOBRAZENÍ: ID existující smlouvy / platby / předmětu / nájemce nahradí názvem
+ * („Byt 3 – Novák“, „Byt 3 – Novák, nájem 10/2026“). Když už název v textu je, ID jen vypustí.
+ * Neznámé ID (smazaná položka) vypustí / nahradí „(položka již neexistuje)“. V DB se nic nemění.
+ */
+export function prettyLogDetail(detail, { contracts = [], payments = [], assets = [], tenants = [] } = {}) {
+  if (!detail || !LOG_ID_RE.test(detail)) return detail
+  LOG_ID_RE.lastIndex = 0
+  const contractLabel = (c) => {
+    const unit = assets.find(a => a.id === c.assetId)?.unit
+    const tenant = tenants.find(t => t.id === c.tenantId)?.name
+    return unit && tenant ? `${unit} – ${tenant}` : null
+  }
+  const resolve = (id) => {
+    const c = contracts.find(x => x.id === id)
+    if (c) return contractLabel(c)
+    const p = payments.find(x => x.id === id)
+    if (p) {
+      const [y, m] = String(p.month || '').split('-').map(Number)
+      const what = `${p.paymentType === 'deposit' ? 'zálohy' : 'nájem'}${isNaN(m) ? '' : ` ${m + 1}/${y}`}`
+      if (isGroupPayment(p)) return p.groupLabel ? `skupina "${p.groupLabel}", ${what}` : null
+      const pc = contracts.find(x => x.id === p.contractId)
+      const cl = pc && contractLabel(pc)
+      return cl ? `${cl}, ${what}` : null
+    }
+    return assets.find(a => a.id === id)?.unit || tenants.find(t => t.id === id)?.name || null
+  }
+  return detail.replace(LOG_ID_RE, (all, ws, open, id, close) => {
+    const label = resolve(id.toLowerCase())
+    // neznámé ID (smazaná položka): v závorce jen navíc k názvu → vypustit, jinak poznámka místo kódu
+    if (!label) return open && close ? '' : `${ws}(položka již neexistuje)`
+    if (detail.includes(label)) return ''
+    return `${ws}${open}${label}${close}`
+  })
+}
+
+// ─────────────────────────────────────────
 // SALDO NÁJEMCE – předpis vs. zaplaceno od spuštění RentFlow (1. 1. 2026)
 // ─────────────────────────────────────────
 export const SALDO_FROM = { y: 2026, m: 0 }

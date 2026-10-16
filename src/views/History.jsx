@@ -1,9 +1,11 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useApp } from '../AppContext.jsx'
 import { EmptyState } from '../UI.jsx'
+import { prettyLogDetail } from '../utils.js'
 
 export default function History() {
-  const { logs = [] } = useApp() || {}
+  const { logs = [], contracts = [], payments = [], assets = [], tenants = [] } = useApp() || {}
+  const lookup = useMemo(() => ({ contracts, payments, assets, tenants }), [contracts, payments, assets, tenants])
 
   const getActionBadge = (action) => {
     switch(action) {
@@ -61,7 +63,7 @@ export default function History() {
                     {log.module}
                   </td>
                   <td style={{ padding: '16px 24px', fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>
-                    {log.detail}
+                    {prettyLogDetail(log.detail, lookup)}
                   </td>
                 </tr>
               )

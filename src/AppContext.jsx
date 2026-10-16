@@ -394,6 +394,13 @@ export function AppProvider({ children }) {
     }
   }
 
+  // „předmět – nájemce“ pro historii změn (Historie smlouvy podle něj dohledává záznamy); bez názvů ID
+  const contractLogLabel = (c, tenantId = c?.tenantId) => {
+    const unit = assets.find(a => a.id === c?.assetId)?.unit
+    const tenant = tenants.find(t => t.id === tenantId)?.name
+    return unit && tenant ? `${unit} – ${tenant}` : (c?.id || '')
+  }
+
   // endDate (D. M. RRRR) = poslední den nájmu → smlouva zůstává v Platbách/historii do tohoto data
   const archiveContract = async (id, endDate) => {
     if (guardWrite()) return
@@ -405,7 +412,7 @@ export function AppProvider({ children }) {
       const otherActive = contracts.some(c => c.id !== id && c.assetId === item.assetId && c.status === 'active')
       if (!otherActive) await updateAsset(item.assetId, { status: 'free' })
     }
-    logAction('Archivace', 'Smlouvy', `Archivována smlouva: ${id}${endDate ? ` (poslední den nájmu ${endDate})` : ''}`)
+    logAction('Archivace', 'Smlouvy', `Archivována smlouva: ${contractLogLabel(item)}${endDate ? ` (poslední den nájmu ${endDate})` : ''}`)
   }
 
   // Navazující smlouvy: items = [{ contract, rent }], newStart/newEnd = Date (newEnd null = neurčito).
@@ -503,8 +510,7 @@ export function AppProvider({ children }) {
       if (freshContracts) setContracts(freshContracts)
       if (freshAssets) setAssets(freshAssets)
       if (freshLogs) setLogs(freshLogs)
-      const newTenant = tenants.find(t => t.id === tenantId)
-      logAction('Přidání', 'Smlouvy', `Změna nájemce na předmětu ${old.assetId}: od ${toCzDate(start)} ${newTenant?.name || tenantId} (předchozí smlouva do ${endCz})`)
+      logAction('Přidání', 'Smlouvy', `Změna nájemce od ${toCzDate(start)}: ${contractLogLabel(old)} (předchozí smlouva do ${endCz}) → ${contractLogLabel(old, tenantId)}`)
       return true
     } catch (err) {
       console.error('changeTenant error:', err)

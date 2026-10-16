@@ -157,9 +157,9 @@ export default function Assets({ type, activeSubject, onOpen }) {
               <div style={{ display: 'grid', gridTemplateColumns: showDeposit ? '1fr 1fr 1fr' : '1fr 1fr', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${cardBorder}` }}>
                 {cell('Platnost do', '🗓️', <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{activeContract.end || 'Neurčito'}</div>, 'left', false)}
                 {cell(conf.priceLabel + (isCommercial ? ' bez DPH' : ''), '💰',
-                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)' }}>{included ? 'zahrnuto' : `${(ev.rent + ev.parking + ev.flatFee).toLocaleString('cs-CZ')} Kč`}</div>, 'center', !showDeposit)}
+                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', whiteSpace: 'nowrap' }}>{included ? 'zahrnuto' : `${(ev.rent + ev.parking + ev.flatFee).toLocaleString('cs-CZ')} Kč`}</div>, 'center', !showDeposit)}
                 {showDeposit && cell(isCommercial ? 'Zálohy bez DPH' : 'Zálohy energií', '⚡',
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{totalDeposit.toLocaleString('cs-CZ')} Kč</div>, 'right', true)}
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap' }}>{totalDeposit.toLocaleString('cs-CZ')} Kč</div>, 'right', true)}
               </div>
             )
           })()}
