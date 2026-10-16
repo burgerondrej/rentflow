@@ -13,7 +13,7 @@ Komunikace: česky, přímo, stručně, bez vaty. Šetři tokeny.
 - Nejdřív navrhni plán (co, kde, proč), počkej na souhlas, teprve pak edituj.
 - Po každé úpravě vypiš: seznam změněných souborů (s cestou), postup testu (konkrétní kroky v appce), případný build postup.
 - Po změně Rust souborů (commands.rs, models.rs, db.rs) ověř kompilaci: `cd src-tauri; cargo check`.
-- Po změně frontendu ověř: `npm run build`.
+- Po změně frontendu ověř: `npm run build`. Po změně výpočtů v utils.js navíc `npm test` (tests/payments.test.mjs, pevné „dnes“ 16. 10. 2026 – nové scénáře přidávat sem).
 - Pracovat v JEDNÉ složce `C:\Users\ondra\rentflow`. Pokud session běží ve worktree, před testem změny commitni a srovnej hlavní složku (`git -C C:\Users\ondra\rentflow merge --ff-only <větev>`) – Ondra testuje vždy z hlavní složky.
 - Ke každé žádosti o test přidej spustitelný blok: `cd C:\Users\ondra\rentflow; npm run tauri:dev` (před testem připomenout Ctrl+S).
 - Změny UI dělej po blocích; větší grafické změny nejdřív jako náhled (mockup) k odsouhlasení.
@@ -30,7 +30,7 @@ Komunikace: česky, přímo, stručně, bez vaty. Šetři tokeny.
 
 Release workflow (po schválení provede Claude sám, bez Ondrova zásahu):
 1. Zvýšit verzi (povinné): ručně `version` v `src-tauri/tauri.conf.json` A ZÁROVEŇ `npm version X.X.X --no-git-tag-version` (package.json + package-lock.json). Všechny tři musí sedět.
-2. Ověřit `npm run build` (+ `cargo check` při změně Rustu). `git add` jen záměrné soubory → `git commit -m "vX.X.X: popis"`.
+2. Ověřit `npm test` + `npm run build` (+ `cargo check` při změně Rustu). `git add` jen záměrné soubory → `git commit -m "vX.X.X: popis"`.
 3. Push do main: z main checkoutu `git push origin main`, z worktree `git push origin HEAD:main` (jen fast-forward).
 4. `git tag vX.X.X` → ověřit, že tag ukazuje na pushnutý HEAD (`git log -1 --oneline`, `git show vX.X.X --stat`) → `git push origin vX.X.X`.
 5. GitHub Actions (~15 min): build + podpis → `.nsis.zip` do `burgerondrej/rentflow-releases` → `latest.json` do `burgerondrej/rentflow-updates`.
@@ -52,7 +52,7 @@ Secrets: TAURI_PRIVATE_KEY, TAURI_KEY_PASSWORD, PAGES_TOKEN, RELEASES_TOKEN.
 - Ctrl+S v appce = záloha `YYYY-MM-DD_HHMM.db` + kopie DB a documents/ na GDrive.
 
 Klíčové soubory:
-- `src/utils.js` – parseDate, getEffectiveValues/Today, getMonthRent/RentParking, getMonthDeposits, isContractBillable/InMonth/Occupying, getCurrentAssetContract, getPeriodMonthKeys, applyContractOrder, dueDateFor/overdueDays, firmOf/sectionOf, firmSelection/selectionMatches/selectionLabel, firmColors (paleta firem), ASSET_TYPES/assetTypeStyle, contractSubject, tenantRentsByFirm; **stav platby** contractMonthStatus / groupMonthStatus / isGroupPayment; hasSuccessor / currentPerAsset / isEndingWithoutSuccessor; tenantSaldo (SALDO_FROM = 1. 1. 2026); depositMonths / depositYearRows; noticeDeadline; getLastPayDate / setLastPayDate.
+- `src/utils.js` – parseDate, getEffectiveValues/Today, getMonthRent/RentParking, getMonthDeposits, isContractBillable/InMonth/Occupying, getCurrentAssetContract, getPeriodMonthKeys, applyContractOrder, dueDateFor/overdueDays, firmOf/sectionOf, firmSelection/selectionMatches/selectionLabel, firmColors (paleta firem), ASSET_TYPES/assetTypeStyle, contractSubject, tenantRentsByFirm; **stav platby** contractMonthStatus / groupMonthStatus / isGroupPayment; hasSuccessor / currentPerAsset / isEndingWithoutSuccessor; tenantSaldo (SALDO_FROM = 1. 1. 2026); **po splatnosti** overdueItems / dueDateFor / overdueDays / DUE_PREPAID; depositMonths / depositYearRows; noticeDeadline; getLastPayDate / setLastPayDate; prettyLogDetail (ID v historii → název při zobrazení).
 - `src/UI.jsx` – SectionHeader / SectionCard (hlavička sekce), Segmented (přepínač/záložky), EmptyState (prázdný stav).
 - `src/DialogShell.jsx` – jednotná kostra všech dialogů (ikona, nadpis, ✕, patička); isDialogOpen() – Esc zavírá jen horní dialog.
 - `src/shortcuts.js` – Ctrl+N (událost rf-new, useNewShortcut), isTyping/isOverlayOpen, předání filtru Plateb / Smluv z jiné obrazovky.
@@ -62,9 +62,9 @@ Klíčové soubory:
 - `src/RenewContractsDialog.jsx` – navazující smlouvy (hromadné prodloužení).
 - `src/views/Calendar.jsx` – kalendář (konce smluv, revize, úkoly); buildCalendarEvents sdílí Dashboard.
 - `src/AppContext.jsx` – Tauri IPC bridge, state, theme, showToast(message, type). archiveContract kontroluje jiné aktivní smlouvy.
-- `src/App.jsx` – AppWithActivation wrapper, Ctrl+F, Ctrl+S, PIN modal, auto-update check po 3 s.
+- `src/App.jsx` – AppWithActivation wrapper, Ctrl+F, Ctrl+S, PIN modal, auto-update check po 3 s. Zásobník detailů (openDetail / closeDetail / closeAllDetails, onReturn).
 - `src/DetailPanel.jsx` – detaily smlouvy / předmětu / nájemce: barevný pás + klíčové údaje + záložky (smlouva: Přehled/Platby/Dodatky/Dokumenty; předmět: Přehled/Smlouvy/Dokumenty; nájemce: Přehled/Smlouvy/Platby/Dokumenty). Podíl na platbě skupiny (jen zobrazení).
-- `src/views/Payments.jsx` – platební logika (viz níže).
+- `src/views/Payments.jsx` – platební logika (viz níže). Záložky: Přehled za měsíc / Historie 6 měsíců / Neuhrazené napříč pronajímateli / ⚠ Po splatnosti (všechny měsíce, Zapsat, Report PDF).
 - `src/views/Export.jsx` – PDF přes getEffectiveValuesToday(c), sloupec Paušál. PDF = Edge headless `--print-to-pdf` (bez Google Fonts @import).
 - `src/ActivationScreen.jsx` – aktivace (hash SHA-256 v Rustu, stav v settings.json "activated").
 - `src-tauri/src/db.rs` – migrace (seed subjektů ODSTRANĚN, fresh install = prázdné tabulky).
@@ -106,6 +106,9 @@ Budovy (`objects`, sloupec `firm`) patří firmám – Revize a Provozní nákla
 - Tónové barvy jen z proměnných `--tone-<green|amber|red|blue|violet|gray>-bg/soft/border/text` a tříd `btn-tone-*` – žádné natvrdo světlé odstíny (#F0FDF4, #FEF2F2…) v JSX. Výjimka: HTML pro PDF (Export, report v Platbách) – tam VŽDY hex, CSS proměnné v PDF nefungují.
 - Připnuté záhlaví tabulky: `.sticky-head` (top: -24px kvůli odsazení .content), obal tabulky overflow: clip (ne hidden).
 - `reqwest::blocking` uvnitř async Tauri commandu = deadlock.
+- Popup / detail se otevírá NAD aktuální obrazovkou – nikdy nepřepínat záložku/stránku kvůli otevření okna. Po zavření zůstat, odkud se otevřel (potřebuje-li okno jiný měsíc, přepnout dočasně a po zavření vrátit). Detaily VŽDY přes openDetail (zásobník v App.jsx): Esc / ✕ = krok zpět (i na předchozí záložku), klik mimo = zavřít vše; okno, ze kterého se detail otevřel (Kontrola dat, Nastavení), předat jako onReturn.
+- Záznamy historie (add_log / logAction) VŽDY s popisem „předmět – nájemce“ (u platby i druh a měsíc, u skupiny `skupina "název"`), NIKDY jen ID. Historie smlouvy záznamy dohledává podle tohoto textu.
+- Jednorázové migrace dat v db.rs hlídat přes `PRAGMA user_version` (1 = splatnost bytů v1.4.1), aby nepřepsaly pozdější ruční změny.
 - Payments.jsx: pořadí const arrow funkcí je kritické (temporal dead zone).
 
 ## 5. Platby a dodatky – logika
@@ -134,6 +137,8 @@ Budovy (`objects`, sloupec `firm`) patří firmám – Revize a Provozní nákla
 - Navazující smlouvy: renewContracts (AppContext) + RenewContractsDialog. Pořadí: záloha → stará smlouva archived s koncem = den před novým začátkem → nová smlouva se stejným předmětem, skupinou a nastavením; zálohy/paušál/parking v aktuálně platné výši, dodatky se nekopírují, rentTotal = 0. Skupinové platby navazují přes group_label.
 - Smlouvy: záložky Platné (aktivní + ukončené s budoucím koncem) / Ukončené.
 - Po splatnosti: dueDateFor(c, y, m) z pole due_day („15. den v měsíci“ měsíčně, „30. 4.“ ročně; „Dle vystavené faktury“ = neurčuje se); overdueDays() zobrazit v Platbách, na kartách firem a v detailu nájemce.
+- Platba předem: due_day „15. den předchozího měsíce na měsíc následující“ (DUE_PREPAID; byty a ubytovací jednotky, vybraná parkovací stání) → splatnost 15. den PŘEDCHOZÍHO měsíce (říjen do 15. 9.). Platby se dál zapisují za měsíc, kterého se týkají (v Platbách listopad = listopadový nájem). Saldo i Po splatnosti proto počítají až do příštího měsíce.
+- Seznam a počty „po splatnosti“ (karta firmy na Dashboardu, záložka Po splatnosti, Report PDF) VÝHRADNĚ přes overdueItems(ctx, match) – všechny měsíce od 1. 1. 2026, víceměsíční smlouva = jedna položka za okno. Plnění (kolečko) karty firmy přes contractMonthStatus / groupMonthStatus po položkách (přeplatek nesmí schovat dluh).
 - Skupinové platby: v DB jedna platba na skupinu (contract_id NULL + group_label). Detail smlouvy ve skupině ukazuje jen PODÍL (platba × předpis místa / předpis skupiny v měsíci) – nic se nerozděluje v DB.
 - Uložené platby se nikdy zpětně nemění. Základní pole smlouvy platí pro celou historii, dodatky jen od data účinnosti.
 
@@ -181,11 +186,12 @@ Pravidla:
 - v1.2.3: navazující smlouvy (hromadné prodloužení), záložky Platné/Ukončené ve Smlouvách, zálohy při předávce uprostřed měsíce, zachování pořadí smluv po prodloužení.
 - v1.3.0: firmy METROPOLE CZ, JIHOTANK, JIHOTANK CB se striktním oddělením; barvy a zkratky firem; strom firma → sekce/budova (Platby, Dokumenty, Revize, Provozní náklady, horní lišta, Export); karty firem a Nejbližší termíny na Dashboardu; Kalendář; po splatnosti; podíl na platbě skupiny; detaily se záložkami; jednotné štítky, barvy typů a hlavičky; velikost písma; kontrast + tmavý režim; Kanban filtr firem; PDF v barvách firem.
 - v1.4.0: revize plateb (jednotný stav měsíce, zálohy při prodloužení, součty bez zdvojení), saldo, zálohy za rok a vyúčtování, změna nájemce, firmy a sekce v Nastavení, kontrola dat, historie smlouvy, záloha při zavření, filtry končících smluv, plovoucí přepínač měsíců, sjednocený design a tmavý režim, zkratky (← →, Ctrl+N), zapamatování data úhrady, dokumenty smluv u nájemce.
-- Nápady na později: přehled dlužníků na Dashboardu; uživatelský manuál RF. NE: hromadná valorizace, import z banky, upomínky PDF, připomínka valorizace, hromadné „Uhrazeno“, začátky smluv v Kalendáři.
+- v1.4.1: splatnost předem (byty, ubytovací jednotky; migrace), záložka ⚠ Po splatnosti (všechny měsíce, Zapsat, Report PDF, podle nájemce) + karta firmy s proklikem, kolečko karty přes jednotný stav, karty firem bez grafu 6 měsíců, historie bez ID (i zpětně při zobrazení, smazání platby v logu), zásobník detailů (Esc = krok zpět, ← Zpět), Kč bez zalomení, přejmenované záložky Plateb, automatické testy (npm test).
+- Nápady na později: uživatelský manuál RF (vč. splatnosti předem a Po splatnosti). NE: hromadná valorizace, import z banky, upomínky PDF, připomínka valorizace, hromadné „Uhrazeno“, začátky smluv v Kalendáři.
 - localStorage pro currentUser.
 - Odložené: sdružování parkovacích stání (group_label) – částečně implementováno.
 
 ## 11. Údržba tohoto souboru
 
 Na konci každé větší session navrhni úpravu CLAUDE.md (nová pravidla, poučení, verze). Zapisuj jen po odsouhlasení.
-Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 15. 10. 2026: v1.4.0).
+Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 16. 10. 2026: v1.4.1).
