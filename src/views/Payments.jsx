@@ -443,8 +443,9 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
 
 export default function Payments() {
   const { contracts = [], tenants = [], assets = [], payments = [], firms = [], getFirm, theme, addPayment, deletePayment, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
-  const [selectedYear, setSelectedYear]   = useState(new Date().getFullYear())
+  // Otevření z karty firmy („po splatnosti“) může předat i měsíc: { filter, year, month }
+  const [selectedMonth, setSelectedMonth] = useState(() => peekPaymentsFilter()?.month ?? new Date().getMonth())
+  const [selectedYear, setSelectedYear]   = useState(() => peekPaymentsFilter()?.year ?? new Date().getFullYear())
   const [showPicker, setShowPicker]       = useState(false)
   // Plovoucí přepínač měsíců: ukáže se, jen když horní přepínač odjede z obrazovky
   const monthSwitchRef = useRef(null)
@@ -490,7 +491,7 @@ export default function Payments() {
   }, [subjectsWithContracts.join('\0')])
   const [detailContract, setDetailContract] = useState(null)
   const [activeTab, setActiveTab]           = useState('overview')
-  const [rowFilter, setRowFilter]           = useState(() => peekPaymentsFilter() || 'all') // all | unpaid | overdue
+  const [rowFilter, setRowFilter]           = useState(() => { const f = peekPaymentsFilter(); return (typeof f === 'string' ? f : f?.filter) || 'all' }) // all | unpaid | overdue
   useEffect(() => { clearPaymentsFilter() }, [])
   const [pendingPayment, setPendingPayment] = useState(null)   // { contract, tenantName, paymentType }
   const [periodPicker, setPeriodPicker]     = useState(null)   // { contract, preselectedKeys }

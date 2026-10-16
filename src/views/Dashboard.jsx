@@ -7,6 +7,8 @@ import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMo
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
 
+const MONTHS_LC = ['leden', 'únor', 'březen', 'duben', 'květen', 'červen', 'červenec', 'srpen', 'září', 'říjen', 'listopad', 'prosinec']
+
 export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
   const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [], getFirm, theme, firms = [], setNavSelection, objectFirms = [] } = useApp() || {}
   const [expandedGroup, setExpandedGroup] = useState(null) // { days, colorVar, list }
@@ -129,10 +131,13 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
   }
   // Počet neuhrazených položek po splatnosti za aktuální měsíc (smlouvy / skupiny firmy)
   // + příští měsíc, pokud už je po splatnosti (platba předem – „15. den předchozího měsíce“)
+  // Vrací { n, months: [{ y, m }] } – měsíce, ve kterých je něco po splatnosti (od nejstaršího)
   const firmOverdue = (firmName) => {
     const cy = today.getFullYear(), cm = today.getMonth()
     let n = 0
+    const months = []
     for (const [y, m] of [[cy, cm], cm === 11 ? [cy + 1, 0] : [cy, cm + 1]]) {
+      const before = n
       const cs = contracts.filter(c => isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
         isContractInMonth(c, y, m) && firmOf(contractSubject(c, assets)) === firmName)
       const seen = new Set()
@@ -147,8 +152,9 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
           if (!contractMonthStatus(c, y, m, ctx).complete && overdueDays(c, y, m) > 0) n++
         }
       }
+      if (n > before) months.push({ y, m })
     }
-    return n
+    return { n, months }
   }
   const firmCards = firms.map(f => {
     const st = firmMonth(f.name, today.getFullYear(), today.getMonth())
@@ -243,9 +249,9 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
                   </div>
                 </div>
                 <div style={{ height: 10 }} />
-                {overdue > 0 && (
-                  <div title="Otevřít Platby jen s položkami po splatnosti" onClick={e => { e.stopPropagation(); openFirmPayments(f, 'overdue') }}
-                    style={{ fontSize: 11.5, fontWeight: 800, color: '#DC2626', marginBottom: 3, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>⚠ {overdue} po splatnosti ➔</div>
+                {overdue.n > 0 && (
+                  <div title="Otevřít Platby (nejstarší měsíc) jen s položkami po splatnosti" onClick={e => { e.stopPropagation(); openFirmPayments(f, { filter: 'overdue', year: overdue.months[0].y, month: overdue.months[0].m }) }}
+                    style={{ fontSize: 11.5, fontWeight: 800, color: '#DC2626', marginBottom: 3, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>⚠ {overdue.n} po splatnosti ({overdue.months.map(x => MONTHS_LC[x.m]).join(', ')}) ➔</div>
                 )}
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: ending ? '#D97706' : 'var(--text3)' }}>
                   {ending ? `${ending} ${ending === 1 ? 'smlouva končí' : ending < 5 ? 'smlouvy končí' : 'smluv končí'} do 60 dní` : 'Žádná smlouva brzy nekončí'}
