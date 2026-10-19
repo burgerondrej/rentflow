@@ -13,7 +13,7 @@ Komunikace: česky, přímo, stručně, bez vaty. Šetři tokeny.
 - Nejdřív navrhni plán (co, kde, proč), počkej na souhlas, teprve pak edituj.
 - Po každé úpravě vypiš: seznam změněných souborů (s cestou), postup testu (konkrétní kroky v appce), případný build postup.
 - Po změně Rust souborů (commands.rs, models.rs, db.rs) ověř kompilaci: `cd src-tauri; cargo check`.
-- Po změně frontendu ověř: `npm run build`. Po změně výpočtů v utils.js navíc `npm test` (tests/payments.test.mjs, pevné „dnes“ 16. 10. 2026 – nové scénáře přidávat sem).
+- Po změně frontendu ověř: `npm run build`. Po změně výpočtů v utils.js navíc `npm test` (pevné „dnes“ 16. 10. 2026). `tests/payments.test.mjs` testuje JEN utils.js (přebírá ho i RentFlow Android) – testy ostatních souborů do vlastních souborů (např. `tests/reports.test.mjs`).
 - Pracovat v JEDNÉ složce `C:\Users\ondra\rentflow`. Pokud session běží ve worktree, před testem změny commitni a srovnej hlavní složku (`git -C C:\Users\ondra\rentflow merge --ff-only <větev>`) – Ondra testuje vždy z hlavní složky.
 - Ke každé žádosti o test přidej spustitelný blok: `cd C:\Users\ondra\rentflow; npm run tauri:dev` (před testem připomenout Ctrl+S).
 - Změny UI dělej po blocích; větší grafické změny nejdřív jako náhled (mockup) k odsouhlasení.
@@ -56,18 +56,18 @@ Klíčové soubory:
 - `src/UI.jsx` – SectionHeader / SectionCard (hlavička sekce), Segmented (přepínač/záložky), EmptyState (prázdný stav).
 - `src/DialogShell.jsx` – jednotná kostra všech dialogů (ikona, nadpis, ✕, patička); isDialogOpen() – Esc zavírá jen horní dialog.
 - `src/shortcuts.js` – Ctrl+N (událost rf-new, useNewShortcut), isTyping/isOverlayOpen, předání filtru Plateb / Smluv z jiné obrazovky.
-- `src/ChangeTenantDialog.jsx` – změna nájemce na předmětu (changeTenant v AppContext). `src/FirmsSettings.jsx` – Nastavení → firmy, sekce, budovy. `src/DataCheck.jsx` – kontrola dat (computeDataChecks, proužek na Dashboardu). `src/ContractHistory.jsx` – záložka Historie smlouvy (search_logs).
+- `src/ChangeTenantDialog.jsx` – změna nájemce na předmětu (changeTenant v AppContext). `src/FirmsSettings.jsx` – Nastavení → firmy, sekce, budovy. `src/DataCheck.jsx` – kontrola dat (computeDataChecks, proužek na Dashboardu; 1× za 14 dní se proužek ukáže znovu i se zavřenými nálezy – localStorage rf_datacheck_review). `src/ContractHistory.jsx` – záložka Historie smlouvy (search_logs).
 - `src/FirmUI.jsx` – FirmBadge (zkratka firmy), FirmRentSummary (součty po firmách), FirmPicker (strom firma → sekce/budova, „Vše“), FirmPickerButton (horní lišta), useObjectFirms (budovy po firmách), progressStat.
 - `src/StatusUI.jsx` – STATUS (jednotný slovník stavů), StatusPill, contractStatus(c).
 - `src/RenewContractsDialog.jsx` – navazující smlouvy (hromadné prodloužení).
 - `src/views/Calendar.jsx` – kalendář (konce smluv, revize, úkoly); buildCalendarEvents sdílí Dashboard.
-- `src/AppContext.jsx` – Tauri IPC bridge, state, theme, showToast(message, type). archiveContract kontroluje jiné aktivní smlouvy.
+- `src/AppContext.jsx` – Tauri IPC bridge, state, theme, showToast(message, type), confirmAction({ title, text, okLabel, danger, onOk }) – společné potvrzovací okno, removePayments (zrušení plateb s potvrzením). archiveContract kontroluje jiné aktivní smlouvy.
 - `src/App.jsx` – AppWithActivation wrapper, Ctrl+F, Ctrl+S, PIN modal, auto-update check po 3 s. Zásobník detailů (openDetail / closeDetail / closeAllDetails, onReturn).
 - `src/DetailPanel.jsx` – detaily smlouvy / předmětu / nájemce: barevný pás + klíčové údaje + záložky (smlouva: Přehled/Platby/Dodatky/Dokumenty; předmět: Přehled/Smlouvy/Dokumenty; nájemce: Přehled/Smlouvy/Platby/Dokumenty). Podíl na platbě skupiny (jen zobrazení).
-- `src/views/Payments.jsx` – platební logika (viz níže). Záložky: Přehled za měsíc / Historie 6 měsíců / Neuhrazené napříč pronajímateli / ⚠ Po splatnosti (všechny měsíce, Zapsat, Report PDF).
+- `src/views/Payments.jsx` – platební logika (viz níže). Záložky: Přehled za měsíc / Historie 6 měsíců / ⚠ Po splatnosti (všechny měsíce, Zapsat, Report PDF). `src/reports.js` – HTML PDF reportu Po splatnosti (buildOverdueReportHtml, REPORT_CSS).
 - `src/views/Export.jsx` – PDF přes getEffectiveValuesToday(c), sloupec Paušál. PDF = Edge headless `--print-to-pdf` (bez Google Fonts @import).
 - `src/ActivationScreen.jsx` – aktivace (hash SHA-256 v Rustu, stav v settings.json "activated").
-- `src-tauri/src/db.rs` – migrace (seed subjektů ODSTRANĚN, fresh install = prázdné tabulky).
+- `src-tauri/src/db.rs` – migrace (seed subjektů ODSTRANĚN, fresh install = prázdné tabulky). `main.rs`: při prvním spuštění nové verze (`last_version.txt`) záloha DB PŘED migracemi → `backups/backup-…-pred-vX.Y.Z.db` (VACUUM INTO).
 - `src-tauri/src/commands.rs` – verify_activation, check_activation, load_settings (odstraňuje UTF-8 BOM), backup.
 
 Subjekty jsou VÝHRADNĚ v tabulce `subjects` (name, asset_type, is_vat_payer, short_name, color, sort_order). Název = „FIRMA – Sekce“ (oddělovač ` – ` EN DASH), firma = část před oddělovačem.
@@ -82,7 +82,7 @@ Budovy (`objects`, sloupec `firm`) patří firmám – Revize a Provozní nákla
 - NIKDY window.confirm() → ConfirmDialog (props: title, text, danger, okLabel, onOk). NIKDY alert() → showToast().
 - JS nikdy negeneruje ID – UUID výhradně v Rustu.
 - Každý Rust struct s `id: String` musí mít `#[serde(default)]`. `EMPTY_FORM.id` = `""`, nikdy `null`.
-- VIEWS v App.jsx volat `{ActiveView()}`, NE `<ActiveView />` (remount, ztráta stavu).
+- VIEWS v App.jsx volat `{ActiveView()}`, NE `<ActiveView />` (remount, ztráta stavu). Každá položka VIEWS MUSÍ být `() => <View … />`, NIKDY samotná komponenta (`history: History`) – ta by se zavolala jako funkce a její hooky by patřily App → po přidání hooku bílá obrazovka (bug Logu aktivity v1.4.1).
 - `whiteSpace: nowrap` na všech labelech SubjectSelectoru.
 - Hodnoty smlouvy vždy přes getEffectiveValues / getEffectiveValuesToday, NIKDY Number(c.rent).
 - Parking/voda/paušál vždy z EFEKTIVNÍ hodnoty, nikdy z c.parking / includedParkingSpots.
@@ -109,6 +109,7 @@ Budovy (`objects`, sloupec `firm`) patří firmám – Revize a Provozní nákla
 - Popup / detail se otevírá NAD aktuální obrazovkou – nikdy nepřepínat záložku/stránku kvůli otevření okna. Po zavření zůstat, odkud se otevřel (potřebuje-li okno jiný měsíc, přepnout dočasně a po zavření vrátit). Detaily VŽDY přes openDetail (zásobník v App.jsx): Esc / ✕ = krok zpět (i na předchozí záložku), klik mimo = zavřít vše; okno, ze kterého se detail otevřel (Kontrola dat, Nastavení), předat jako onReturn.
 - Záznamy historie (add_log / logAction) VŽDY s popisem „předmět – nájemce“ (u platby i druh a měsíc, u skupiny `skupina "název"`), NIKDY jen ID. Historie smlouvy záznamy dohledává podle tohoto textu.
 - Jednorázové migrace dat v db.rs hlídat přes `PRAGMA user_version` (1 = splatnost bytů v1.4.1), aby nepřepsaly pozdější ruční změny.
+- Nevratné akce (zrušení platby, mazání, archivace, trvalé smazání, čištění) VŽDY až po potvrzení: ConfirmDialog / confirmAction (okno uprostřed s konkrétním popisem, co se stane). Platby rušit VÝHRADNĚ přes removePayments (potvrzuje samo; `{ confirm: false }` jen tam, kde se už potvrdilo).
 - Payments.jsx: pořadí const arrow funkcí je kritické (temporal dead zone).
 
 ## 5. Platby a dodatky – logika
@@ -162,6 +163,12 @@ Pravidla:
 - Nikdy nekopírovat DB při běžícím RF.
 - `cz.rentflow.app\rentflow` může být omylem SOUBOR místo složky – kontrola (Get-Item).PSIsContainer.
 
+## 7a. Android aplikace (RentFlow Android, `C:\Users\ondra\rentflow-android`) – VŽDY MYSLET
+
+- Mobil je read-only kopie (samostatný projekt / vlákno): přebírá `src/utils.js` (`npm run sync-core`) a čte DB podle `db.rs` / `models.rs` (kopie `Můj disk/RentFlow backup/rentflow.db`).
+- Po každé změně `utils.js`, `db.rs` / `models.rs` (schéma, sloupce, migrace, serde názvy) nebo zobrazení dat (Dashboard, Platby, detaily) na konci odpovědi připomeň: „Promítnout do mobilu: v RentFlow Android napiš ‚synchronizuj s desktopem‘.“ Totéž v souhrnu releasu.
+- Desktop kvůli mobilu nikdy neupravovat. Změna formátu / umístění kopie DB na Google Disku (Ctrl+S, záloha při zavření) = upozornit na dopad do mobilu.
+
 ## 8. PowerShell pravidla
 
 - `[Text.Encoding]::UTF8` přidává BOM → používat `[Text.UTF8Encoding]::new($false)`.
@@ -187,6 +194,7 @@ Pravidla:
 - v1.3.0: firmy METROPOLE CZ, JIHOTANK, JIHOTANK CB se striktním oddělením; barvy a zkratky firem; strom firma → sekce/budova (Platby, Dokumenty, Revize, Provozní náklady, horní lišta, Export); karty firem a Nejbližší termíny na Dashboardu; Kalendář; po splatnosti; podíl na platbě skupiny; detaily se záložkami; jednotné štítky, barvy typů a hlavičky; velikost písma; kontrast + tmavý režim; Kanban filtr firem; PDF v barvách firem.
 - v1.4.0: revize plateb (jednotný stav měsíce, zálohy při prodloužení, součty bez zdvojení), saldo, zálohy za rok a vyúčtování, změna nájemce, firmy a sekce v Nastavení, kontrola dat, historie smlouvy, záloha při zavření, filtry končících smluv, plovoucí přepínač měsíců, sjednocený design a tmavý režim, zkratky (← →, Ctrl+N), zapamatování data úhrady, dokumenty smluv u nájemce.
 - v1.4.1: splatnost předem (byty, ubytovací jednotky; migrace), záložka ⚠ Po splatnosti (všechny měsíce, Zapsat, Report PDF, podle nájemce) + karta firmy s proklikem, kolečko karty přes jednotný stav, karty firem bez grafu 6 měsíců, historie bez ID (i zpětně při zobrazení, smazání platby v logu), zásobník detailů (Esc = krok zpět, ← Zpět), Kč bez zalomení, přejmenované záložky Plateb, automatické testy (npm test).
+- v1.4.2: oprava bílé obrazovky Logu aktivity, potvrzovací okna u nevratných akcí (zrušení platby, archivace, mazání, koš, čištění duplicit), záloha DB před aktualizací, Kontrola dat (pravidelně 1× za 14 dní; nové kontroly: skupina s různou splatností, platba nad 150 % předpisu, dodatky mimo platnost, duplicitní nájemci, splatnost bez termínu), Platby bez záložky Neuhrazené a starého reportu, detail nájemce „Příští měsíc“ u plateb předem.
 - Nápady na později: uživatelský manuál RF (vč. splatnosti předem a Po splatnosti). NE: hromadná valorizace, import z banky, upomínky PDF, připomínka valorizace, hromadné „Uhrazeno“, začátky smluv v Kalendáři.
 - localStorage pro currentUser.
 - Odložené: sdružování parkovacích stání (group_label) – částečně implementováno.
@@ -194,4 +202,4 @@ Pravidla:
 ## 11. Údržba tohoto souboru
 
 Na konci každé větší session navrhni úpravu CLAUDE.md (nová pravidla, poučení, verze). Zapisuj jen po odsouhlasení.
-Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 16. 10. 2026: v1.4.1).
+Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 19. 10. 2026: v1.4.2).
