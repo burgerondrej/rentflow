@@ -50,8 +50,23 @@ fn main() {
                 let _ = std::fs::create_dir_all(parent);
             }
 
+            // První spuštění nové verze → záloha DB PŘED migracemi (backups/backup-…-pred-vX.Y.Z.db).
+            // Verze posledního spuštění je v last_version.txt (ne v settings.json – ten přepisuje frontend).
+            let app_version = app.package_info().version.to_string();
+            let version_marker = app_dir.join("last_version.txt");
+            let last_version = std::fs::read_to_string(&version_marker).unwrap_or_default();
+            if db_path.exists() && last_version.trim() != app_version {
+                let backup_dir = app_dir.join("backups");
+                let _ = std::fs::create_dir_all(&backup_dir);
+                let name = format!("backup-{}-pred-v{}.db", chrono::Local::now().format("%Y-%m-%d_%H%M"), app_version);
+                if let Err(e) = Database::backup_before_open(&db_path, &backup_dir.join(name)) {
+                    eprintln!("Záloha před aktualizací selhala: {}", e);
+                }
+            }
+
             let db = Database::new(&db_path)
                 .expect("Nelze otevřít databázi");
+            let _ = std::fs::write(&version_marker, &app_version);
 
             let baseline = db.total_changes();
             app.manage(AppState {

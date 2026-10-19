@@ -27,6 +27,13 @@ impl Database {
         Ok(db)
     }
 
+    /// Záloha DB PŘED otevřením a migracemi (první spuštění nové verze). VACUUM INTO zahrne i data z WAL.
+    pub fn backup_before_open(path: &std::path::Path, dest: &std::path::Path) -> Result<()> {
+        let conn = Connection::open(path)?;
+        conn.execute("VACUUM INTO ?1", params![dest.to_string_lossy()])?;
+        Ok(())
+    }
+
     /// Vynutí zápis WAL do hlavního DB souboru (volat před zálohováním a zavřením)
     /// Počet řádků změněných tímto spojením od otevření DB (pro detekci změn od poslední zálohy).
     pub fn total_changes(&self) -> i64 {

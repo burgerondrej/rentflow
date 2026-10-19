@@ -54,10 +54,11 @@ export function AppProvider({ children }) {
   // ─── TOAST NOTIFIKACE ───
   const [toast, setToast] = useState(null)
   const toastTimerRef = useRef(null)
-  const showToast = useCallback((message, type = 'error') => {
+  // action = { label, onClick } – tlačítko v toastu (např. „Vrátit zpět“); toast s akcí vydrží déle
+  const showToast = useCallback((message, type = 'error', action = null) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    setToast({ message, type })
-    toastTimerRef.current = setTimeout(() => setToast(null), 4500)
+    setToast({ message, type, action })
+    toastTimerRef.current = setTimeout(() => setToast(null), action ? 9000 : 4500)
   }, [])
 
   // ─── ZÁLOHA PŘI ZAVŘENÍ (Rust ji spustí jen při změnách od poslední zálohy; Pavel nikdy) ───
@@ -554,6 +555,23 @@ export function AppProvider({ children }) {
     }
   }
 
+  // Zrušení plateb s možností „Vrátit zpět“ (toast): smazané platby se vrátí znovu zapsané (nová ID z Rustu)
+  const removePayments = async (list) => {
+    const items = (list || []).filter(Boolean)
+    if (!items.length || guardWrite()) return
+    for (const p of items) await deletePayment(p.id)
+    const total = items.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+    showToast(`Platba zrušena${items.length > 1 ? ` (${items.length} měs.)` : ''}: ${Math.round(total).toLocaleString('cs-CZ')} Kč`, 'warning', {
+      label: 'Vrátit zpět',
+      onClick: async () => {
+        for (const p of items) {
+          await addPayment({ contractId: p.contractId, groupLabel: p.groupLabel || null, month: p.month, amount: p.amount, status: 'paid',
+            date: p.date, paymentType: p.paymentType || 'rent', note: p.note || '', agreed: !!p.agreed })
+        }
+      },
+    })
+  }
+
   const deletePayment = async (id) => {
     if (guardWrite()) return
     try {
@@ -880,7 +898,7 @@ export function AppProvider({ children }) {
     // CRUD – Smlouvy
     addContract, updateContract, deleteContract, archiveContract, renewContracts, changeTenant,
     // CRUD – Platby
-    addPayment, updatePayment, updatePaymentAmount, deletePayment,
+    addPayment, updatePayment, updatePaymentAmount, deletePayment, removePayments,
     // CRUD – Kanban
     addTask, updateTask, deleteTask,
     // CRUD – Revize
@@ -990,6 +1008,12 @@ export function AppProvider({ children }) {
             >
               <span style={{ flexShrink: 0, fontSize: 15 }}>{s.icon}</span>
               <span style={{ flex: 1, lineHeight: 1.45 }}>{toast.message}</span>
+              {toast.action && (
+                <button type="button" onClick={e => { e.stopPropagation(); setToast(null); toast.action.onClick() }}
+                  style={{ flexShrink: 0, alignSelf: 'center', background: s.color, color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  {toast.action.label}
+                </button>
+              )}
               <span style={{ flexShrink: 0, fontSize: 16, opacity: 0.5, marginLeft: 4 }}>×</span>
             </div>
           )

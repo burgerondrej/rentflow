@@ -9,6 +9,7 @@ import { isTyping, isOverlayOpen, peekPaymentsFilter, clearPaymentsFilter } from
 import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, isGroupPayment } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, overdueItems, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
+import { buildOverdueReportHtml } from '../reports.js'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
@@ -441,48 +442,8 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
   )
 }
 
-// Styl PDF reportů (Report nezaplacených, Report po splatnosti) – v PDF jen hex barvy, žádné CSS proměnné
-const REPORT_CSS = `
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, 'Helvetica Neue', sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; }
-        .page { max-width: 860px; margin: 0 auto; padding: 32px 40px; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #12654A; }
-        .header-title { font-size: 22px; font-weight: 800; color: #12654A; }
-        .header-sub { font-size: 12px; color: #666; margin-top: 4px; }
-        .header-right { text-align: right; }
-        .header-date { font-size: 13px; font-weight: 700; color: #374151; }
-        .header-gen { font-size: 11px; color: #9CA3AF; margin-top: 3px; }
-        .section { margin-bottom: 24px; break-inside: avoid; }
-        .section-title { font-size: 13px; font-weight: 800; color: #12654A; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; padding: 6px 12px; background: #F0FDF4; border-left: 3px solid #12654A; border-radius: 0 6px 6px 0; display: flex; justify-content: space-between; align-items: center; }
-        .ok-badge { font-size: 11px; font-weight: 700; color: #166534; background: #DCFCE7; padding: 2px 10px; border-radius: 20px; letter-spacing: 0; text-transform: none; }
-        .ok-msg { font-size: 13px; color: #166534; font-style: italic; padding: 10px 14px; background: #F0FDF4; border-radius: 8px; border: 1px solid #BBF7D0; }
-        .tenant-block { margin-bottom: 14px; border: 1px solid #E5E7EB; border-radius: 10px; overflow: hidden; }
-        .tenant-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; }
-        .tenant-name { font-size: 13px; font-weight: 700; color: #111827; }
-        .tenant-unit { font-size: 11px; color: #6B7280; margin-top: 2px; }
-        .debt-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid #F3F4F6; }
-        .debt-row:last-child { border-bottom: none; }
-        .debt-month { font-size: 12px; font-weight: 600; color: #374151; }
-        .debt-current { background: #FFF7ED; }
-        .debt-current .debt-month { color: #92400E; }
-        .debt-amounts { display: flex; gap: 18px; align-items: center; font-size: 12px; }
-        .debt-label { color: #9CA3AF; font-size: 10px; margin-bottom: 1px; }
-        .debt-val { font-weight: 700; }
-        .debt-exp { color: #374151; }
-        .debt-paid { color: #16A34A; }
-        .debt-rem { color: #DC2626; }
-        .badge-unpaid { background: #FEF2F2; color: #991B1B; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-        .badge-partial { background: #FFFBEB; color: #92400E; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-        .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #E5E5E5; font-size: 10px; color: #9CA3AF; display: flex; justify-content: space-between; }
-        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-
-        .tenant-sum { font-size: 13px; font-weight: 800; color: #DC2626; }
-        .debt-due { font-size: 11px; color: #6B7280; margin-top: 2px; }
-        .grand { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: #FEF2F2; border: 1px solid #FECACA; display: flex; justify-content: space-between; font-size: 14px; font-weight: 800; color: #991B1B; }
-`
-
 export default function Payments() {
-  const { contracts = [], tenants = [], assets = [], payments = [], firms = [], getFirm, theme, addPayment, deletePayment, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
+  const { contracts = [], tenants = [], assets = [], payments = [], firms = [], getFirm, theme, addPayment, deletePayment, removePayments, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
   // Otevření z karty firmy („po splatnosti“) může předat i měsíc: { filter, year, month }
   const [selectedMonth, setSelectedMonth] = useState(() => peekPaymentsFilter()?.month ?? new Date().getMonth())
   const [selectedYear, setSelectedYear]   = useState(() => peekPaymentsFilter()?.year ?? new Date().getFullYear())
@@ -673,10 +634,7 @@ export default function Payments() {
     getPeriodMonthKeys(contract, year, month).some(k => !!getPayment(contract.id, k))
   const deletePeriodPayments = (contract, year, month) => {
     // Vždy mazat jen platby v aktuálním platebním okně, nikdy všechny historické platby
-    getPeriodMonthKeys(contract, year, month).forEach(k => {
-      const p = getPayment(contract.id, k)
-      if (p) deletePayment(p.id)
-    })
+    removePayments(getPeriodMonthKeys(contract, year, month).map(k => getPayment(contract.id, k)))
   }
 
   // Vrátí stav platby nájmu: 'paid' | 'partial' | 'unpaid'
@@ -874,7 +832,7 @@ export default function Payments() {
     }
 
     if (payment) {
-      deletePayment(payment.id)
+      removePayments([payment])
     } else {
       if (isBytovySub(getContractSubject(contract))) {
         const tenant = tenants.find(t => t.id === contract.tenantId)
@@ -1016,32 +974,6 @@ export default function Payments() {
   })
   const maxRec = Math.max(...last6Months.map(m => m.exp), 1)
 
-  // ── Dlužníci ──────────────────────────────────────────────────────────────
-  const debtors = (() => {
-    const seenGroups = new Set()
-    const result = []
-    for (const c of activeContracts) {
-      if (c.groupLabel) {
-        // Skupinové smlouvy — zpracuj jednou za skupinu
-        if (seenGroups.has(c.groupLabel)) continue
-        seenGroups.add(c.groupLabel)
-        const g = gms(c.groupLabel)
-        if (g.status === 'paid') continue
-        result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c),
-          rs: { status: g.status, payment: g.payment, paidTotal: g.paid, remaining: Math.round(g.expected - g.paid) }, isGroup: true, groupLabel: c.groupLabel, groupTotal: g.expected })
-      } else {
-        const ms = cms(c)
-        if (ms.complete) continue
-        const multi = (PERIOD_LEN[c.paymentFrequency] || 1) > 1
-        const rentRem = ms.rent.status === 'paid' ? 0 : multi ? getMonthRent(c, selectedYear, selectedMonth) : ms.rent.expected - ms.rent.paid
-        const depRem = ms.deposit && ms.deposit.status !== 'paid' ? ms.deposit.expected - ms.deposit.paid : 0
-        result.push({ contract: c, tenant: getTenantForContract(c), asset: getAssetForContract(c),
-          rs: { status: ms.status, payment: ms.rent.payment || ms.deposit?.payment || null, paidTotal: ms.rent.paid + (ms.deposit?.paid || 0), remaining: Math.round(rentRem + depRem), depMissing: depRem > 0 }, isGroup: false })
-      }
-    }
-    return result.sort((a, b) => b.rs.remaining - a.rs.remaining)
-  })()
-
   // ── Po splatnosti – všechny měsíce od 1. 1. 2026 za vybranou firmu / sekci (stejný výpočet jako karta firmy) ──
   const overdueList = overdueItems(payCtx, s => selectionMatches(activeSub, s))
 
@@ -1063,372 +995,16 @@ export default function Payments() {
   // ── Poslední den daného měsíce ────────────────────────────────────────────
   const lastDayOfMonth = (year, month) => new Date(year, month + 1, 0).getDate()
 
-  // ── Pomocná: je smlouva aktivní v daném roce/měsíci? ─────────────────────
-  const isContractActiveInPeriod = (c, y, m) => {
-    const mStart = new Date(y, m, 1)
-    const mEnd   = new Date(y, m + 1, 0)
-    const startD = parseDate(c.start)
-    const endD   = parseDate(c.end)
-    if (startD && startD > mEnd) return false
-    if (endD   && endD   < mStart) return false
-    return true
-  }
-
-  // ── Stav platby skupiny pro daný měsíc ───────────────────────────────────
-  const getGroupStatus = (label, members, y, m) => {
-    const g = gms(label, y, m)
-    return { status: g.status, payment: g.payment, remaining: g.expected - g.paid, expected: g.expected, paid: g.paid }
-  }
-
-  // ── Report nezaplacených k poslednímu dni vybraného měsíce ────────────────
-  const generateUnpaidReport = async () => {
-    setReportLoading(true)
-    try {
-      const reportDate = new Date(selectedYear, selectedMonth + 1, 0) // poslední den měsíce
-      const reportDateStr = reportDate.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
-      const stamp = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`
-
-      // Všechny měsíce pro report: od 11 měsíců zpět AŽ PO vybraný měsíc včetně
-      // Klíč formát: "RRRR-M" kde M je 0-based index měsíce
-      const allReportMonths = []
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date(selectedYear, selectedMonth - i, 1)
-        const k = `${d.getFullYear()}-${d.getMonth()}`
-        allReportMonths.push({ year: d.getFullYear(), month: d.getMonth(), key: k })
-      }
-      const currentKey = `${selectedYear}-${selectedMonth}`
-      // pastMonths = všechny kromě aktuálního (pro "historické dluhy" sekci)
-      const pastMonths = allReportMonths.slice(0, -1)
-
-
-      // Sestavení dat per subjekt
-      const subjectData = subjectsWithContracts.map(subName => {
-        // Všechny smlouvy subjektu platné v kterémkoli měsíci reportu (i odešlý nájemce s dluhem)
-        const subContracts = applyOrder(contracts.filter(c =>
-          isContractBillable(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
-          selectionMatches(subName, getContractSubject(c)) &&
-          allReportMonths.some(({ year: y, month: m }) => isContractActiveInPeriod(c, y, m))))
-
-        const tenantRows = []
-        const seenGroups = new Set()
-
-        subContracts.forEach(c => {
-          if (c.groupLabel) {
-            // Skupinové smlouvy – zpracuj jednou za skupinu
-            if (seenGroups.has(c.groupLabel)) return
-            seenGroups.add(c.groupLabel)
-
-            const members = subContracts.filter(x => x.groupLabel === c.groupLabel)
-            const tenant  = getTenantForContract(members[0])
-            const asset   = getAssetForContract(members[0])
-            const tName   = tenant?.name || '—'
-            const aUnit   = `${c.groupLabel} (${new Set(members.map(x => x.assetId)).size} ${asset?.type === 'commercial' ? 'prostory' : 'stání'})`
-
-            // Stav aktuálního měsíce (skupina bez členů v měsíci = nic k úhradě)
-            const currentStatus = members.some(mc => isContractActiveInPeriod(mc, selectedYear, selectedMonth))
-              ? getGroupStatus(c.groupLabel, members, selectedYear, selectedMonth)
-              : { status: 'paid', payment: null, remaining: 0, expected: 0 }
-
-            // Dluhy v předchozích měsících — jen od prvního zaznamenaného měsíce skupiny
-            const groupPayments = payments.filter(p => p.groupLabel === c.groupLabel)
-            const oldestGroupMonth = groupPayments.length > 0
-              ? groupPayments.reduce((oldest, p) => {
-                  const [py, pm] = p.month.split('-').map(Number)
-                  const [oy, om] = oldest.split('-').map(Number)
-                  return (py < oy || (py === oy && pm < om)) ? p.month : oldest
-                }, groupPayments[0].month)
-              : currentKey
-
-            const pastDebts = []
-            pastMonths.forEach(({ year: y, month: m, key: k }) => {
-              const anyActive = members.some(mc => isContractActiveInPeriod(mc, y, m))
-              if (!anyActive) return
-              const [oy, om] = oldestGroupMonth.split('-').map(Number)
-              if (y < oy || (y === oy && m < om)) return
-              const st = getGroupStatus(c.groupLabel, members, y, m)
-              if (st.status !== 'paid' && st.expected > 0) {
-                const paid = st.paid
-                pastDebts.push({
-                  monthLabel: formatMonthKey(k),
-                  expected: Math.round(st.expected),
-                  paid: Math.round(paid),
-                  remaining: Math.round(st.remaining),
-                  status: st.status,
-                })
-              }
-            })
-
-            tenantRows.push({ tName, aUnit, currentStatus, pastDebts, contract: members[0], isGroup: true })
-          } else {
-            // Jednotlivá smlouva
-            const tenant = getTenantForContract(c)
-            const asset  = getAssetForContract(c)
-            const tName  = tenant?.name || '—'
-            const aUnit  = asset?.unit || asset?.name || '—'
-
-            // Stav měsíce = nájem + zálohy u bytů; víceměsíční smlouva = měsíční díl (žádné násobení oknem)
-            const monthRow = (y, m) => {
-              const ms = cms(c, y, m)
-              const multi = (PERIOD_LEN[c.paymentFrequency] || 1) > 1
-              const rentPaid = multi && ms.rent.status === 'paid' ? ms.rent.expected : ms.rent.paid
-              const expected = ms.rent.expected + (ms.deposit?.expected || 0)
-              const paid = rentPaid + (ms.deposit?.paid || 0)
-              return { status: ms.status, expected, paid, remaining: Math.max(0, expected - paid), depMissing: !!ms.deposit && ms.deposit.status !== 'paid' }
-            }
-            const currentStatus = isContractActiveInPeriod(c, selectedYear, selectedMonth)
-              ? monthRow(selectedYear, selectedMonth)
-              : { status: 'paid', expected: 0, paid: 0, remaining: 0 }
-
-            // Najdi nejstarší zaznamenanou platbu pro tuto smlouvu
-            // — dluhy reportujeme jen od prvního zaznamenaného měsíce v systému
-            const contractPayments = payments.filter(p => p.contractId === c.id)
-            const oldestPaymentMonth = contractPayments.length > 0
-              ? contractPayments.reduce((oldest, p) => {
-                  const [py, pm] = p.month.split('-').map(Number)
-                  const [oy, om] = oldest.split('-').map(Number)
-                  return (py < oy || (py === oy && pm < om)) ? p.month : oldest
-                }, contractPayments[0].month)
-              : currentKey // pokud žádná platba není, sledujeme jen aktuální měsíc
-
-            const pastDebts = []
-            pastMonths.forEach(({ year: y, month: m, key: k }) => {
-              if (!isContractActiveInPeriod(c, y, m)) return
-              // Přeskočit měsíce starší než první zaznamenaná platba
-              const [oy, om] = oldestPaymentMonth.split('-').map(Number)
-              if (y < oy || (y === oy && m < om)) return
-              const st = monthRow(y, m)
-              if (st.status !== 'paid' && st.remaining > 0.5) {
-                pastDebts.push({
-                  monthLabel: formatMonthKey(k) + (st.depMissing ? ' (vč. záloh)' : ''),
-                  expected: Math.round(st.expected),
-                  paid: Math.round(st.paid),
-                  remaining: Math.round(st.remaining),
-                  status: st.status,
-                })
-              }
-            })
-
-            tenantRows.push({ tName, aUnit, currentStatus, pastDebts, contract: c, isGroup: false })
-          }
-        })
-
-        const unpaidRows = tenantRows.filter(r => r.currentStatus.status !== 'paid' || r.pastDebts.length > 0)
-        const allOk = unpaidRows.length === 0
-
-        return { subName, allOk, unpaidRows }
-      })
-
-      // ── Generuj HTML ──────────────────────────────────────────────────────
-      const PRINT_CSS = REPORT_CSS
-
-      const genTenantBlock = (row) => {
-        const { tName, aUnit, currentStatus, pastDebts, isGroup } = row
-        // Předpis a zaplaceno z jednotného stavu měsíce (smlouva: nájem + zálohy bytů; skupina: všichni členové)
-        const expected = Math.round(currentStatus.expected || 0)
-        const paid = Math.round(currentStatus.paid || 0)
-        const remaining = Math.max(0, expected - paid)
-
-        let rows = ''
-
-        // Předchozí dluhy
-        pastDebts.forEach(d => {
-          rows += `
-            <div class="debt-row">
-              <div>
-                <div class="debt-month">${d.monthLabel}</div>
-              </div>
-              <div class="debt-amounts">
-                <div style="text-align:right">
-                  <div class="debt-label">Předpis</div>
-                  <div class="debt-val debt-exp">${d.expected.toLocaleString('cs-CZ')} Kč</div>
-                </div>
-                ${d.paid > 0 ? `<div style="text-align:right"><div class="debt-label">Uhrazeno</div><div class="debt-val debt-paid">${d.paid.toLocaleString('cs-CZ')} Kč</div></div>` : ''}
-                <div style="text-align:right">
-                  <div class="debt-label">Dluh</div>
-                  <div class="debt-val debt-rem">${d.remaining.toLocaleString('cs-CZ')} Kč</div>
-                </div>
-                <span class="${d.status === 'partial' ? 'badge-partial' : 'badge-unpaid'}">${d.status === 'partial' ? 'Částečně' : 'Nezaplaceno'}</span>
-              </div>
-            </div>`
-        })
-
-        // Aktuální měsíc (pokud nezaplaceno)
-        if (currentStatus.status !== 'paid') {
-          rows += `
-            <div class="debt-row debt-current">
-              <div>
-                <div class="debt-month">${formatMonthKey(currentKey)} (aktuální)</div>
-              </div>
-              <div class="debt-amounts">
-                <div style="text-align:right">
-                  <div class="debt-label">Předpis</div>
-                  <div class="debt-val debt-exp">${expected.toLocaleString('cs-CZ')} Kč</div>
-                </div>
-                ${paid > 0 ? `<div style="text-align:right"><div class="debt-label">Uhrazeno</div><div class="debt-val debt-paid">${paid.toLocaleString('cs-CZ')} Kč</div></div>` : ''}
-                <div style="text-align:right">
-                  <div class="debt-label">Dluh</div>
-                  <div class="debt-val debt-rem">${remaining.toLocaleString('cs-CZ')} Kč</div>
-                </div>
-                <span class="${currentStatus.status === 'partial' ? 'badge-partial' : 'badge-unpaid'}">${currentStatus.status === 'partial' ? 'Částečně' : 'Nezaplaceno'}</span>
-              </div>
-            </div>`
-        }
-
-        return `
-          <div class="tenant-block">
-            <div class="tenant-header">
-              <div>
-                <div class="tenant-name">${tName}</div>
-                <div class="tenant-unit">${aUnit}</div>
-              </div>
-            </div>
-            ${rows}
-          </div>`
-      }
-
-      const sectionsHtml = subjectData.map(({ subName, allOk, unpaidRows }) => `
-        <div class="section">
-          <div class="section-title">
-            <span>${subName}</span>
-            ${allOk ? '<span class="ok-badge">✓ Vše v pořádku</span>' : ''}
-          </div>
-          ${allOk
-            ? '<div class="ok-msg">Vše uhrazeno a v pořádku.</div>'
-            : unpaidRows.map(row => genTenantBlock(row)).join('')
-          }
-        </div>`
-      ).join('')
-
-      const now = new Date()
-      const genDateStr = now.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
-
-      const html = `<!DOCTYPE html>
-<html lang="cs">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RentFlow — Report nezaplacených — ${stamp}</title>
-  <style>${PRINT_CSS}</style>
-</head>
-<body>
-<div class="page">
-  <div class="header">
-    <div>
-      <div class="header-title">Report nezaplacených plateb</div>
-      <div class="header-sub">RentFlow · Stav k ${reportDateStr}</div>
-    </div>
-    <div class="header-right">
-      <div class="header-date">${MONTHS[selectedMonth]} ${selectedYear}</div>
-      <div class="header-gen">Vygenerováno ${genDateStr}</div>
-    </div>
-  </div>
-  ${sectionsHtml}
-  <div class="footer">
-    <span>RentFlow</span>
-    <span>Report k ${reportDateStr}</span>
-  </div>
-</div>
-</body>
-</html>`
-
-      const outPath = await save({
-        defaultPath: `RentFlow-Nezaplacene-${stamp}.pdf`,
-        filters: [{ name: 'PDF soubor', extensions: ['pdf'] }],
-      })
-      if (!outPath) return
-
-      await invoke('export_to_pdf', { html, outPath })
-    } catch (e) {
-      console.error('Report error:', e)
-    } finally {
-      setReportLoading(false)
-    }
-  }
-
   // ── Report PO SPLATNOSTI – všechny měsíce od 1. 1. 2026 za vybranou firmu / sekci (= záložka Po splatnosti) ──
   const generateOverdueReport = async () => {
     setReportLoading(true)
     try {
-      const now = new Date()
-      const todayStr = now.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
-      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-      const kc = (n) => `${Math.round(n).toLocaleString('cs-CZ')} Kč`
-      const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      const monthText = (it) => {
-        if (it.periodKeys.length > 1) {
-          const [fy, fm] = it.periodKeys[0].split('-').map(Number)
-          const [ly, lm] = it.periodKeys[it.periodKeys.length - 1].split('-').map(Number)
-          return `${MONTHS[fm]} ${fy} – ${MONTHS[lm]} ${ly}`
-        }
-        return `${MONTHS[it.m]} ${it.y}`
-      }
-      const byTenant = new Map()
-      overdueList.forEach(it => { const k = it.contract.tenantId || ''; if (!byTenant.has(k)) byTenant.set(k, []); byTenant.get(k).push(it) })
-      const blocks = [...byTenant.values()]
-        .map(list => ({ list, sum: list.reduce((s2, it) => s2 + it.owe, 0) }))
-        .sort((a, b) => b.sum - a.sum)
-        .map(({ list, sum }) => {
-          const tenant = getTenantForContract(list[0].contract)
-          const units = [...new Set(list.map(it => it.groupLabel ? `🔗 ${it.groupLabel}` : (getAssetForContract(it.contract)?.unit || '—')))].join(', ')
-          const rows = list.map(it => `
-            <div class="debt-row">
-              <div>
-                <div class="debt-month">${esc(monthText(it))}${list.length > 1 && units.includes(',') ? ` · ${esc(it.groupLabel || getAssetForContract(it.contract)?.unit || '')}` : ''}</div>
-                <div class="debt-due">splatnost ${it.due ? `${it.due.getDate()}. ${it.due.getMonth() + 1}. ${it.due.getFullYear()}` : '—'} · ${it.od} ${it.od === 1 ? 'den' : it.od < 5 ? 'dny' : 'dní'} po splatnosti</div>
-              </div>
-              <div class="debt-amounts">
-                <div style="text-align:right"><div class="debt-label">Nájem</div><div class="debt-val ${it.rent.rem > 0.5 ? 'debt-rem' : 'debt-paid'}">${it.rent.rem > 0.5 ? kc(it.rent.rem) : '✓'}</div></div>
-                ${it.deposit ? `<div style="text-align:right"><div class="debt-label">Zálohy</div><div class="debt-val ${it.deposit.rem > 0.5 ? 'debt-rem' : 'debt-paid'}">${it.deposit.rem > 0.5 ? kc(it.deposit.rem) : '✓'}</div></div>` : ''}
-                <div style="text-align:right"><div class="debt-label">Dluh</div><div class="debt-val debt-rem">${kc(it.owe)}</div></div>
-                <span class="${it.status === 'partial' ? 'badge-partial' : 'badge-unpaid'}">${it.status === 'partial' ? 'Částečně' : 'Nezaplaceno'}</span>
-              </div>
-            </div>`).join('')
-          return `
-            <div class="tenant-block">
-              <div class="tenant-header">
-                <div>
-                  <div class="tenant-name">${esc(tenant?.name || '—')}</div>
-                  <div class="tenant-unit">${esc(units)}${tenant?.phone ? ` · tel. ${esc(tenant.phone)}` : ''}</div>
-                </div>
-                <div class="tenant-sum">${kc(sum)}</div>
-              </div>
-              ${rows}
-            </div>`
-        }).join('')
-      const total = overdueList.reduce((s2, it) => s2 + it.owe, 0)
-      const label = selectionLabel(activeSub)
-      const html = `<!DOCTYPE html>
-<html lang="cs">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RentFlow — Po splatnosti — ${stamp}</title>
-  <style>${REPORT_CSS}</style>
-</head>
-<body>
-<div class="page">
-  <div class="header">
-    <div>
-      <div class="header-title">Platby po splatnosti</div>
-      <div class="header-sub">RentFlow · ${esc(label)} · všechny měsíce od 1. 1. 2026</div>
-    </div>
-    <div class="header-right">
-      <div class="header-date">Stav k ${todayStr}</div>
-      <div class="header-gen">${overdueList.length} ${overdueList.length === 1 ? 'položka' : overdueList.length < 5 ? 'položky' : 'položek'}</div>
-    </div>
-  </div>
-  ${overdueList.length === 0 ? '<div class="ok-msg">Nic není po splatnosti.</div>' : blocks}
-  ${overdueList.length > 0 ? `<div class="grand"><span>Celkem po splatnosti</span><span>${kc(total)}</span></div>` : ''}
-  <div class="footer">
-    <span>RentFlow</span>
-    <span>Stav k ${todayStr}</span>
-  </div>
-</div>
-</body>
-</html>`
-      const safeLabel = label.replace(/[\\/:*?"<>|–]+/g, '-').replace(/\s+/g, '-').replace(/-+/g, '-')
+      const { html, fileName } = buildOverdueReportHtml({
+        items: overdueList, label: selectionLabel(activeSub),
+        tenantOf: getTenantForContract, unitOf: (c) => getAssetForContract(c)?.unit,
+      })
       const outPath = await save({
-        defaultPath: `RentFlow-Po-splatnosti-${safeLabel}-${stamp}.pdf`,
+        defaultPath: fileName,
         filters: [{ name: 'PDF soubor', extensions: ['pdf'] }],
       })
       if (!outPath) return
@@ -1609,19 +1185,8 @@ export default function Payments() {
         <Segmented value={activeTab} onChange={setActiveTab} items={[
           { id: 'overview', label: '📋 Přehled za aktuální kalendářní měsíc' },
           { id: 'history', label: '📈 Historie za posledních 6 měsíců' },
-          { id: 'debtors', label: '🔴 Neuhrazené platby napříč pronajímateli za aktuální měsíc', count: debtors.length },
           { id: 'overdue', label: '⚠ Po splatnosti', count: overdueList.length },
         ]} />
-        <div style={{ flex: 1 }} />
-        {!isReadOnly && (
-          <button
-            onClick={generateUnpaidReport}
-            disabled={reportLoading}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: '1.5px solid var(--accent)', background: 'transparent', color: 'var(--accent)', fontWeight: 700, fontSize: 12, cursor: reportLoading ? 'wait' : 'pointer', marginBottom: 6, opacity: reportLoading ? 0.6 : 1, transition: '0.15s', whiteSpace: 'nowrap' }}
-          >
-            {reportLoading ? '⏳ Generuji…' : '📄 Report nezaplacených'}
-          </button>
-        )}
       </div>
 
       {/* ══ TAB: PŘEHLED ══ */}
@@ -1689,7 +1254,7 @@ export default function Payments() {
                           e.stopPropagation()
                           if (isReadOnly) return
                           if (groupPayment) {
-                            deletePayment(groupPayment.id)
+                            removePayments([groupPayment])
                           } else {
                             setPendingPayment({ groupLabel: label, tenantName: tenant?.name || '', paymentType: 'rent', fullAmount: groupTotal })
                           }
@@ -2071,79 +1636,6 @@ export default function Payments() {
         </div>
       )}
 
-      {/* ══ TAB: DLUŽNÍCI ══ */}
-      {activeTab === 'debtors' && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Dosud neuhrazené platby napříč firmami za {monthLabel}</div>
-            <span style={{ background: debtors.length > 0 ? 'var(--tone-red-soft)' : 'var(--tone-green-soft)', color: debtors.length > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)', padding: '3px 12px', borderRadius: 8, fontSize: 13, fontWeight: 800 }}>
-              {debtors.length} {debtors.length === 1 ? 'smlouva' : debtors.length < 5 ? 'smlouvy' : 'smluv'}
-            </span>
-          </div>
-          {debtors.length === 0 ? (
-            <EmptyState good icon="🎉" title="Všichni zaplatili!" text={`Za ${monthLabel} je vše uhrazeno napříč celým portfoliem.`} />
-          ) : (
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: 'var(--bg2)', borderBottom: '2px solid var(--border)' }}>
-                    <th style={{ padding: '14px 20px', textAlign: 'left',  fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>Nájemce</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'left',  fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>Jednotka / Subjekt</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>Dlužná částka</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>Akce</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {debtors.map(({ contract: c, tenant, asset, rs, isGroup, groupLabel, groupTotal }) => (
-                    <tr key={isGroup ? `group-${groupLabel}` : c.id} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', transition: '0.15s' }}
-                      onClick={() => setDetailContract(c)}
-                      onMouseOver={e => e.currentTarget.style.background = rs.status === 'partial' ? 'var(--tone-amber-soft)' : 'var(--tone-red-soft)'}
-                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <td style={{ padding: '14px 20px', boxShadow: firmStripeShadow(getContractSubject(c)) }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>
-                        {tenant?.phone && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>📞 {tenant.phone}</div>}
-                        {isGroup && <div style={{ marginTop: 3 }}><span style={{ fontSize: 10, background: 'var(--tone-violet-soft)', color: 'var(--tone-violet-text)', padding: '1px 7px', borderRadius: 8, fontWeight: 700 }}>🔗 {groupLabel}</span></div>}
-                      </td>
-                      <td style={{ padding: '14px 20px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{isGroup ? `Skupina (${new Set(activeContracts.filter(x => x.groupLabel === groupLabel).map(x => x.assetId)).size} předm.)` : (asset?.unit || '—')}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
-                          <FirmBadge firm={getFirm ? getFirm(getContractSubject(c)) : null} size={18} />
-                          {getContractSubject(c) || '—'}
-                        </div>
-                      </td>
-                      <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                        {rs.status === 'partial' ? (
-                          <>
-                            <div style={{ fontSize: 12, fontWeight: 800, color: '#D97706' }}>
-                              ⚠ Částečně: {Math.round(rs.paidTotal || 0).toLocaleString('cs-CZ')} Kč
-                            </div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#D97706', marginTop: 2 }}>
-                              Zbývá doplatit: {rs.remaining.toLocaleString('cs-CZ')} Kč
-                            </div>
-                          </>
-                        ) : (
-                          <div style={{ fontWeight: 900, fontSize: 15, color: '#DC2626' }}>
-                            {rs.remaining.toLocaleString('cs-CZ')} Kč
-                            {rs.depMissing && <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>vč. záloh</div>}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                        <button onClick={(e) => { e.stopPropagation(); handleToggle(e, c, null) }} className="btn btn-sm"
-                          style={{ background: '#22C55E', color: '#fff', borderColor: '#22C55E', fontWeight: 800, borderRadius: 8, opacity: isReadOnly ? 0.5 : 1 }}>
-                          Uhrazeno
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ══ TAB: PO SPLATNOSTI (všechny měsíce) ══ */}
       {activeTab === 'overdue' && (() => {
         const kc = (n) => `${Math.round(n).toLocaleString('cs-CZ')} Kč`
@@ -2334,7 +1826,7 @@ export default function Payments() {
                               <button className="btn btn-sm btn-tone-amber" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                 onClick={() => setEditAmountModal({ payment: rentPayment, monthLabel: monthLabel, tenantName: tenant?.name || '' })}>✏️ Upravit</button>
                               <button className="btn btn-sm btn-tone-red" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
-                                onClick={() => deletePayment(rentPayment.id)}>Zrušit</button>
+                                onClick={() => removePayments([rentPayment])}>Zrušit</button>
                             </div>
                           )}
                         </div>
@@ -2374,7 +1866,7 @@ export default function Payments() {
                                 <button className="btn btn-sm btn-tone-amber" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                   onClick={() => setEditAmountModal({ payment: depositPayment, monthLabel: monthLabel, tenantName: tenant?.name || '' })}>✏️ Upravit</button>
                                 <button className="btn btn-sm btn-tone-red" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
-                                  onClick={() => deletePayment(depositPayment.id)}>Zrušit</button>
+                                  onClick={() => removePayments([depositPayment])}>Zrušit</button>
                               </div>
                             )}
                           </div>
@@ -2426,7 +1918,7 @@ export default function Payments() {
                                   <button className="btn btn-sm btn-tone-amber" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                     onClick={() => setEditAmountModal({ payment: commPayment, monthLabel: monthLabel, tenantName: tenant?.name || '' })}>✏️ Upravit</button>
                                   <button className="btn btn-sm btn-tone-red" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
-                                    onClick={() => deletePayment(commPayment.id)}>Zrušit</button>
+                                    onClick={() => removePayments([commPayment])}>Zrušit</button>
                                 </div>
                               )}
                             </div>
@@ -2467,7 +1959,7 @@ export default function Payments() {
                                     <button className="btn btn-sm btn-tone-amber" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
                                       onClick={() => setEditAmountModal({ payment: commDepPayment, monthLabel: monthLabel, tenantName: (tenant?.name || '') + ' (zálohy)' })}>✏️ Upravit</button>
                                     <button className="btn btn-sm btn-tone-red" style={{ flex: 1, fontWeight: 700, borderRadius: 8, fontSize: 11 }}
-                                      onClick={() => deletePayment(commDepPayment.id)}>Zrušit</button>
+                                      onClick={() => removePayments([commDepPayment])}>Zrušit</button>
                                   </div>
                                 )}
                               </div>

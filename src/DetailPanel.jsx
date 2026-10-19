@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -26,7 +26,7 @@ const TYPE_META = {
 }
 
 export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange, backLabel }) {
-  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
+  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
 
   const SEP = ' – '
   const PREDEFINED_TAGS = [
@@ -599,7 +599,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                         <div style={{ fontSize: 11, color: 'var(--text3)' }}>Přijato: {p.date}{p.paymentType === 'deposit' ? ' · zálohy' : ''}</div>
                         {p.note && <div style={{ fontSize: 11.5, color: 'var(--text2)', marginTop: 2 }}>📝 {p.note}</div>}
                       </div>
-                      <button className="btn btn-sm btn-ghost" style={{ color: '#DC2626', padding: '4px 8px' }} onClick={() => deletePayment(p.id)}>✕</button>
+                      <button className="btn btn-sm btn-ghost" style={{ color: '#DC2626', padding: '4px 8px' }} onClick={() => removePayments([p])}>✕</button>
                     </div>
                   )
                 }
@@ -625,7 +625,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                       text: `Smaže se úhrada za ${range} (${rows.length} měs., celkem ${fmtKc(total)} Kč).`,
                       danger: true,
                       okLabel: 'Smazat',
-                      onOk: async () => { for (const r of rows) await deletePayment(r.id) },
+                      onOk: () => removePayments(rows),
                     })}>✕</button>
                   </div>
                 )
@@ -949,22 +949,31 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           const myGroups = new Set(myContracts.map(c => c.groupLabel).filter(Boolean))
           const now = new Date()
           const y = now.getFullYear(), m = now.getMonth(), key = `${y}-${m}`
-          const items = []
-          const seenG = new Set()
           const ctxI = { payments, contracts, assets }
-          monthContracts.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
-            const subj = contractSubject(c, assets)
-            if (c.groupLabel) {
-              if (seenG.has(c.groupLabel)) return
-              seenG.add(c.groupLabel)
-              const st = groupMonthStatus(c.groupLabel, y, m, ctxI).status
-              items.push({ id: 'g' + c.groupLabel, label: `🔗 ${c.groupLabel}`, subj, paid: st === 'paid', st, od: st === 'paid' ? 0 : overdueDays(c, y, m) })
-            } else {
-              const a2 = assets.find(x => x.id === c.assetId)
-              const ms = contractMonthStatus(c, y, m, ctxI)
-              items.push({ id: c.id, label: a2?.unit || '—', subj, paid: ms.complete, st: ms.status, od: ms.complete ? 0 : overdueDays(c, y, m) })
-            }
-          })
+          // Položky měsíce (smlouvy / skupiny) přes jednotný stav měsíce
+          const buildItems = (list, yy, mm) => {
+            const out = [], seenG = new Set()
+            list.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném').forEach(c => {
+              const subj = contractSubject(c, assets)
+              if (c.groupLabel) {
+                if (seenG.has(c.groupLabel)) return
+                seenG.add(c.groupLabel)
+                const st = groupMonthStatus(c.groupLabel, yy, mm, ctxI).status
+                out.push({ id: 'g' + c.groupLabel, label: `🔗 ${c.groupLabel}`, subj, paid: st === 'paid', st, od: st === 'paid' ? 0 : overdueDays(c, yy, mm), due: dueDateFor(c, yy, mm) })
+              } else {
+                const a2 = assets.find(x => x.id === c.assetId)
+                const ms = contractMonthStatus(c, yy, mm, ctxI)
+                out.push({ id: c.id, label: a2?.unit || '—', subj, paid: ms.complete, st: ms.status, od: ms.complete ? 0 : overdueDays(c, yy, mm), due: dueDateFor(c, yy, mm) })
+              }
+            })
+            return out
+          }
+          const items = buildItems(monthContracts, y, m)
+          // Platba předem (byty…): příští měsíc je splatný už v tomto měsíci → ukázat, jakmile splatnost nastala
+          const ny = m === 11 ? y + 1 : y, nm = (m + 1) % 12
+          const todayD = new Date(); todayD.setHours(0, 0, 0, 0)
+          const nextItems = buildItems(myContracts.filter(c => isContractBillable(c) && isContractInMonth(c, ny, nm)), ny, nm)
+            .filter(it => it.due && it.due <= todayD)
           // Přijaté platby: sloučit měsíce jedné úhrady (víceměsíční platby)
           const rows = {}
           payments.filter(p => ids.has(p.contractId) || (p.groupLabel && myGroups.has(p.groupLabel))).forEach(p => {
@@ -985,13 +994,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               date: p0.date, deposit: p0.paymentType === 'deposit',
             }
           }).sort((p, q) => q.last - p.last)
-          const sectionTitle = (txt) => <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text2)', margin: '4px 0 8px' }}>{txt}</div>
-          return (
-            <div>
-              {sectionTitle(`Tento měsíc – ${MONTHS_T[m]} ${y}`)}
-              {items.length === 0 ? <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic', marginBottom: 14 }}>Žádné aktivní placené smlouvy.</div> : (
+          const renderMonthItems = (list) => (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
-                  {items.map(it => {
+                  {list.map(it => {
                     const f = getFirm ? getFirm(it.subj) : null
                     return (
                       <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '26px minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 10, boxShadow: `inset 5px 0 0 ${it.paid ? '#16A34A' : it.st === 'partial' ? '#D97706' : '#DC2626'}` }}>
@@ -1008,7 +1013,16 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                     )
                   })}
                 </div>
-              )}
+          )
+          const sectionTitle = (txt) => <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text2)', margin: '4px 0 8px' }}>{txt}</div>
+          return (
+            <div>
+              {sectionTitle(`Tento měsíc – ${MONTHS_T[m]} ${y}`)}
+              {items.length === 0 ? <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic', marginBottom: 14 }}>Žádné aktivní placené smlouvy.</div> : renderMonthItems(items)}
+              {nextItems.length > 0 && <>
+                {sectionTitle(`Příští měsíc – ${MONTHS_T[nm]} ${ny} · platba předem, už splatné`)}
+                {renderMonthItems(nextItems)}
+              </>}
               {sectionTitle('Saldo od 1. 1. 2026 (měsíce po splatnosti)')}
               {saldoFirms.length === 0 ? <div style={{ fontSize: 13, color: '#16A34A', fontWeight: 700, marginBottom: 18 }}>✓ Vše vyrovnáno</div> : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>

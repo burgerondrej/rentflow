@@ -100,6 +100,16 @@ export function computeDataChecks({ contracts = [], assets = [], tenants = [], p
         return { key: p.id, text: label(c), sub: `platba za ${m + 1}/${y} · ${Number(p.amount || 0).toLocaleString('cs-CZ')} Kč · smlouva ${range(c)}`, open: ['contract', c.id] }
       }), 'red')
 
+    // 8d) Skupina plateb s různou splatností / četností členů – „po splatnosti“ se u skupiny počítá podle prvního člena
+    const groupMembers = new Map()
+    contracts.filter(c => c.groupLabel && isContractOccupying(c) && c.paymentFrequency !== 'Zahrnuto v nájemném')
+      .forEach(c => { if (!groupMembers.has(c.groupLabel)) groupMembers.set(c.groupLabel, []); groupMembers.get(c.groupLabel).push(c) })
+    add('groupDue', '⏳', 'Skupina plateb s různou splatností', 'Všechna místa ve skupině by měla mít stejnou splatnost i četnost plateb – jinak nesedí „po splatnosti“. Sjednoťte je v úpravě smluv.',
+      [...groupMembers.entries()]
+        .filter(([, list]) => new Set(list.map(c => c.dueDay || '')).size > 1 || new Set(list.map(c => c.paymentFrequency || 'Měsíčně')).size > 1)
+        .map(([g, list]) => ({ key: g, text: `skupina ${g}`,
+          sub: [...new Set(list.map(c => `${c.dueDay || 'bez splatnosti'} (${c.paymentFrequency || 'Měsíčně'})`))].join(' × '), open: ['contract', list[0].id] })))
+
     // 9) Budovy bez firmy
     add('objects', '🏛️', 'Budovy bez firmy', 'Přiřaďte budovu firmě v Nastavení → Firmy a sekce (jinak chybí ve filtrech Revizí a Nákladů).',
       objectFirms.filter(o => !o.firm || !firms.some(f => f.name === o.firm)).map(o => ({ key: o.name, text: o.name, sub: o.firm || 'bez firmy' })), 'gray')

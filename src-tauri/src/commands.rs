@@ -619,11 +619,13 @@ pub fn get_backup_info(app_handle: tauri::AppHandle) -> std::result::Result<serd
             let name = last.file_name();
             let s = name.to_string_lossy();
             // backup-2026-04-01_1430.db → "1. 4. 2026 14:30"
+            // backup-2026-04-01_1430-pred-v1.4.2.db (záloha před aktualizací) → "1. 4. 2026 14:30"
             // backup-2026-04-01.db (legacy) → "1. 4. 2026"
             if let Some(full_part) = s.strip_prefix("backup-").and_then(|s| s.strip_suffix(".db")) {
                 let mut parts_split = full_part.splitn(2, '_');
                 let date_str  = parts_split.next().unwrap_or("");
                 let time_str  = parts_split.next().unwrap_or("");
+                let time_str  = time_str.get(..4).filter(|t| t.chars().all(|ch| ch.is_ascii_digit())).unwrap_or("");
                 let date_parts: Vec<&str> = date_str.split('-').collect();
                 if date_parts.len() == 3 {
                     let time_display = if time_str.len() == 4 {
