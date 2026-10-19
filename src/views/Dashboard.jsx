@@ -15,7 +15,18 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
   const [expandedGroup, setExpandedGroup] = useState(null) // { days, colorVar, list }
   // Kontrola dat – proužek s počtem důležitých nálezů
   const [showCheck, setShowCheck] = useState(false)
-  const [dismissedSig, setDismissedSig] = useState(() => { try { return localStorage.getItem('rf_datacheck_dismissed') || '' } catch { return '' } })
+  // Pravidelná kontrola dat: jednou za 14 dní (při otevření Dashboardu) se proužek ukáže znovu i se zavřenými nálezy
+  const [dismissedSig, setDismissedSig] = useState(() => {
+    try {
+      const last = Number(localStorage.getItem('rf_datacheck_review') || 0)
+      if (Date.now() - last >= 14 * 86400000) {
+        localStorage.setItem('rf_datacheck_review', String(Date.now()))
+        localStorage.removeItem('rf_datacheck_dismissed')
+        return ''
+      }
+      return localStorage.getItem('rf_datacheck_dismissed') || ''
+    } catch { return '' }
+  })
   const checkAlert = dataCheckAlerts(computeDataChecks({ contracts, assets, tenants, payments, subjects, objectFirms, firms }))
 
   const today = new Date()

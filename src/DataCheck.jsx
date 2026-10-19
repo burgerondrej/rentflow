@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import DialogShell from './DialogShell.jsx'
-import { parseDate, isContractBillable, isContractOccupying, getCurrentAssetContract, contractSubject, isContractInMonth } from './utils.js'
+import { parseDate, isContractBillable, isContractOccupying, getCurrentAssetContract, contractSubject, isContractInMonth, getMonthRent, groupMonthStatus, isGroupPayment, dueDateFor, PERIOD_LEN } from './utils.js'
 
 /**
  * Kontrola dat (jen čtení): najde nesrovnalosti, které rozbíjejí přehledy a platby.
@@ -109,6 +109,59 @@ export function computeDataChecks({ contracts = [], assets = [], tenants = [], p
         .filter(([, list]) => new Set(list.map(c => c.dueDay || '')).size > 1 || new Set(list.map(c => c.paymentFrequency || 'Měsíčně')).size > 1)
         .map(([g, list]) => ({ key: g, text: `skupina ${g}`,
           sub: [...new Set(list.map(c => `${c.dueDay || 'bez splatnosti'} (${c.paymentFrequency || 'Měsíčně'})`))].join(' × '), open: ['contract', list[0].id] })))
+
+    // 8e) Platba výrazně vyšší než předpis (nad 150 %) – typicky překlep v částce.
+    // Měsíce s kráceným předpisem (začátek / konec smlouvy uprostřed měsíce) se nehodnotí – celá platba tam je běžná.
+    const kcs = (n) => `${Math.round(Number(n) || 0).toLocaleString('cs-CZ')} Kč`
+    const prorated = (c, y, m) => {
+      const s0 = parseDate(c.start), e0 = parseDate(c.end)
+      return (s0 && s0.getFullYear() === y && s0.getMonth() === m && s0.getDate() > 1) ||
+        (e0 && e0.getFullYear() === y && e0.getMonth() === m && e0.getDate() < new Date(y, m + 1, 0).getDate())
+    }
+    const highPays = []
+    payments.filter(p => p.paymentType !== 'deposit' && p.month).forEach(p => {
+      const [y, m] = p.month.split('-').map(Number)
+      if (isGroupPayment(p)) {
+        if (!p.groupLabel || contracts.some(c => c.groupLabel === p.groupLabel && isContractInMonth(c, y, m) && prorated(c, y, m))) return
+        const exp = groupMonthStatus(p.groupLabel, y, m, { payments, contracts, assets }).expected
+        if (exp > 0 && Number(p.amount) > exp * 1.5) highPays.push({ key: p.id, text: `skupina ${p.groupLabel}`, sub: `${m + 1}/${y} · zaplaceno ${kcs(p.amount)}, předpis ${kcs(exp)}` })
+        return
+      }
+      const c = byId.get(p.contractId)
+      if (!c || prorated(c, y, m)) return
+      const exp = getMonthRent(c, y, m) / (PERIOD_LEN[c.paymentFrequency] || 1)
+      if (exp > 0 && Number(p.amount) > exp * 1.5) highPays.push({ key: p.id, text: label(c), sub: `${m + 1}/${y} · zaplaceno ${kcs(p.amount)}, předpis ${kcs(exp)}`, open: ['contract', c.id] })
+    })
+    add('highPay', '💸', 'Platba výrazně vyšší než předpis', 'Platba přes 150 % předpisu – zkontrolujte částku (překlep, nula navíc), případně měsíc platby.', highPays)
+
+    // 8f) Dodatek s účinností mimo platnost smlouvy (nikdy se neprojeví, nebo platí od začátku)
+    add('amendRange', '📝', 'Dodatky s účinností mimo platnost smlouvy', 'Datum účinnosti dodatku je před začátkem nebo po konci smlouvy – zkontrolujte datum v záložce Dodatky.',
+      contracts.flatMap(c => (c.amendments || []).map(a => ({ c, a }))).filter(({ c, a }) => {
+        const e = parseDate(a.effectiveFrom), s = parseDate(c.start), en = parseDate(c.end)
+        return e && ((s && e < s) || (en && e > en))
+      }).map(({ c, a }) => ({ key: a.id || `${c.id}|${a.effectiveFrom}`, text: label(c), sub: `dodatek od ${a.effectiveFrom} · smlouva ${range(c)}`, open: ['contract', c.id] })))
+
+    // 8g) Duplicitní nájemci (stejné jméno nebo IČO)
+    const norm = (t) => String(t || '').trim().toLowerCase().replace(/\s+/g, ' ')
+    const dupKeys = new Map()
+    tenants.filter(t => t.status !== 'archived').forEach(t => {
+      ;[norm(t.name) && 'n:' + norm(t.name), norm(t.ico) && 'i:' + norm(t.ico).replace(/\s/g, '')].filter(Boolean)
+        .forEach(k => { if (!dupKeys.has(k)) dupKeys.set(k, []); dupKeys.get(k).push(t) })
+    })
+    const dupSeen = new Set()
+    add('dupTenant', '👥', 'Duplicitní nájemci', 'Dva nájemci se stejným jménem nebo IČO – sloučte smlouvy pod jednoho (saldo a přehledy jsou jinak rozdělené).',
+      [...dupKeys.entries()].filter(([, l]) => l.length > 1).flatMap(([k, l]) => {
+        const id = l.map(t => t.id).sort().join('|')
+        if (dupSeen.has(id)) return []
+        dupSeen.add(id)
+        return [{ key: id, text: l[0].name, sub: `${l.length}× ${k.startsWith('i:') ? `stejné IČO ${l[0].ico}` : 'stejné jméno'}`, open: ['tenant', l[0].id] }]
+      }))
+
+    // 8h) Splatnost, ze které nejde určit termín (informativně – „po splatnosti“ se u nich nehlídá)
+    add('dueUnknown', '❔', 'Splatnost bez určitelného termínu', 'U těchto smluv appka nepozná datum splatnosti, takže je nehlídá „po splatnosti“. Pokud to vadí, nastavte splatnost z nabídky (den v měsíci, konkrétní datum).',
+      contracts.filter(c => isContractOccupying(c) && c.paymentFrequency !== 'Zahrnuto v nájemném' && c.dueDay && c.dueDay !== 'Dle vystavené faktury')
+        .filter(c => { const n = new Date(); return !dueDateFor(c, n.getFullYear(), n.getMonth()) })
+        .map(c => ({ key: c.id, text: label(c), sub: `${c.dueDay} (${c.paymentFrequency || 'Měsíčně'})`, open: ['contract', c.id] })), 'gray')
 
     // 9) Budovy bez firmy
     add('objects', '🏛️', 'Budovy bez firmy', 'Přiřaďte budovu firmě v Nastavení → Firmy a sekce (jinak chybí ve filtrech Revizí a Nákladů).',

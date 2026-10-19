@@ -58,7 +58,7 @@ export function AppProvider({ children }) {
   const showToast = useCallback((message, type = 'error', action = null) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     setToast({ message, type, action })
-    toastTimerRef.current = setTimeout(() => setToast(null), action ? 9000 : 4500)
+    toastTimerRef.current = setTimeout(() => setToast(null), action ? 10000 : 4500)
   }, [])
 
   // ─── ZÁLOHA PŘI ZAVŘENÍ (Rust ji spustí jen při změnách od poslední zálohy; Pavel nikdy) ───
@@ -989,7 +989,27 @@ export function AppProvider({ children }) {
         ) : children}
 
         {/* TOAST NOTIFIKACE — viditelný vždy */}
-        {toast && (() => {
+        {toast && toast.action && (() => {
+          // Toast s akcí (např. „Vrátit zpět“) – výrazný, dole uprostřed nad přepínačem měsíců, aby se nepřehlédl
+          const s = TOAST_STYLES[toast.type] || TOAST_STYLES.error
+          return (
+            <div style={{ position: 'fixed', left: 0, right: 0, bottom: 76, zIndex: 99999, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+              <div role="alert" onClick={() => setToast(null)}
+                style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 14, background: s.bg, border: `2px solid ${s.border}`, color: s.color,
+                  borderRadius: 14, padding: '14px 16px 14px 18px', fontSize: 15, fontWeight: 700, maxWidth: 560, minWidth: 320,
+                  boxShadow: '0 12px 36px rgba(0,0,0,0.22)', animation: 'modalIn 0.2s ease', cursor: 'pointer', userSelect: 'none' }}>
+                <span style={{ fontSize: 20 }}>{s.icon}</span>
+                <span style={{ flex: 1, lineHeight: 1.4 }}>{toast.message}</span>
+                <button type="button" onClick={e => { e.stopPropagation(); setToast(null); toast.action.onClick() }}
+                  style={{ background: s.color, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 14.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  ↶ {toast.action.label}
+                </button>
+                <span style={{ fontSize: 18, opacity: 0.5 }}>×</span>
+              </div>
+            </div>
+          )
+        })()}
+        {toast && !toast.action && (() => {
           const s = TOAST_STYLES[toast.type] || TOAST_STYLES.error
           return (
             <div
@@ -1008,12 +1028,6 @@ export function AppProvider({ children }) {
             >
               <span style={{ flexShrink: 0, fontSize: 15 }}>{s.icon}</span>
               <span style={{ flex: 1, lineHeight: 1.45 }}>{toast.message}</span>
-              {toast.action && (
-                <button type="button" onClick={e => { e.stopPropagation(); setToast(null); toast.action.onClick() }}
-                  style={{ flexShrink: 0, alignSelf: 'center', background: s.color, color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  {toast.action.label}
-                </button>
-              )}
               <span style={{ flexShrink: 0, fontSize: 16, opacity: 0.5, marginLeft: 4 }}>×</span>
             </div>
           )
