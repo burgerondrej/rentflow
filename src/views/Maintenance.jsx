@@ -41,7 +41,7 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
 
 
 export default function Maintenance() {
-  const { revisions = [], assets = [], addRevision, deleteRevision, mainObjects = [], showToast } = useApp()
+  const { revisions = [], assets = [], addRevision, deleteRevision, mainObjects = [], showToast, confirmAction } = useApp()
   const [showForm, setShowForm] = useState(false)
   useNewShortcut(() => setShowForm(true)) // Ctrl+N
   
@@ -187,7 +187,7 @@ export default function Maintenance() {
                   </td>
                   <td style={{ padding: '18px 24px', textAlign: 'right' }}>
                     <StatusPill kind={{ 'Propadlé': 'revExpired', 'Blíží se': 'revSoon', 'V pořádku': 'revOk' }[r.status.label] || 'ended'} text={{ 'Propadlé': '🔧 Propadlá', 'Blíží se': '🔧 Blíží se', 'V pořádku': '🔧 V pořádku' }[r.status.label] || r.status.label} />
-                    <button onClick={() => deleteRevision(r.id)} style={{ marginLeft: 12, background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer' }}>🗑️</button>
+                    <button onClick={() => confirmAction({ title: 'Smazat revizi?', text: `Revize „${r.title}“ bude odstraněna.`, okLabel: 'Smazat', danger: true, onOk: () => deleteRevision(r.id) })} title="Smazat revizi" style={{ marginLeft: 12, background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer' }}>🗑️</button>
                   </td>
                 </tr>
               )

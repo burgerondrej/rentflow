@@ -7,7 +7,7 @@ import { SectionHeader } from './UI.jsx'
 import DataCheck from './DataCheck.jsx'
 
 export default function SettingsPanel({ onClose, onBackupDone, onOpen, initialCheck = false }) {
-  const { createBackup, getBackupInfo, saveSettings, getSettings, isReadOnly } = useApp()
+  const { createBackup, getBackupInfo, saveSettings, getSettings, isReadOnly, confirmAction } = useApp()
 
   const [backupInfo, setBackupInfo] = useState({ lastBackup: '…', backupCount: 0, gdrivePath: '' })
   const [gdrivePath, setGdrivePath] = useState('')
@@ -151,13 +151,18 @@ export default function SettingsPanel({ onClose, onBackupDone, onOpen, initialCh
                 className="btn"
                 style={{ width: '100%', justifyContent: 'center', marginTop: 8, color: cleanupState === 0 ? '#16a34a' : 'var(--text2)', opacity: cleanupState === 'running' ? 0.7 : 1 }}
                 disabled={cleanupState === 'running'}
-                onClick={async () => {
-                  setCleanupState('running')
-                  try {
-                    const deleted = await invoke('cleanup_duplicate_payments')
-                    setCleanupState(deleted)
-                  } catch { setCleanupState(0) }
-                }}
+                onClick={() => confirmAction({
+                  title: 'Vyčistit duplicitní platby?',
+                  text: 'Smažou se platby zapsané dvakrát (stejná smlouva / skupina, měsíc a typ) – vždy zůstane jedna. Před čištěním doporučuji zálohu (Ctrl+S).',
+                  okLabel: 'Vyčistit', danger: true,
+                  onOk: async () => {
+                    setCleanupState('running')
+                    try {
+                      const deleted = await invoke('cleanup_duplicate_payments')
+                      setCleanupState(deleted)
+                    } catch { setCleanupState(0) }
+                  },
+                })}
               >
                 {cleanupState === 'running' ? '⏳ Čistím…'
                   : typeof cleanupState === 'number' ? `✅ Smazáno ${cleanupState} duplikátů`

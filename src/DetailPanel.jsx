@@ -625,7 +625,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                       text: `Smaže se úhrada za ${range} (${rows.length} měs., celkem ${fmtKc(total)} Kč).`,
                       danger: true,
                       okLabel: 'Smazat',
-                      onOk: () => removePayments(rows),
+                      onOk: () => removePayments(rows, { confirm: false }),
                     })}>✕</button>
                   </div>
                 )
@@ -1325,7 +1325,12 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           <button
             className="btn btn-sm"
             style={{ flex: 1, background: 'var(--tone-amber-soft)', color: 'var(--tone-amber-text)', border: '1px solid var(--tone-amber-border)' }}
-            onClick={() => { archiveTenant(id); onClose() }}
+            onClick={() => setConfirmDialog({
+              title: 'Archivovat nájemce?',
+              text: `Nájemce „${tenants.find(x => x.id === id)?.name || ''}“ se přesune do archivu a zmizí z běžných přehledů.`,
+              okLabel: 'Archivovat',
+              onOk: () => { archiveTenant(id); onClose() },
+            })}
           >
             📦 Archivovat
           </button>
@@ -1687,7 +1692,12 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           <button
             className="btn btn-sm"
             style={{ flex: 1, background: 'var(--tone-amber-soft)', color: 'var(--tone-amber-text)', border: '1px solid var(--tone-amber-border)' }}
-            onClick={() => { archiveAsset(id); onClose() }}
+            onClick={() => setConfirmDialog({
+              title: 'Archivovat předmět nájmu?',
+              text: `Předmět „${assets.find(x => x.id === id)?.unit || ''}“ se přesune do archivu a zmizí z běžných přehledů.`,
+              okLabel: 'Archivovat',
+              onOk: () => { archiveAsset(id); onClose() },
+            })}
           >
             📦 Archivovat
           </button>

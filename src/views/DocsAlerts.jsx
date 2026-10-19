@@ -50,7 +50,7 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
 // 1. MODUL DOKUMENTŮ
 // ------------------------------------------------------------------
 export function Docs() {
-  const { documents = [], contracts = [], tenants = [], assets = [], addDocument, deleteDocument, getSettings, subjects = [], showToast } = useApp() || {}
+  const { documents = [], contracts = [], tenants = [], assets = [], addDocument, deleteDocument, getSettings, subjects = [], showToast, confirmAction } = useApp() || {}
   const [activeSub, setActiveSub] = useState(subjects[0] || '')
   const [showForm, setShowForm]   = useState(false)
   const [newName, setNewName]     = useState('')
@@ -321,7 +321,7 @@ export function Docs() {
           {hasFile && (
             <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => handleOpen(d)}>Otevřít</button>
           )}
-          <button className="btn btn-sm" style={{ color: '#DC2626', background: 'var(--tone-red-soft)', borderColor: 'var(--tone-red-border)', fontSize: 11 }} onClick={() => deleteDocument(d.id)}>Smazat</button>
+          <button className="btn btn-sm" style={{ color: '#DC2626', background: 'var(--tone-red-soft)', borderColor: 'var(--tone-red-border)', fontSize: 11 }} onClick={() => confirmAction({ title: 'Smazat dokument?', text: `Dokument „${d.name}“ bude odstraněn.`, okLabel: 'Smazat', danger: true, onOk: () => deleteDocument(d.id) })}>Smazat</button>
         </div>
       </div>
     )

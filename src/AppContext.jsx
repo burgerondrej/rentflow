@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import ConfirmDialog from './ConfirmDialog.jsx'
 import { parseDate, toCzDate, getEffectiveValuesToday, firmOf, contractSubject, isContractOccupying, hasSuccessor } from './utils.js'
 
 const AppContext = createContext()
@@ -54,12 +55,16 @@ export function AppProvider({ children }) {
   // ─── TOAST NOTIFIKACE ───
   const [toast, setToast] = useState(null)
   const toastTimerRef = useRef(null)
-  // action = { label, onClick } – tlačítko v toastu (např. „Vrátit zpět“); toast s akcí vydrží déle
-  const showToast = useCallback((message, type = 'error', action = null) => {
+  const showToast = useCallback((message, type = 'error') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    setToast({ message, type, action })
-    toastTimerRef.current = setTimeout(() => setToast(null), action ? 10000 : 4500)
+    setToast({ message, type })
+    toastTimerRef.current = setTimeout(() => setToast(null), 4500)
   }, [])
+
+  // ─── SPOLEČNÉ POTVRZOVACÍ OKNO (nevratné akce: zrušení platby, archivace, mazání…) ───
+  // confirmAction({ title, text, okLabel, danger, onOk }) – akce proběhne až po potvrzení
+  const [confirmReq, setConfirmReq] = useState(null)
+  const confirmAction = useCallback((req) => setConfirmReq(req), [])
 
   // ─── ZÁLOHA PŘI ZAVŘENÍ (Rust ji spustí jen při změnách od poslední zálohy; Pavel nikdy) ───
   useEffect(() => {
@@ -555,20 +560,35 @@ export function AppProvider({ children }) {
     }
   }
 
-  // Zrušení plateb s možností „Vrátit zpět“ (toast): smazané platby se vrátí znovu zapsané (nová ID z Rustu)
-  const removePayments = async (list) => {
+  // Zrušení plateb – VŽDY přes tuto funkci: nejdřív potvrzovací okno s popisem platby, až po potvrzení se smaže.
+  // opts.confirm = false jen tam, kde se už potvrzovalo jinde (např. roční platba v detailu smlouvy).
+  const MONTHS_PAY = ['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec']
+  const removePayments = async (list, opts = {}) => {
     const items = (list || []).filter(Boolean)
     if (!items.length || guardWrite()) return
-    for (const p of items) await deletePayment(p.id)
+    const doRemove = async () => {
+      for (const p of items) await deletePayment(p.id)
+      showToast(items.length > 1 ? `Platba zrušena (${items.length} měs.)` : 'Platba zrušena', 'success')
+    }
+    if (opts.confirm === false) return doRemove()
+    const p0 = items[0]
     const total = items.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-    showToast(`Platba zrušena${items.length > 1 ? ` (${items.length} měs.)` : ''}: ${Math.round(total).toLocaleString('cs-CZ')} Kč`, 'warning', {
-      label: 'Vrátit zpět',
-      onClick: async () => {
-        for (const p of items) {
-          await addPayment({ contractId: p.contractId, groupLabel: p.groupLabel || null, month: p.month, amount: p.amount, status: 'paid',
-            date: p.date, paymentType: p.paymentType || 'rent', note: p.note || '', agreed: !!p.agreed })
-        }
-      },
+    const mLabel = (k) => { const [y, m] = String(k || '').split('-').map(Number); return MONTHS_PAY[m] ? `${MONTHS_PAY[m]} ${y}` : k }
+    const months = [...items].sort((a, b) => { const [ay, am] = a.month.split('-').map(Number), [by, bm] = b.month.split('-').map(Number); return ay * 12 + am - (by * 12 + bm) })
+    const period = items.length > 1 ? `${mLabel(months[0].month)} – ${mLabel(months[months.length - 1].month)}` : mLabel(p0.month)
+    let who = ''
+    if (p0.groupLabel && (!p0.contractId || String(p0.contractId).startsWith('group:'))) who = `skupina „${p0.groupLabel}“`
+    else {
+      const c = contracts.find(x => x.id === p0.contractId)
+      const unit = c && assets.find(a => a.id === c.assetId)?.unit
+      const tenant = c && tenants.find(t => t.id === c.tenantId)?.name
+      who = [unit, tenant].filter(Boolean).join(' – ')
+    }
+    confirmAction({
+      title: 'Zrušit platbu?',
+      text: `${p0.paymentType === 'deposit' ? 'Zálohy' : 'Nájem'} za ${period}: ${Math.round(total).toLocaleString('cs-CZ')} Kč${p0.date ? ` (uhrazeno ${p0.date})` : ''}${who ? ` · ${who}` : ''}. Platba se smaže.`,
+      okLabel: 'Zrušit platbu', danger: true,
+      onOk: doRemove,
     })
   }
 
@@ -898,7 +918,7 @@ export function AppProvider({ children }) {
     // CRUD – Smlouvy
     addContract, updateContract, deleteContract, archiveContract, renewContracts, changeTenant,
     // CRUD – Platby
-    addPayment, updatePayment, updatePaymentAmount, deletePayment, removePayments,
+    addPayment, updatePayment, updatePaymentAmount, deletePayment, removePayments, confirmAction,
     // CRUD – Kanban
     addTask, updateTask, deleteTask,
     // CRUD – Revize
@@ -989,27 +1009,7 @@ export function AppProvider({ children }) {
         ) : children}
 
         {/* TOAST NOTIFIKACE — viditelný vždy */}
-        {toast && toast.action && (() => {
-          // Toast s akcí (např. „Vrátit zpět“) – výrazný, dole uprostřed nad přepínačem měsíců, aby se nepřehlédl
-          const s = TOAST_STYLES[toast.type] || TOAST_STYLES.error
-          return (
-            <div style={{ position: 'fixed', left: 0, right: 0, bottom: 76, zIndex: 99999, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-              <div role="alert" onClick={() => setToast(null)}
-                style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 14, background: s.bg, border: `2px solid ${s.border}`, color: s.color,
-                  borderRadius: 14, padding: '14px 16px 14px 18px', fontSize: 15, fontWeight: 700, maxWidth: 560, minWidth: 320,
-                  boxShadow: '0 12px 36px rgba(0,0,0,0.22)', animation: 'modalIn 0.2s ease', cursor: 'pointer', userSelect: 'none' }}>
-                <span style={{ fontSize: 20 }}>{s.icon}</span>
-                <span style={{ flex: 1, lineHeight: 1.4 }}>{toast.message}</span>
-                <button type="button" onClick={e => { e.stopPropagation(); setToast(null); toast.action.onClick() }}
-                  style={{ background: s.color, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 14.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  ↶ {toast.action.label}
-                </button>
-                <span style={{ fontSize: 18, opacity: 0.5 }}>×</span>
-              </div>
-            </div>
-          )
-        })()}
-        {toast && !toast.action && (() => {
+        {toast && (() => {
           const s = TOAST_STYLES[toast.type] || TOAST_STYLES.error
           return (
             <div
@@ -1032,6 +1032,11 @@ export function AppProvider({ children }) {
             </div>
           )
         })()}
+        {/* SPOLEČNÉ POTVRZOVACÍ OKNO */}
+        {confirmReq && (
+          <ConfirmDialog title={confirmReq.title} text={confirmReq.text} danger={!!confirmReq.danger} okLabel={confirmReq.okLabel || 'Potvrdit'}
+            onOk={() => { const fn = confirmReq.onOk; fn && fn() }} onClose={() => setConfirmReq(null)} />
+        )}
       </>
     </AppContext.Provider>
   )

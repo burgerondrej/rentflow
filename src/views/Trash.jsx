@@ -3,7 +3,7 @@ import { useApp } from '../AppContext.jsx'
 import ConfirmDialog from '../ConfirmDialog.jsx'
 
 export default function Trash() {
-  const { trash = [], restoreFromTrash, permanentDelete, emptyTrash } = useApp() || {}
+  const { trash = [], restoreFromTrash, permanentDelete, emptyTrash, confirmAction } = useApp() || {}
   const [confirmEmpty, setConfirmEmpty] = useState(false)
 
   const typeLabels = {
@@ -56,7 +56,7 @@ export default function Trash() {
                   <button className="btn btn-sm" style={{ background: 'var(--tone-green-soft)', color: 'var(--tone-green-text)', borderColor: 'var(--tone-green-border)', marginRight: 10 }} onClick={() => restoreFromTrash(t.trashId)}>
                     Obnovit
                   </button>
-                  <button className="btn btn-sm" style={{ background: 'var(--tone-red-soft)', color: 'var(--tone-red-text)', borderColor: 'var(--tone-red-border)' }} onClick={() => permanentDelete(t.trashId)}>
+                  <button className="btn btn-sm" style={{ background: 'var(--tone-red-soft)', color: 'var(--tone-red-text)', borderColor: 'var(--tone-red-border)' }} onClick={() => confirmAction({ title: 'Smazat trvale?', text: `„${t.title || 'Položka'}“ bude smazána natrvalo – tento krok nelze vrátit.`, okLabel: 'Smazat trvale', danger: true, onOk: () => permanentDelete(t.trashId) })}>
                     Smazat trvale
                   </button>
                 </td>
