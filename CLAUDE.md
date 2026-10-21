@@ -52,8 +52,11 @@ Secrets: TAURI_PRIVATE_KEY, TAURI_KEY_PASSWORD, PAGES_TOKEN, RELEASES_TOKEN.
 - Ctrl+S v appce = záloha `YYYY-MM-DD_HHMM.db` + kopie DB a documents/ na GDrive.
 
 Klíčové soubory:
-- `src/utils.js` – parseDate, getEffectiveValues/Today, getMonthRent/RentParking, getMonthDeposits, isContractBillable/InMonth/Occupying, getCurrentAssetContract, getPeriodMonthKeys, applyContractOrder, dueDateFor/overdueDays, firmOf/sectionOf, firmSelection/selectionMatches/selectionLabel, firmColors (paleta firem), ASSET_TYPES/assetTypeStyle, contractSubject, tenantRentsByFirm; **stav platby** contractMonthStatus / groupMonthStatus / isGroupPayment; hasSuccessor / currentPerAsset / isEndingWithoutSuccessor; tenantSaldo (SALDO_FROM = 1. 1. 2026); **po splatnosti** overdueItems / dueDateFor / overdueDays / DUE_PREPAID; depositMonths / depositYearRows; noticeDeadline; getLastPayDate / setLastPayDate; prettyLogDetail (ID v historii → název při zobrazení).
+- `src/utils.js` – parseDate, getEffectiveValues/Today, getMonthRent/RentParking, getMonthDeposits, isContractBillable/InMonth/Occupying, getCurrentAssetContract, getPeriodMonthKeys, applyContractOrder, dueDateFor/overdueDays, firmOf/sectionOf, firmSelection/selectionMatches/selectionLabel, firmColors (paleta firem), ASSET_TYPES/assetTypeStyle, contractSubject, tenantRentsByFirm; **stav platby** contractMonthStatus / groupMonthStatus / isGroupPayment; hasSuccessor / currentPerAsset / isEndingWithoutSuccessor; tenantSaldo (SALDO_FROM = 1. 1. 2026); **po splatnosti** overdueItems / dueDateFor / overdueDays / DUE_PREPAID; depositMonths / depositYearRows; noticeDeadline; getLastPayDate / setLastPayDate; prettyLogDetail (ID v historii → název při zobrazení); tenantPaymentDiscipline (platební morálka – úhrada vs. splatnost, 12 měsíců).
 - `src/UI.jsx` – SectionHeader / SectionCard (hlavička sekce), Segmented (přepínač/záložky), EmptyState (prázdný stav).
+- `src/CauceUI.jsx` – kauce: cauceInfo (held / toReturn / transferred = převzatá navazující smlouvou téhož nájemce / settled), CauceSettleFields (vrátit / započíst / později – okno ukončení a změna nájemce), CauceSettleDialog. Přehled ve Smlouvách → „💰 Kauce“, řádek v detailu smlouvy.
+- `src/DebtNoteUI.jsx` – poznámka k dlužníkovi + „slíbil zaplatit do“ (nájemce + firma): DebtNoteLine, DebtNoteDialog, promiseState. Platby → Po splatnosti, saldo v detailu nájemce, PDF report.
+- `src/MeterUI.jsx` – stavy měřidel ke smlouvě (nástup / odchod / průběžný). Měřidla určuje sekce (subjects.meters: '' = výchozí podle typu – byt topení + SV + TV, komerční + chlazení; 'none' = žádná; jinak výčet); topení a chlazení s ručně zapsanou jednotkou.
 - `src/DialogShell.jsx` – jednotná kostra všech dialogů (ikona, nadpis, ✕, patička); isDialogOpen() – Esc zavírá jen horní dialog.
 - `src/shortcuts.js` – Ctrl+N (událost rf-new, useNewShortcut), isTyping/isOverlayOpen, předání filtru Plateb / Smluv z jiné obrazovky.
 - `src/ChangeTenantDialog.jsx` – změna nájemce na předmětu (changeTenant v AppContext). `src/FirmsSettings.jsx` – Nastavení → firmy, sekce, budovy. `src/DataCheck.jsx` – kontrola dat (computeDataChecks, proužek na Dashboardu; 1× za 14 dní se proužek ukáže znovu i se zavřenými nálezy – localStorage rf_datacheck_review). `src/ContractHistory.jsx` – záložka Historie smlouvy (search_logs).
@@ -62,12 +65,12 @@ Klíčové soubory:
 - `src/RenewContractsDialog.jsx` – navazující smlouvy (hromadné prodloužení).
 - `src/views/Calendar.jsx` – kalendář (konce smluv, revize, úkoly); buildCalendarEvents sdílí Dashboard.
 - `src/AppContext.jsx` – Tauri IPC bridge, state, theme, showToast(message, type), confirmAction({ title, text, okLabel, danger, onOk }) – společné potvrzovací okno, removePayments (zrušení plateb s potvrzením). archiveContract kontroluje jiné aktivní smlouvy.
-- `src/App.jsx` – AppWithActivation wrapper, Ctrl+F, Ctrl+S, PIN modal, auto-update check po 3 s. Zásobník detailů (openDetail / closeDetail / closeAllDetails, onReturn).
+- `src/App.jsx` – AppWithActivation wrapper, Ctrl+F (i podle částky předpisu ±1 Kč a čísla účtu nájemce), Ctrl+S, PIN modal, auto-update check po 3 s. Zásobník detailů (openDetail / closeDetail / closeAllDetails, onReturn). Štítek „💾 Poslední záloha“ (get_sync_status: čas kopie rentflow.db na Google Disku + neuložené změny), klik = Ctrl+S.
 - `src/DetailPanel.jsx` – detaily smlouvy / předmětu / nájemce: barevný pás + klíčové údaje + záložky (smlouva: Přehled/Platby/Dodatky/Dokumenty; předmět: Přehled/Smlouvy/Dokumenty; nájemce: Přehled/Smlouvy/Platby/Dokumenty). Podíl na platbě skupiny (jen zobrazení).
 - `src/views/Payments.jsx` – platební logika (viz níže). Záložky: Přehled za měsíc / Historie 6 měsíců / ⚠ Po splatnosti (všechny měsíce, Zapsat, Report PDF). `src/reports.js` – HTML PDF reportu Po splatnosti (buildOverdueReportHtml, REPORT_CSS).
 - `src/views/Export.jsx` – PDF přes getEffectiveValuesToday(c), sloupec Paušál. PDF = Edge headless `--print-to-pdf` (bez Google Fonts @import).
 - `src/ActivationScreen.jsx` – aktivace (hash SHA-256 v Rustu, stav v settings.json "activated").
-- `src-tauri/src/db.rs` – migrace (seed subjektů ODSTRANĚN, fresh install = prázdné tabulky). `main.rs`: při prvním spuštění nové verze (`last_version.txt`) záloha DB PŘED migracemi → `backups/backup-…-pred-vX.Y.Z.db` (VACUUM INTO).
+- `src-tauri/src/db.rs` – migrace (seed subjektů ODSTRANĚN, fresh install = prázdné tabulky). Tabulky v1.4.3: cauce_settlements (contract_id PK), debt_notes (UNIQUE tenant_id + firm; přejmenování firmy je propisuje), meter_readings (vč. cooling, heat_unit, cooling_unit), subjects.meters – bez FK na smlouvy (obnova z koše). `main.rs`: při prvním spuštění nové verze (`last_version.txt`) záloha DB PŘED migracemi → `backups/backup-…-pred-vX.Y.Z.db` (VACUUM INTO).
 - `src-tauri/src/commands.rs` – verify_activation, check_activation, load_settings (odstraňuje UTF-8 BOM), backup.
 
 Subjekty jsou VÝHRADNĚ v tabulce `subjects` (name, asset_type, is_vat_payer, short_name, color, sort_order). Název = „FIRMA – Sekce“ (oddělovač ` – ` EN DASH), firma = část před oddělovačem.
@@ -195,11 +198,12 @@ Pravidla:
 - v1.4.0: revize plateb (jednotný stav měsíce, zálohy při prodloužení, součty bez zdvojení), saldo, zálohy za rok a vyúčtování, změna nájemce, firmy a sekce v Nastavení, kontrola dat, historie smlouvy, záloha při zavření, filtry končících smluv, plovoucí přepínač měsíců, sjednocený design a tmavý režim, zkratky (← →, Ctrl+N), zapamatování data úhrady, dokumenty smluv u nájemce.
 - v1.4.1: splatnost předem (byty, ubytovací jednotky; migrace), záložka ⚠ Po splatnosti (všechny měsíce, Zapsat, Report PDF, podle nájemce) + karta firmy s proklikem, kolečko karty přes jednotný stav, karty firem bez grafu 6 měsíců, historie bez ID (i zpětně při zobrazení, smazání platby v logu), zásobník detailů (Esc = krok zpět, ← Zpět), Kč bez zalomení, přejmenované záložky Plateb, automatické testy (npm test).
 - v1.4.2: oprava bílé obrazovky Logu aktivity, potvrzovací okna u nevratných akcí (zrušení platby, archivace, mazání, koš, čištění duplicit), záloha DB před aktualizací, Kontrola dat (pravidelně 1× za 14 dní; nové kontroly: skupina s různou splatností, platba nad 150 % předpisu, dodatky mimo platnost, duplicitní nájemci, splatnost bez termínu), Platby bez záložky Neuhrazené a starého reportu, detail nájemce „Příští měsíc“ u plateb předem.
-- Nápady na později: uživatelský manuál RF (vč. splatnosti předem a Po splatnosti). NE: hromadná valorizace, import z banky, upomínky PDF, připomínka valorizace, hromadné „Uhrazeno“, začátky smluv v Kalendáři.
+- v1.4.3: kauce (vypořádání při ukončení / změně nájemce, přehled, detail smlouvy), poznámky k dlužníkům se slibem platby, štítek Poslední záloha, hledání podle částky a čísla účtu, stavy měřidel podle sekce (chlazení, ruční jednotky, průběžné odečty), platební morálka nájemce.
+- Nápady na později: uživatelský manuál RF (vč. splatnosti předem a Po splatnosti); „Co dnes řešit“ na Dashboardu, předávací protokol PDF, evidence klíčů a čipů. NE: hromadná valorizace, import z banky, upomínky PDF, připomínka valorizace, hromadné „Uhrazeno“, začátky smluv v Kalendáři.
 - localStorage pro currentUser.
 - Odložené: sdružování parkovacích stání (group_label) – částečně implementováno.
 
 ## 11. Údržba tohoto souboru
 
 Na konci každé větší session navrhni úpravu CLAUDE.md (nová pravidla, poučení, verze). Zapisuj jen po odsouhlasení.
-Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 19. 10. 2026: v1.4.2).
+Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 21. 10. 2026: v1.4.3).
