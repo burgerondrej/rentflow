@@ -33,6 +33,9 @@ export function AppProvider({ children }) {
   const [trash, setTrash] = useState([])
   const [logs, setLogs] = useState([])
   const [operationalCosts, setOperationalCosts] = useState([])
+  const [cauceSettlements, setCauceSettlements] = useState([]) // vypořádání kaucí (contractId → vráceno / započteno)
+  const [debtNotes, setDebtNotes] = useState([])               // poznámky k dlužníkům (nájemce + firma)
+  const [meterReadings, setMeterReadings] = useState([])       // stavy měřidel ke smlouvám
   const [subjectData, setSubjectData] = useState([])
   const [mainObjects, setMainObjects] = useState([])
   const [objectFirms, setObjectFirms] = useState([]) // [{ name, firm }] – budova → firma
@@ -124,6 +127,12 @@ export function AppProvider({ children }) {
         if (tr) setTrash(tr)
         if (l) setLogs(l)
         if (oc) setOperationalCosts(oc)
+        const [cs, dn, mr] = await Promise.all([
+          invoke('get_cauce_settlements').catch(() => []), invoke('get_debt_notes').catch(() => []), invoke('get_meter_readings').catch(() => []),
+        ])
+        if (cs) setCauceSettlements(cs)
+        if (dn) setDebtNotes(dn)
+        if (mr) setMeterReadings(mr)
         // Oznámení o automatickém prodloužení smluv (Rust je provede při startu a zapíše do historie) – každé jen jednou
         try {
           const seen = new Set(JSON.parse(localStorage.getItem('rf_seen_autorenew') || '[]'))
@@ -604,6 +613,55 @@ export function AppProvider({ children }) {
   }
 
   // ─────────────────────────────────────────
+  // KAUCE, POZNÁMKY K DLUŽNÍKŮM, STAVY MĚŘIDEL
+  // ─────────────────────────────────────────
+  const saveCauceSettlement = async (settlement) => {
+    if (guardWrite()) return null
+    try {
+      const saved = await invoke('save_cauce_settlement', { settlement, user: currentUser })
+      if (saved) setCauceSettlements(prev => [...prev.filter(x => x.contractId !== saved.contractId), saved])
+      return saved
+    } catch (err) { console.error('saveCauceSettlement error:', err); showToast('Vypořádání kauce se nepodařilo uložit.'); return null }
+  }
+  const deleteCauceSettlement = async (contractId) => {
+    if (guardWrite()) return
+    try {
+      await invoke('delete_cauce_settlement', { contractId, user: currentUser })
+      setCauceSettlements(prev => prev.filter(x => x.contractId !== contractId))
+    } catch (err) { console.error('deleteCauceSettlement error:', err) }
+  }
+  const saveDebtNote = async (note) => {
+    if (guardWrite()) return null
+    try {
+      const saved = await invoke('save_debt_note', { note, user: currentUser })
+      if (saved) setDebtNotes(prev => [...prev.filter(x => !(x.tenantId === saved.tenantId && x.firm === saved.firm)), saved])
+      return saved
+    } catch (err) { console.error('saveDebtNote error:', err); showToast('Poznámku se nepodařilo uložit.'); return null }
+  }
+  const deleteDebtNote = async (id) => {
+    if (guardWrite()) return
+    try {
+      await invoke('delete_debt_note', { id, user: currentUser })
+      setDebtNotes(prev => prev.filter(x => x.id !== id))
+    } catch (err) { console.error('deleteDebtNote error:', err) }
+  }
+  const addMeterReading = async (reading) => {
+    if (guardWrite()) return null
+    try {
+      const saved = await invoke('add_meter_reading', { reading, user: currentUser })
+      if (saved) setMeterReadings(prev => [...prev, saved])
+      return saved
+    } catch (err) { console.error('addMeterReading error:', err); showToast('Stav měřidel se nepodařilo uložit.'); return null }
+  }
+  const deleteMeterReading = async (id) => {
+    if (guardWrite()) return
+    try {
+      await invoke('delete_meter_reading', { id, user: currentUser })
+      setMeterReadings(prev => prev.filter(x => x.id !== id))
+    } catch (err) { console.error('deleteMeterReading error:', err) }
+  }
+
+  // ─────────────────────────────────────────
   // KANBAN ÚKOLY
   // ─────────────────────────────────────────
   const addTask = async (t) => {
@@ -919,6 +977,8 @@ export function AppProvider({ children }) {
     addContract, updateContract, deleteContract, archiveContract, renewContracts, changeTenant,
     // CRUD – Platby
     addPayment, updatePayment, updatePaymentAmount, deletePayment, removePayments, confirmAction,
+    cauceSettlements, saveCauceSettlement, deleteCauceSettlement, debtNotes, saveDebtNote, deleteDebtNote,
+    meterReadings, addMeterReading, deleteMeterReading,
     // CRUD – Kanban
     addTask, updateTask, deleteTask,
     // CRUD – Revize

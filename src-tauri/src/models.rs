@@ -355,3 +355,71 @@ impl Serialize for AppError {
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
+
+// ─────────────────────────────────────────
+// v1.4.3 – kauce, poznámky k dlužníkům, stavy měřidel (samostatné tabulky – nemění contracts)
+// ─────────────────────────────────────────
+
+/// Vypořádání kauce smlouvy (jeden záznam na smlouvu). Bez záznamu = kauce se drží / čeká na vrácení.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CauceSettlement {
+    #[serde(default)]
+    pub contract_id: String,
+    #[serde(default)]
+    pub date: Option<String>,          // "D. M. RRRR" – kdy vypořádáno
+    #[serde(default)]
+    pub returned: f64,                 // vráceno nájemci (Kč)
+    #[serde(default)]
+    pub offset_amount: f64,            // započteno proti dluhu / škodě (Kč)
+    #[serde(default)]
+    pub note: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+}
+
+/// Poznámka k dlužníkovi – jedna na nájemce v rámci firmy (firmy striktně oddělené).
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DebtNote {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub tenant_id: String,
+    #[serde(default)]
+    pub firm: String,
+    #[serde(default)]
+    pub note: Option<String>,
+    #[serde(default)]
+    pub promised_date: Option<String>, // "D. M. RRRR" – slíbil zaplatit do
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub user_name: Option<String>,
+}
+
+/// Stav měřidel (odečet) ke smlouvě – typicky při nástupu / odchodu nájemce.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MeterReading {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub contract_id: String,
+    #[serde(default)]
+    pub date: String,                  // "D. M. RRRR"
+    #[serde(default)]
+    pub kind: Option<String>,          // "nastup" | "odchod" | "jiny"
+    #[serde(default)]
+    pub electricity: Option<f64>,
+    #[serde(default)]
+    pub water_cold: Option<f64>,
+    #[serde(default)]
+    pub water_hot: Option<f64>,
+    #[serde(default)]
+    pub gas: Option<f64>,
+    #[serde(default)]
+    pub heat: Option<f64>,
+    #[serde(default)]
+    pub note: Option<String>,
+}

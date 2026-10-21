@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -12,6 +12,9 @@ import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { open as shellOpen } from '@tauri-apps/api/shell'
+import { CauceSettleFields, cauceInfo, settlementFromChoice, tenantDebtForContract } from './CauceUI.jsx'
+import { DebtNoteLine, DebtNoteDialog, findDebtNote } from './DebtNoteUI.jsx'
+import MeterReadings from './MeterUI.jsx'
 import { StatusPill, contractStatus } from './StatusUI.jsx'
 
 
@@ -26,7 +29,7 @@ const TYPE_META = {
 }
 
 export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange, backLabel }) {
-  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
+  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
 
   const SEP = ' – '
   const PREDEFINED_TAGS = [
@@ -60,6 +63,8 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
     if (onTabChange) onTabChange(type === 'contract' ? contractTab : type === 'asset' ? assetTab : tenantTab)
   }, [type, contractTab, assetTab, tenantTab])
   const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
+  const cauceChoiceRef = useRef({ mode: 'return', offset: '' }) // vypořádání kauce v ConfirmDialogu ukončení
+  const [noteFor, setNoteFor] = useState(null) // { tenantId, firm, tenantName } – poznámka k dlužníkovi
   const [renewFor, setRenewFor] = useState(null) // smlouva, ze které se zakládají navazující smlouvy
   const [changeFor, setChangeFor] = useState(null) // smlouva, u které se mění nájemce (předávka předmětu)
   const [saldoPay, setSaldoPay] = useState(null) // { it, amount, date, note } – úhrada dlužného měsíce ze salda
@@ -1023,6 +1028,21 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 {sectionTitle(`Příští měsíc – ${MONTHS_T[nm]} ${ny} · platba předem, už splatné`)}
                 {renderMonthItems(nextItems)}
               </>}
+              {(() => {
+                // Platební morálka: datum úhrady vs. splatnost za posledních 12 měsíců (jen platby s určitelnou splatností)
+                const d = tenantPaymentDiscipline(t.id, { payments, contracts })
+                if (!d.count) return null
+                const tone = d.late === 0 ? 'green' : d.avgLate > 10 || d.late / d.count > 0.5 ? 'red' : 'amber'
+                const dny = (n) => `${n} ${n === 1 ? 'den' : n < 5 ? 'dny' : 'dní'}`
+                return (<>
+                  {sectionTitle('Platební morálka (posledních 12 měsíců)')}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 12px', marginBottom: 18, borderRadius: 10,
+                    background: `var(--tone-${tone}-soft)`, border: `1px solid var(--tone-${tone}-border)`, color: `var(--tone-${tone}-text)`, fontSize: 13, fontWeight: 700 }}>
+                    <span>{d.late === 0 ? `✓ Všech ${d.count} plateb včas` : `${d.late} z ${d.count} plateb po splatnosti`}</span>
+                    {d.late > 0 && <span style={{ fontWeight: 600 }}>· průměrně {dny(d.avgLate)} · nejvíc {dny(d.maxLate)}</span>}
+                  </div>
+                </>)
+              })()}
               {sectionTitle('Saldo od 1. 1. 2026 (měsíce po splatnosti)')}
               {saldoFirms.length === 0 ? <div style={{ fontSize: 13, color: '#16A34A', fontWeight: 700, marginBottom: 18 }}>✓ Vše vyrovnáno</div> : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
@@ -1037,6 +1057,16 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                           <div style={{ fontSize: 12.5, color: 'var(--text2)', whiteSpace: 'nowrap' }}>nájem <b style={{ color: sf.rent < 0 ? '#DC2626' : sf.rent > 0 ? '#16A34A' : 'var(--text)' }}>{fmtSaldo(sf.rent)}</b></div>
                           <div style={{ fontSize: 12.5, color: 'var(--text2)', whiteSpace: 'nowrap' }}>zálohy <b style={{ color: sf.deposit < 0 ? '#DC2626' : sf.deposit > 0 ? '#16A34A' : 'var(--text)' }}>{fmtSaldo(sf.deposit)}</b></div>
                         </div>
+                        {(() => {
+                          const dn = findDebtNote(debtNotes, t.id, sf.firm)
+                          if (!dn && (isReadOnly || (sf.rent >= 0 && sf.deposit >= 0))) return null
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px 6px 50px', borderTop: '1px solid var(--border)' }}>
+                              <div style={{ flex: 1 }}>{dn ? <DebtNoteLine note={dn} /> : <span style={{ fontSize: 12, color: 'var(--text3)' }}>Bez poznámky k dluhu</span>}</div>
+                              {!isReadOnly && <button className="btn btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={() => setNoteFor({ tenantId: t.id, firm: sf.firm, tenantName: t.name })}>{dn ? '📝 Upravit' : '📝 Poznámka'}</button>}
+                            </div>
+                          )
+                        })()}
                         {debtItems.slice(-24).reverse().map((it, i) => (
                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 12px 6px 50px', borderTop: '1px solid var(--border)', fontSize: 12.5 }}>
                             <span style={{ color: 'var(--text2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{MONTHS_T[it.m]} {it.y} · {it.label} · {it.kind === 'deposit' ? 'zálohy' : 'nájem'} <span style={{ color: 'var(--text3)' }}>(předpis {Math.round(it.expected).toLocaleString('cs-CZ')}, zaplaceno {Math.round(it.paid).toLocaleString('cs-CZ')})</span></span>
@@ -2778,6 +2808,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           </div>
         )}
 
+        {/* Stavy měřidel – jen residential + commercial */}
+        {(a?.type === 'residential' || a?.type === 'commercial') && <MeterReadings contract={c} />}
+
         {/* Poznámky ke smlouvě – všechny typy */}
         {c.contractNotes && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
@@ -2985,6 +3018,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               const todayIso = new Date().toLocaleDateString('sv-SE')
               const endIso = czToIso(c.end)
               terminateDateRef.current = endIso && endIso < todayIso ? endIso : todayIso
+              const ci = cauceInfo(c, contracts, cauceSettlements)
+              const cauceHeld = ci && ci.status === 'held'
+              cauceChoiceRef.current = { mode: 'return', offset: '' }
               setConfirmDialog({
                 title: 'Ukončit smlouvu',
                 text: (
@@ -2994,6 +3030,8 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                     <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', boxSizing: 'border-box' }}
                       defaultValue={terminateDateRef.current}
                       onChange={e => { terminateDateRef.current = e.target.value }} />
+                    {cauceHeld && <CauceSettleFields amount={ci.amount} debt={tenantDebtForContract(c, { payments, contracts, assets })}
+                      onChange={v => { cauceChoiceRef.current = v }} />}
                     {c.status === 'active' && (
                       <div style={{ marginTop: 14, padding: '10px 12px', background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)', borderRadius: 10, fontSize: 12.5, color: 'var(--text2)' }}>
                         Přichází na předmět nový nájemce?
@@ -3011,6 +3049,10 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   const startIso = czToIso(c.start)
                   if (startIso && iso < startIso) { showToast('Poslední den nájmu je před začátkem smlouvy.', 'warning'); return }
                   archiveContract(id, isoToCz(iso))
+                  if (cauceHeld) {
+                    const st = settlementFromChoice(c.id, ci.amount, cauceChoiceRef.current, isoToCz(iso))
+                    if (st) saveCauceSettlement(st)
+                  }
                   onClose()
                 },
               })
@@ -3198,6 +3240,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           </DialogShell>
         )
       })()}
+      {noteFor && <DebtNoteDialog tenantId={noteFor.tenantId} firm={noteFor.firm} tenantName={noteFor.tenantName} onClose={() => setNoteFor(null)} />}
       {changeFor && (
         <ChangeTenantDialog contract={changeFor} onClose={() => setChangeFor(null)} onDone={() => { setChangeFor(null); onClose() }} />
       )}

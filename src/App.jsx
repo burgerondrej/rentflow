@@ -21,7 +21,7 @@ import ActivationScreen from './ActivationScreen.jsx'
 import { FirmPickerButton, FirmBadge } from './FirmUI.jsx'
 import DialogShell from './DialogShell.jsx'
 import { isOverlayOpen } from './shortcuts.js'
-import { contractSubject, selectionMatches, parseDate, isContractOccupying, hasSuccessor } from './utils.js'
+import { contractSubject, selectionMatches, parseDate, isContractOccupying, hasSuccessor, getMonthRent, getMonthDeposits, groupMembersInMonth, isContractBillable, isContractInMonth, PERIOD_LEN } from './utils.js'
 import { invoke } from '@tauri-apps/api/tauri'
 
 function AppWithActivation() {
@@ -85,6 +85,17 @@ function AppInner() {
   const [settingsCheck, setSettingsCheck] = useState(false) // Nastavení otevřít rovnou s Kontrolou dat (návrat z detailu)
   const [backupStatus, setBackupStatus] = useState({ lastBackup: '…', syncing: false })
   const [unsavedSinceBackup, setUnsavedSinceBackup] = useState(false)
+  // Stav kopie DB na Google Disku (z ní čte Pavel i RentFlow Android): { configured, folderOk, copyEpoch, pending }
+  const [syncStatus, setSyncStatus] = useState(null)
+  const refreshSync = useCallback(() => { invoke('get_sync_status').then(setSyncStatus).catch(() => {}) }, [])
+  useEffect(() => {
+    refreshSync()
+    const t = setInterval(refreshSync, 60000)
+    window.addEventListener('focus', refreshSync)
+    return () => { clearInterval(t); window.removeEventListener('focus', refreshSync) }
+  }, [refreshSync])
+  // Záloha + kopie na Disk (Ctrl+S i klik na štítek Disku)
+  const runBackupRef = useRef(null)
 
   // Auto-update
   const [updateInfo, setUpdateInfo] = useState(null)
@@ -147,14 +158,7 @@ function AppInner() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        if (createBackup) {
-          createBackup().then(() => {
-            setUnsavedSinceBackup(false)
-            getBackupInfo && getBackupInfo().then(info => {
-              if (info) setBackupStatus(prev => ({ ...prev, lastBackup: info.lastBackup }))
-            }).catch(() => {})
-          }).catch(err => console.error('Backup failed:', err))
-        }
+        runBackupRef.current && runBackupRef.current()
       }
       if (e.key === 'Escape') {
         setSearchQuery('')
@@ -165,6 +169,17 @@ function AppInner() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  runBackupRef.current = () => {
+    if (!createBackup) return
+    createBackup().then(() => {
+      setUnsavedSinceBackup(false)
+      refreshSync()
+      getBackupInfo && getBackupInfo().then(info => {
+        if (info) setBackupStatus(prev => ({ ...prev, lastBackup: info.lastBackup }))
+      }).catch(() => {})
+    }).catch(err => console.error('Backup failed:', err))
+  }
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '') }, [theme])
 
@@ -236,7 +251,7 @@ function AppInner() {
 
     // Hledání v nájemnících (jméno, email, ico, telefon, kontaktní osoba)
     tenants.forEach(t => {
-      if (has(t.name) || has(t.email) || (t.ico && t.ico.includes(q)) || has(t.contactPerson) || digitsMatch(t.phone) || digitsMatch(t.whatsapp)) {
+      if (has(t.name) || has(t.email) || (t.ico && t.ico.includes(q)) || has(t.contactPerson) || digitsMatch(t.phone) || digitsMatch(t.whatsapp) || digitsMatch(t.bankAccount)) {
         const tFirms = [...new Set(contracts.filter(c => c.tenantId === t.id && isContractOccupying(c)).map(c => getFirm && getFirm(contractSubject(c, assets))).filter(Boolean))]
         results.push({ id: t.id, type: 'tenant', label: 'Nájemce', text: t.name, firms: tFirms })
       }
@@ -274,6 +289,39 @@ function AppInner() {
         results.push({ id: d.id, type: 'doc', label: 'Soubor', text: d.name, firms: [getFirm && d.subject && getFirm(d.subject)].filter(Boolean) })
       }
     })
+
+    // Částka z výpisu (např. „18000“, „18 000 Kč“): smlouvy, jejichž předpis za tento nebo příští měsíc (platba předem) je
+    // přesně tato částka ±1 Kč – nájem, u bytu nájem + zálohy, celá skupina plateb, víceměsíční = předpis celého období.
+    const amountStr = q.replace(/kč/g, '').replace(/[\s\u00a0]/g, '').replace(',', '.')
+    const amount = /^\d+(\.\d+)?$/.test(amountStr) ? Number(amountStr) : NaN
+    if (amount >= 100) {
+      const now = new Date()
+      const months = [[now.getFullYear(), now.getMonth()], now.getMonth() === 11 ? [now.getFullYear() + 1, 0] : [now.getFullYear(), now.getMonth() + 1]]
+      const kc = (v) => `${Math.round(v).toLocaleString('cs-CZ')} Kč`
+      const hits = [], seenC = new Set(), seenG = new Set()
+      const near = (v) => v > 0 && Math.abs(v - amount) <= 1
+      for (const [y, m] of months) {
+        for (const c of contracts) {
+          if (!isContractBillable(c) || c.paymentFrequency === 'Zahrnuto v nájemném' || !isContractInMonth(c, y, m)) continue
+          const tenant = tenants.find(t => t.id === c.tenantId), asset = assets.find(a => a.id === c.assetId)
+          const cSubject = contractSubject(c, assets)
+          const firmsOf = [getFirm && getFirm(cSubject)].filter(Boolean)
+          if (c.groupLabel) {
+            if (seenG.has(c.groupLabel)) continue
+            const total = groupMembersInMonth(c.groupLabel, y, m, contracts).reduce((sum, x) => sum + getMonthRent(x, y, m), 0)
+            if (near(total)) { seenG.add(c.groupLabel); hits.push({ id: c.id, type: 'contract', label: 'Částka', text: `🔗 ${c.groupLabel} · ${tenant?.name || ''} · předpis skupiny ${kc(total)}`, firms: firmsOf }) }
+            continue
+          }
+          if (seenC.has(c.id)) continue
+          const rent = getMonthRent(c, y, m)
+          const multi = (PERIOD_LEN[c.paymentFrequency] || 1) > 1
+          const withDep = asset?.type === 'residential' ? rent + (getMonthDeposits(c, y, m, contracts).deposit || 0) : null
+          const kind = near(rent) ? (multi ? `${c.paymentFrequency.toLowerCase()} předpis` : 'nájem') : near(withDep) ? 'nájem + zálohy' : null
+          if (kind) { seenC.add(c.id); hits.push({ id: c.id, type: 'contract', label: 'Částka', text: `${asset?.unit || '—'} · ${tenant?.name || ''} · ${kind} ${kc(amount)}`, firms: firmsOf }) }
+        }
+      }
+      results.unshift(...hits)
+    }
 
     return results.slice(0, 12)
   }
@@ -445,29 +493,32 @@ function AppInner() {
               title={theme === 'dark' ? 'Přepnout na světlý režim' : 'Přepnout na tmavý režim'}
             >{theme === 'dark' ? '☀️' : '🌙'}</button>
             <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-            {/* Backup status — skryto pro Pavla */}
-            {currentUser !== 'Pavel' && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)' }}>
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: backupStatus.syncing ? '#FBBF24'
-                      : unsavedSinceBackup ? '#F59E0B'
-                      : backupStatus.lastBackup === 'Nikdy' ? '#EF4444'
-                      : '#22C55E',
-                    boxShadow: unsavedSinceBackup ? '0 0 0 2px rgba(245,158,11,0.3)' : 'none',
-                  }} />
-                  <span style={{ fontWeight: 500 }}>
-                    {unsavedSinceBackup
-                      ? `Nezálohováno${backupStatus.lastBackup && backupStatus.lastBackup !== 'Nikdy' ? ` • ${backupStatus.lastBackup}` : ''}`
-                      : backupStatus.lastBackup === 'Nikdy'
-                        ? 'Nikdy nezálohováno'
-                        : `Záloha: ${backupStatus.lastBackup}`}
-                  </span>
-                </div>
-                <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-              </>
-            )}
+            {/* Stav kopie na Google Disku (z ní čte Pavel i mobil) — skryto pro Pavla; klik = záloha + kopie (Ctrl+S) */}
+            {currentUser !== 'Pavel' && (() => {
+              const st = syncStatus
+              let tone = 'green', text = '☁️ Disk: …', title = 'Kopie databáze na Google Disku – z ní čte Pavel i mobil. Klik = záloha a kopie (Ctrl+S).'
+              if (st) {
+                if (!st.configured) { tone = 'gray'; text = '☁️ Disk nenastaven' }
+                else if (!st.folderOk) { tone = 'red'; text = '☁️ Disk nenalezen' }
+                else if (!st.copyEpoch) { tone = 'red'; text = '☁️ Disk: zatím bez kopie' }
+                else {
+                  const d = new Date(st.copyEpoch * 1000), now = new Date()
+                  const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+                  const dayDiff = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000)
+                  const when = dayDiff <= 0 ? `dnes ${hm}` : dayDiff === 1 ? `včera ${hm}` : `před ${dayDiff} dny`
+                  text = `☁️ Disk: ${when}`
+                  if (st.pending) { tone = 'amber'; text += ' · neuložené změny – Ctrl+S' }
+                }
+              }
+              return (
+                <>
+                  <button type="button" className={`btn btn-sm btn-tone-${tone === 'gray' ? 'gray' : tone}`} title={title}
+                    onClick={() => !readOnlyRef.current && runBackupRef.current && runBackupRef.current()}
+                    style={{ fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap', borderRadius: 9 }}>{text}</button>
+                  <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+                </>
+              )
+            })()}
             <span style={{ color: 'var(--text3)', fontWeight: 500 }}>Přihlášen jako:</span>
             <select value={currentUser} onChange={e => handleUserChange(e.target.value)} style={{ padding: '8px 14px', border: '1px solid var(--tone-green-border)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, background: 'var(--tone-green-soft)', color: '#115E59', cursor: 'pointer', outline: 'none' }}>
               <option value="Ondra">Ondra</option>

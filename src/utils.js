@@ -612,6 +612,46 @@ export function getPeriodMonthKeys(contract, refYear, refMonth) {
 }
 
 // ─────────────────────────────────────────
+// PLATEBNÍ MORÁLKA NÁJEMCE – datum úhrady vs. splatnost (posledních N měsíců)
+// ─────────────────────────────────────────
+/**
+ * Platby nájmu nájemce (vlastní smlouvy i skupiny, kde má místo) za posledních `months` měsíců:
+ * { count, late, onTime, avgLate, maxLate }. Víceměsíční platba (rozdělená do měsíců) = jedna úhrada.
+ * Bez určitelné splatnosti (Dle faktury…) nebo bez data úhrady se platba nehodnotí.
+ */
+export function tenantPaymentDiscipline(tenantId, { payments = [], contracts = [] } = {}, months = 12) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const nowIdx = today.getFullYear() * 12 + today.getMonth()
+  const mine = contracts.filter(c => c.tenantId === tenantId)
+  const ids = new Set(mine.map(c => c.id))
+  const groups = new Map(mine.filter(c => c.groupLabel).map(c => [c.groupLabel, c]))
+  const seen = new Set()
+  const delays = []
+  for (const p of payments) {
+    if (p.paymentType === 'deposit' || !p.month) continue
+    const c = isGroupPayment(p) ? groups.get(p.groupLabel) : (ids.has(p.contractId) ? mine.find(x => x.id === p.contractId) : null)
+    if (!c) continue
+    const [y, m] = p.month.split('-').map(Number)
+    const idx = y * 12 + m
+    if (idx > nowIdx + 1 || idx <= nowIdx - months) continue
+    const due = dueDateFor(c, y, m), paid = parseDate(p.date)
+    if (!due || !paid) continue
+    const key = `${c.groupLabel && isGroupPayment(p) ? 'g:' + c.groupLabel : c.id}|${p.date}|${due.getTime()}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    delays.push(Math.round((paid - due) / 86400000))
+  }
+  const lateList = delays.filter(d => d > 0)
+  return {
+    count: delays.length,
+    late: lateList.length,
+    onTime: delays.length - lateList.length,
+    avgLate: lateList.length ? Math.round(lateList.reduce((s, d) => s + d, 0) / lateList.length) : 0,
+    maxLate: lateList.length ? Math.max(...lateList) : 0,
+  }
+}
+
+// ─────────────────────────────────────────
 // HISTORIE ZMĚN – starší záznamy obsahují ID (smlouvy, platby…) místo názvu
 // ─────────────────────────────────────────
 const LOG_ID_RE = /(\s*)([([]?)(?:ID:?\s*|id:\s*)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})([)\]]?)/gi

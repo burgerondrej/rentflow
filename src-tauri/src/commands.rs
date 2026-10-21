@@ -1015,3 +1015,114 @@ pub async fn install_update(app: tauri::AppHandle) -> std::result::Result<(), St
         Err(e) => Err(e.to_string()),
     }
 }
+
+// ─────────────────────────────────────────
+// v1.4.3 – KAUCE, POZNÁMKY K DLUŽNÍKŮM, STAVY MĚŘIDEL, STAV KOPIE NA DISKU
+// ─────────────────────────────────────────
+
+fn fmt_kc(a: f64) -> String {
+    if (a - a.round()).abs() < 0.005 { format!("{}", a.round() as i64) } else { format!("{:.2}", a) }
+}
+
+#[tauri::command]
+pub fn get_cauce_settlements(state: State<AppState>) -> std::result::Result<Vec<CauceSettlement>, AppError> {
+    db!(state).get_cauce_settlements()
+}
+
+#[tauri::command]
+pub fn save_cauce_settlement(settlement: CauceSettlement, user: String, state: State<AppState>) -> std::result::Result<CauceSettlement, AppError> {
+    let db = db!(state);
+    let out = db.save_cauce_settlement(&settlement)?;
+    let label = contract_label(&db, &settlement.contract_id).unwrap_or_else(|| settlement.contract_id.clone());
+    db.add_log(&user, "Úprava", "Kauce", &format!("Kauce vypořádána: vráceno {} Kč, započteno {} Kč{} | {}",
+        fmt_kc(settlement.returned), fmt_kc(settlement.offset_amount),
+        settlement.date.as_deref().map(|d| format!(", {}", d)).unwrap_or_default(), label))?;
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn delete_cauce_settlement(contract_id: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    db.delete_cauce_settlement(&contract_id)?;
+    let label = contract_label(&db, &contract_id).unwrap_or_else(|| contract_id.clone());
+    db.add_log(&user, "Smazání", "Kauce", &format!("Zrušeno vypořádání kauce | {}", label))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_debt_notes(state: State<AppState>) -> std::result::Result<Vec<DebtNote>, AppError> {
+    db!(state).get_debt_notes()
+}
+
+fn tenant_name(db: &crate::db::Database, tenant_id: &str) -> String {
+    db.get_tenants().ok().and_then(|ts| ts.into_iter().find(|t| t.id == tenant_id)).map(|t| t.name).unwrap_or_else(|| "?".to_string())
+}
+
+#[tauri::command]
+pub fn save_debt_note(note: DebtNote, user: String, state: State<AppState>) -> std::result::Result<DebtNote, AppError> {
+    let db = db!(state);
+    let out = db.save_debt_note(&note, &user)?;
+    db.add_log(&user, "Úprava", "Dlužníci", &format!("Poznámka k dlužníkovi: {}{} | {} ({})",
+        note.note.clone().unwrap_or_default(),
+        note.promised_date.as_deref().map(|d| format!(" – slíbeno do {}", d)).unwrap_or_default(),
+        tenant_name(&db, &note.tenant_id), note.firm))?;
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn delete_debt_note(id: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    let who = db.get_debt_notes().ok().and_then(|ns| ns.into_iter().find(|n| n.id == id))
+        .map(|n| format!("{} ({})", tenant_name(&db, &n.tenant_id), n.firm)).unwrap_or_default();
+    db.delete_debt_note(&id)?;
+    db.add_log(&user, "Smazání", "Dlužníci", &format!("Smazána poznámka k dlužníkovi | {}", who))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_meter_readings(state: State<AppState>) -> std::result::Result<Vec<MeterReading>, AppError> {
+    db!(state).get_meter_readings()
+}
+
+#[tauri::command]
+pub fn add_meter_reading(reading: MeterReading, user: String, state: State<AppState>) -> std::result::Result<MeterReading, AppError> {
+    let db = db!(state);
+    let out = db.add_meter_reading(&reading)?;
+    let label = contract_label(&db, &reading.contract_id).unwrap_or_else(|| reading.contract_id.clone());
+    db.add_log(&user, "Přidání", "Měřidla", &format!("Stav měřidel k {} | {}", reading.date, label))?;
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn delete_meter_reading(id: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    let info = db.get_meter_reading(&id);
+    db.delete_meter_reading(&id)?;
+    if let Some(m) = info {
+        let label = contract_label(&db, &m.contract_id).unwrap_or_else(|| m.contract_id.clone());
+        db.add_log(&user, "Smazání", "Měřidla", &format!("Smazán stav měřidel k {} | {}", m.date, label))?;
+    }
+    Ok(())
+}
+
+/// Stav kopie DB na Google Disku: kdy byla naposledy zapsána a jestli jsou v DB změny od poslední zálohy.
+#[tauri::command]
+pub fn get_sync_status(app_handle: tauri::AppHandle, state: State<AppState>) -> std::result::Result<serde_json::Value, AppError> {
+    let app_dir = app_handle.path_resolver().app_data_dir()
+        .ok_or_else(|| AppError::Other("Cannot get app data dir".into()))?;
+    let settings = load_settings(&app_dir);
+    let gdrive = settings.get("gdrivePath").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let (folder_ok, copy_secs) = if gdrive.is_empty() { (false, None) } else {
+        let dir = std::path::Path::new(&gdrive);
+        let secs = std::fs::metadata(dir.join("rentflow.db")).ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64);
+        (dir.exists(), secs)
+    };
+    let pending = {
+        let db = db!(state);
+        db.total_changes() > state.backup_changes.load(std::sync::atomic::Ordering::SeqCst)
+    };
+    Ok(serde_json::json!({ "configured": !gdrive.is_empty(), "folderOk": folder_ok, "copyEpoch": copy_secs, "pending": pending }))
+}

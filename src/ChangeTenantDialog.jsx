@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import DialogShell from './DialogShell.jsx'
 import { Segmented } from './UI.jsx'
+import { CauceSettleFields, cauceInfo, settlementFromChoice, tenantDebtForContract } from './CauceUI.jsx'
 import { parseDate, toCzDate, getEffectiveValuesToday, contractSubject, ASSET_TYPES } from './utils.js'
 
 const dateToIso = (d) => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : ''
@@ -14,7 +15,7 @@ const FREQ_LABEL = { 'Čtvrtletně': 'čtvrtletní', 'Pololetně': 'pololetní',
  * Stará smlouva se ukončí ke dni před předávkou, nová vznikne na stejném předmětu (changeTenant v AppContext).
  */
 export default function ChangeTenantDialog({ contract, onClose, onDone }) {
-  const { tenants = [], assets = [], changeTenant, addTenant, showToast } = useApp()
+  const { tenants = [], assets = [], contracts = [], payments = [], cauceSettlements = [], saveCauceSettlement, changeTenant, addTenant, showToast } = useApp()
   const asset = assets.find(a => a.id === contract.assetId)
   const oldTenant = tenants.find(t => t.id === contract.tenantId)
   const ev = getEffectiveValuesToday(contract)
@@ -35,6 +36,10 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
   const [keepDeposits, setKeepDeposits] = useState(true)
   const [keepGroup, setKeepGroup] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Kauce odcházejícího nájemce: vrátit / započíst / později
+  const oldCauce = cauceInfo(contract, contracts, cauceSettlements)
+  const oldCauceHeld = oldCauce && oldCauce.status === 'held'
+  const [cauceChoice, setCauceChoice] = useState({ mode: 'return', offset: '' })
 
   const start = isoToDate(startIso)
   const end = isoToDate(endIso)
@@ -68,6 +73,10 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
     const ok = await changeTenant({ old: contract, tenantId: tid, start, end, rent, cauce, keepDeposits, keepGroup })
     setSaving(false)
     if (ok) {
+      if (oldCauceHeld) {
+        const st = settlementFromChoice(contract.id, oldCauce.amount, cauceChoice, dayBefore ? toCzDate(dayBefore) : null)
+        if (st) await saveCauceSettlement(st)
+      }
       showToast(`Změna nájemce uložena: ${chosenName} od ${toCzDate(start)}.`, 'success')
       onDone ? onDone() : onClose()
     }
@@ -127,8 +136,11 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
               • Stávající smlouva se ukončí k <b>{dayBefore ? toCzDate(dayBefore) : '—'}</b>
               {oldEnd && dayBefore && oldEnd < dayBefore && <span style={{ color: 'var(--tone-amber-text)' }}> (už končí {contract.end} – mezi smlouvami bude mezera)</span>}.<br />
               • V měsíci předávky se nájem krátí podle dní, zálohy platí oba nájemci v plné výši.<br />
-              • Před změnou se automaticky udělá záloha databáze.
+              • Před změnou se automaticky udělá záloha databáze.<br />
+              • Stavy měřidel při předávce zapište v detailu smlouvy (Přehled → Stavy měřidel).
             </div>
+            {oldCauceHeld && <CauceSettleFields amount={oldCauce.amount} debt={tenantDebtForContract(contract, { payments, contracts, assets })}
+              initial={cauceChoice.mode} onChange={setCauceChoice} />}
           </div>
         )}
 

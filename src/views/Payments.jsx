@@ -10,6 +10,7 @@ import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonth
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, overdueItems, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
 import { buildOverdueReportHtml } from '../reports.js'
+import { DebtNoteLine, DebtNoteDialog, findDebtNote } from '../DebtNoteUI.jsx'
 
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
@@ -443,7 +444,7 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
 }
 
 export default function Payments() {
-  const { contracts = [], tenants = [], assets = [], payments = [], firms = [], getFirm, theme, addPayment, deletePayment, removePayments, updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
+  const { contracts = [], tenants = [], assets = [], payments = [], firms = [], getFirm, theme, addPayment, deletePayment, removePayments, debtNotes = [], updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
   // Otevření z karty firmy („po splatnosti“) může předat i měsíc: { filter, year, month }
   const [selectedMonth, setSelectedMonth] = useState(() => peekPaymentsFilter()?.month ?? new Date().getMonth())
   const [selectedYear, setSelectedYear]   = useState(() => peekPaymentsFilter()?.year ?? new Date().getFullYear())
@@ -496,6 +497,7 @@ export default function Payments() {
   const [payReturn, setPayReturn]           = useState(null) // { y, m } – měsíc, na který se vrátit po zápisu platby z Po splatnosti
   const [activeTab, setActiveTab]           = useState(() => peekPaymentsFilter()?.tab || 'overview') // karta firmy → { tab: 'overdue' }
   const [overdueSort, setOverdueSort]       = useState('month') // záložka Po splatnosti: month | tenant
+  const [noteFor, setNoteFor]               = useState(null)    // { tenantId, firm, tenantName } – poznámka k dlužníkovi
   const [rowFilter, setRowFilter]           = useState(() => { const f = peekPaymentsFilter(); return (typeof f === 'string' ? f : f?.filter) || 'all' }) // all | unpaid | overdue
   useEffect(() => { clearPaymentsFilter() }, [])
   const [pendingPayment, setPendingPayment] = useState(null)   // { contract, tenantName, paymentType }
@@ -1002,6 +1004,7 @@ export default function Payments() {
       const { html, fileName } = buildOverdueReportHtml({
         items: overdueList, label: selectionLabel(activeSub),
         tenantOf: getTenantForContract, unitOf: (c) => getAssetForContract(c)?.unit,
+        noteOf: (tenantId, firm) => findDebtNote(debtNotes, tenantId, firm),
       })
       const outPath = await save({
         defaultPath: fileName,
@@ -1676,6 +1679,7 @@ export default function Payments() {
               onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
               <td style={{ padding: '11px 14px', boxShadow: firmStripeShadow(it.subject) }}>
                 {showTenant && <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</div>}
+                {showTenant && <DebtNoteLine note={findDebtNote(debtNotes, c.tenantId, firmOf(it.subject))} style={{ margin: '2px 0' }} />}
                 <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>{it.groupLabel ? `🔗 ${it.groupLabel}` : (getAssetForContract(c)?.unit || '—')} · {it.subject || '—'}</div>
               </td>
               <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap' }}>{monthText(it)}</td>
@@ -1688,6 +1692,10 @@ export default function Payments() {
               <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 14.5, fontWeight: 900, color: '#DC2626', whiteSpace: 'nowrap' }}>{kc(it.owe)}</td>
               <td style={{ padding: '11px 14px', textAlign: 'right' }}><UiStatusPill kind={it.status} size="sm" /></td>
               <td style={{ padding: '11px 14px', textAlign: 'right' }}>
+                {!isReadOnly && overdueSort !== 'tenant' && (
+                  <button className="btn btn-sm" title="Poznámka k dlužníkovi" onClick={e => { e.stopPropagation(); setNoteFor({ tenantId: c.tenantId, firm: firmOf(it.subject), tenantName: tenant?.name }) }}
+                    style={{ marginRight: 6, padding: '4px 8px' }}>📝</button>
+                )}
                 {!isReadOnly && canPay(it) && (
                   <button className="btn btn-sm" title={`Zapsat platbu za ${monthText(it)}`} onClick={e => { e.stopPropagation(); payItem(it) }}
                     style={{ background: '#22C55E', color: '#fff', borderColor: '#22C55E', fontWeight: 800, borderRadius: 8, whiteSpace: 'nowrap' }}>Zapsat</button>
@@ -1699,17 +1707,25 @@ export default function Payments() {
         let body
         if (overdueSort === 'tenant') {
           const byTenant = new Map()
-          overdueList.forEach(it => { const k = it.contract.tenantId || ''; if (!byTenant.has(k)) byTenant.set(k, []); byTenant.get(k).push(it) })
+          overdueList.forEach(it => { const k = `${it.contract.tenantId || ''}|${firmOf(it.subject)}`; if (!byTenant.has(k)) byTenant.set(k, []); byTenant.get(k).push(it) })
           body = [...byTenant.entries()]
             .map(([k, list]) => ({ k, list, sum: list.reduce((sum, it) => sum + it.owe, 0) }))
             .sort((a, b) => b.sum - a.sum)
             .flatMap(({ k, list, sum }) => [
               <tr key={`t|${k}`} style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--border2)' }}>
                 <td colSpan={5} style={{ padding: '8px 14px', fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>
-                  {getTenantForContract(list[0].contract)?.name || 'Neznámý'} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>· {list.length} {list.length === 1 ? 'položka' : list.length < 5 ? 'položky' : 'položek'}</span>
+                  {getTenantForContract(list[0].contract)?.name || 'Neznámý'} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>· {list.length} {list.length === 1 ? 'položka' : list.length < 5 ? 'položky' : 'položek'}{activeSub === 'all' ? ` · ${firmOf(list[0].subject)}` : ''}</span>
+                  <DebtNoteLine note={findDebtNote(debtNotes, list[0].contract.tenantId, firmOf(list[0].subject))} style={{ marginTop: 4 }} />
                 </td>
                 <td style={{ padding: '8px 14px', textAlign: 'right', fontSize: 13, fontWeight: 900, color: '#DC2626', whiteSpace: 'nowrap' }}>{kc(sum)}</td>
-                <td colSpan={2} />
+                <td colSpan={2} style={{ padding: '8px 14px', textAlign: 'right' }}>
+                  {!isReadOnly && (() => {
+                    const tid = list[0].contract.tenantId, firm = firmOf(list[0].subject)
+                    const has = !!findDebtNote(debtNotes, tid, firm)
+                    return <button className="btn btn-sm" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                      onClick={() => setNoteFor({ tenantId: tid, firm, tenantName: getTenantForContract(list[0].contract)?.name })}>{has ? '📝 Upravit' : '📝 Poznámka'}</button>
+                  })()}
+                </td>
               </tr>,
               ...list.map(it => row(it, false)),
             ])
@@ -1764,6 +1780,8 @@ export default function Payments() {
           </div>
         )
       })()}
+
+      {noteFor && <DebtNoteDialog tenantId={noteFor.tenantId} firm={noteFor.firm} tenantName={noteFor.tenantName} onClose={() => setNoteFor(null)} />}
 
       {/* ══ DETAIL MODAL ══ */}
       {detailContract && (() => {

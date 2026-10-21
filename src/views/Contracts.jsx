@@ -6,13 +6,16 @@ import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill, contractStatus } from '../StatusUI.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
 import { useNewShortcut, peekContractsFilter, clearContractsFilter } from '../shortcuts.js'
+import { cauceInfo, fmtKc, CauceSettleDialog } from '../CauceUI.jsx'
+import { contractSubject } from '../utils.js'
 
 export default function Contracts({ activeSubject, onOpen }) {
-  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme } = useApp()
+  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [] } = useApp()
+  const [settleFor, setSettleFor] = useState(null) // smlouva, u které se vypořádává kauce
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   useNewShortcut(() => setShowForm(true)) // Ctrl+N
-  const [tab, setTab] = useState('valid') // 'valid' = platné (vč. ukončených s budoucím koncem) | 'ended' = ukončené
+  const [tab, setTab] = useState('valid') // 'valid' = platné (vč. ukončených s budoucím koncem) | 'ended' = ukončené | 'cauce' = kauce
   // Filtr končících smluv: all | 30 | 60 | 90 | expired (z menu přijde „30“)
   const [endFilter, setEndFilter] = useState(() => peekContractsFilter() || 'all')
   useEffect(() => {
@@ -88,6 +91,73 @@ export default function Contracts({ activeSubject, onOpen }) {
     : f === 'expired' ? isEnding(c) && c.status === 'active' && c.daysLeft < 0
     : isEnding(c) && c.daysLeft <= Number(f)
   const endCount = (f) => filtered.filter(c => selectionMatches(activeSubject, c.assetSubject) && endMatch(c, f)).length
+
+  // ── Kauce: držené / k vrácení / vyřízené (převedené na navazující smlouvu se nevypisují – drží je nová smlouva) ──
+  const CAUCE_ORDER = { toReturn: 0, held: 1, settled: 2 }
+  const cauceRows = contracts
+    .filter(c => selectionMatches(activeSubject, contractSubject(c, assets)))
+    .map(c => ({ c, info: cauceInfo(c, contracts, cauceSettlements) }))
+    .filter(r => r.info && r.info.status !== 'transferred')
+    .filter(r => !search || [tenants.find(t => t.id === r.c.tenantId)?.name, assets.find(a => a.id === r.c.assetId)?.unit].some(v => v && v.toLowerCase().includes(search.toLowerCase())))
+    .sort((a, b) => CAUCE_ORDER[a.info.status] - CAUCE_ORDER[b.info.status] || b.info.amount - a.info.amount)
+  const cauceHeldTotal = cauceRows.filter(r => r.info.status !== 'settled').reduce((sum, r) => sum + r.info.amount, 0)
+  const cauceOpenCount = cauceRows.filter(r => r.info.status !== 'settled').length
+
+  const renderCauce = () => {
+    if (cauceRows.length === 0) return <EmptyState icon="💰" title="Žádné kauce" text="U smluv v tomto výběru není evidovaná kauce." />
+    const pill = (info) => info.status === 'toReturn' ? <StatusPill kind="ending" text="K vrácení" size="sm" />
+      : info.status === 'held' ? <StatusPill kind="occupied" text="Drží se" size="sm" />
+      : <StatusPill kind="paid" text="Vyřízeno" size="sm" />
+    const heads = ['Nájemce / jednotka', 'Smlouva', 'Stav', 'Kauce', '']
+    return (
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'clip' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: 'var(--bg2)', borderBottom: '2px solid var(--border)' }}>
+              {heads.map((h, i) => (
+                <th key={i} style={{ padding: '12px 14px', textAlign: i >= 3 ? 'right' : 'left', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {cauceRows.map(({ c, info }) => {
+              const subj = contractSubject(c, assets)
+              const firm = getFirm ? getFirm(subj) : null
+              const st = info.settlement
+              return (
+                <tr key={c.id} onClick={() => onOpen && onOpen(c.id)} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer' }}>
+                  <td style={{ padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <FirmBadge firm={firm} size={22} />
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--text)' }}>{tenants.find(t => t.id === c.tenantId)?.name || '—'}</div>
+                        <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{assets.find(a => a.id === c.assetId)?.unit || '—'} · {subj}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: '10px 14px', fontSize: 12.5, color: 'var(--text2)' }}>
+                    {info.status === 'held' ? 'platná' : `ukončena ${c.end || ''}`}
+                    {st && <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>vráceno {fmtKc(st.returned)}{st.offsetAmount > 0 ? ` · započteno ${fmtKc(st.offsetAmount)}` : ''}{st.date ? ` · ${st.date}` : ''}</div>}
+                  </td>
+                  <td style={{ padding: '10px 14px' }}>{pill(info)}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 900, fontSize: 14, color: info.status === 'settled' ? 'var(--text3)' : 'var(--text)', whiteSpace: 'nowrap' }}>{fmtKc(info.amount)}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                    <button className={`btn btn-sm ${info.status === 'toReturn' ? 'btn-tone-amber' : ''}`} style={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                      onClick={e => { e.stopPropagation(); setSettleFor(c) }}>{st ? 'Upravit' : 'Vypořádat'}</button>
+                  </td>
+                </tr>
+              )
+            })}
+            <tr style={{ background: 'var(--bg2)' }}>
+              <td colSpan={3} style={{ padding: '12px 14px', fontWeight: 900, fontSize: 13 }}>Celkem drženo (platné + k vrácení)</td>
+              <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 900, fontSize: 15, whiteSpace: 'nowrap' }}>{fmtKc(cauceHeldTotal)}</td>
+              <td />
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    )
+  }
 
   const renderCard = (c, isArchived = false) => {
     const isEndingSoon = c.daysLeft !== null && c.daysLeft <= 60 && c.daysLeft >= 0
@@ -188,7 +258,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <Segmented size="sm" value={tab} onChange={setTab} items={[{ id: 'valid', label: 'Platné', count: validCount }, { id: 'ended', label: 'Ukončené', count: endedCount }]} />
+          <Segmented size="sm" value={tab} onChange={setTab} items={[{ id: 'valid', label: 'Platné', count: validCount }, { id: 'ended', label: 'Ukončené', count: endedCount }, { id: 'cauce', label: '💰 Kauce', count: cauceOpenCount }]} />
           <div style={{ position: 'relative' }}>
             <input 
               type="text" 
@@ -230,7 +300,8 @@ export default function Contracts({ activeSubject, onOpen }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 40, marginTop: 10 }}>
+      {tab === 'cauce' && renderCauce()}
+      {tab !== 'cauce' && <div style={{ display: 'flex', flexDirection: 'column', gap: 40, marginTop: 10 }}>
         {tab === 'valid' && endFilter !== 'all' && endCount(endFilter) === 0 && (
           <EmptyState good icon="✓" title="Žádné smlouvy v tomto výběru" text="Nic nekončí ani nepropadlo – vše je v pořádku." />
         )}
@@ -277,9 +348,10 @@ export default function Contracts({ activeSubject, onOpen }) {
             </div>
           )
         })}
-      </div>
+      </div>}
 
       {/* VYKRESLENÍ FORMULÁŘE */}
+      {settleFor && <CauceSettleDialog contract={settleFor} onClose={() => setSettleFor(null)} />}
       {showForm && <ContractForm onClose={() => setShowForm(false)} />}
     </div>
   )

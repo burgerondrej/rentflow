@@ -377,6 +377,40 @@ impl Database {
         ] {
             let _ = self.conn.execute("UPDATE objects SET firm = ?1 WHERE name = ?2 AND firm = ''", params![firm, name]);
         }
+        // v1.4.3 — kauce (vypořádání), poznámky k dlužníkům, stavy měřidel; bez FK (smlouva v koši se dá obnovit)
+        self.conn.execute_batch("
+            CREATE TABLE IF NOT EXISTS cauce_settlements (
+                contract_id   TEXT PRIMARY KEY,
+                date          TEXT,
+                returned      REAL NOT NULL DEFAULT 0,
+                offset_amount REAL NOT NULL DEFAULT 0,
+                note          TEXT,
+                updated_at    TEXT
+            );
+            CREATE TABLE IF NOT EXISTS debt_notes (
+                id            TEXT PRIMARY KEY,
+                tenant_id     TEXT NOT NULL,
+                firm          TEXT NOT NULL,
+                note          TEXT,
+                promised_date TEXT,
+                updated_at    TEXT,
+                user_name     TEXT,
+                UNIQUE(tenant_id, firm)
+            );
+            CREATE TABLE IF NOT EXISTS meter_readings (
+                id          TEXT PRIMARY KEY,
+                contract_id TEXT NOT NULL,
+                date        TEXT NOT NULL,
+                kind        TEXT,
+                electricity REAL,
+                water_cold  REAL,
+                water_hot   REAL,
+                gas         REAL,
+                heat        REAL,
+                note        TEXT,
+                created_at  TEXT DEFAULT (datetime('now'))
+            );
+        ")?;
         // v1.4.1 — byty a ubytovací jednotky se platí předem (říjen do 15. 9.); jednorázově (user_version),
         // aby se pozdější ruční změna splatnosti nepřepsala
         let ver: i64 = self.conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
@@ -1248,6 +1282,7 @@ impl Database {
             // billing_subject může obsahovat i čistý název firmy
             tx.execute("UPDATE contracts SET billing_subject = ?1 WHERE billing_subject = ?2", params![new_firm, old_firm])?;
             tx.execute("UPDATE objects SET firm = ?1 WHERE firm = ?2", params![new_firm, old_firm])?;
+            tx.execute("UPDATE debt_notes SET firm = ?1 WHERE firm = ?2", params![new_firm, old_firm])?;
             // Štítky úkolů (Kanban) – čárkami oddělené, firma přesnou shodou
             let tags: Vec<(String, String)> = {
                 let mut stmt = tx.prepare("SELECT id, tag FROM tasks WHERE tag IS NOT NULL AND tag <> ''")?;
@@ -1354,5 +1389,99 @@ impl Database {
             row.get::<_, String>(0)
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(items)
+    }
+}
+
+impl Database {
+    // ─────────────────────────────────────────
+    // KAUCE – vypořádání
+    // ─────────────────────────────────────────
+    pub fn get_cauce_settlements(&self) -> Result<Vec<CauceSettlement>> {
+        let mut stmt = self.conn.prepare("SELECT contract_id, date, returned, offset_amount, note, updated_at FROM cauce_settlements")?;
+        let items = stmt.query_map([], |r| Ok(CauceSettlement {
+            contract_id: r.get(0)?, date: r.get(1)?, returned: r.get::<_, Option<f64>>(2)?.unwrap_or(0.0),
+            offset_amount: r.get::<_, Option<f64>>(3)?.unwrap_or(0.0), note: r.get(4)?, updated_at: r.get(5)?,
+        }))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
+
+    pub fn save_cauce_settlement(&self, s: &CauceSettlement) -> Result<CauceSettlement> {
+        let now = Self::now_cs();
+        self.conn.execute(
+            "INSERT INTO cauce_settlements (contract_id, date, returned, offset_amount, note, updated_at) VALUES (?1,?2,?3,?4,?5,?6)
+             ON CONFLICT(contract_id) DO UPDATE SET date=excluded.date, returned=excluded.returned, offset_amount=excluded.offset_amount, note=excluded.note, updated_at=excluded.updated_at",
+            params![s.contract_id, s.date, s.returned, s.offset_amount, s.note, now],
+        )?;
+        let mut out = s.clone();
+        out.updated_at = Some(now);
+        Ok(out)
+    }
+
+    pub fn delete_cauce_settlement(&self, contract_id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM cauce_settlements WHERE contract_id=?1", params![contract_id])?;
+        Ok(())
+    }
+
+    // ─────────────────────────────────────────
+    // POZNÁMKY K DLUŽNÍKŮM (nájemce + firma)
+    // ─────────────────────────────────────────
+    pub fn get_debt_notes(&self) -> Result<Vec<DebtNote>> {
+        let mut stmt = self.conn.prepare("SELECT id, tenant_id, firm, note, promised_date, updated_at, user_name FROM debt_notes")?;
+        let items = stmt.query_map([], |r| Ok(DebtNote {
+            id: r.get(0)?, tenant_id: r.get(1)?, firm: r.get(2)?, note: r.get(3)?, promised_date: r.get(4)?, updated_at: r.get(5)?, user_name: r.get(6)?,
+        }))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
+
+    pub fn save_debt_note(&self, n: &DebtNote, user: &str) -> Result<DebtNote> {
+        let now = Self::now_cs();
+        let existing: Option<String> = self.conn.query_row(
+            "SELECT id FROM debt_notes WHERE tenant_id=?1 AND firm=?2", params![n.tenant_id, n.firm], |r| r.get(0)).ok();
+        let id = existing.unwrap_or_else(Self::new_id);
+        self.conn.execute(
+            "INSERT INTO debt_notes (id, tenant_id, firm, note, promised_date, updated_at, user_name) VALUES (?1,?2,?3,?4,?5,?6,?7)
+             ON CONFLICT(id) DO UPDATE SET note=excluded.note, promised_date=excluded.promised_date, updated_at=excluded.updated_at, user_name=excluded.user_name",
+            params![id, n.tenant_id, n.firm, n.note, n.promised_date, now, user],
+        )?;
+        let mut out = n.clone();
+        out.id = id; out.updated_at = Some(now); out.user_name = Some(user.to_string());
+        Ok(out)
+    }
+
+    pub fn delete_debt_note(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM debt_notes WHERE id=?1", params![id])?;
+        Ok(())
+    }
+
+    // ─────────────────────────────────────────
+    // STAVY MĚŘIDEL
+    // ─────────────────────────────────────────
+    pub fn get_meter_readings(&self) -> Result<Vec<MeterReading>> {
+        let mut stmt = self.conn.prepare("SELECT id, contract_id, date, kind, electricity, water_cold, water_hot, gas, heat, note FROM meter_readings ORDER BY created_at")?;
+        let items = stmt.query_map([], |r| Ok(MeterReading {
+            id: r.get(0)?, contract_id: r.get(1)?, date: r.get(2)?, kind: r.get(3)?, electricity: r.get(4)?, water_cold: r.get(5)?,
+            water_hot: r.get(6)?, gas: r.get(7)?, heat: r.get(8)?, note: r.get(9)?,
+        }))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
+
+    pub fn add_meter_reading(&self, m: &MeterReading) -> Result<MeterReading> {
+        let id = Self::new_id();
+        self.conn.execute(
+            "INSERT INTO meter_readings (id, contract_id, date, kind, electricity, water_cold, water_hot, gas, heat, note) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+            params![id, m.contract_id, m.date, m.kind, m.electricity, m.water_cold, m.water_hot, m.gas, m.heat, m.note],
+        )?;
+        let mut out = m.clone();
+        out.id = id;
+        Ok(out)
+    }
+
+    pub fn get_meter_reading(&self, id: &str) -> Option<MeterReading> {
+        self.get_meter_readings().ok()?.into_iter().find(|m| m.id == id)
+    }
+
+    pub fn delete_meter_reading(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM meter_readings WHERE id=?1", params![id])?;
+        Ok(())
     }
 }

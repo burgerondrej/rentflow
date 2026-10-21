@@ -154,3 +154,18 @@ test('historie: ID smlouvy se při zobrazení nahradí názvem, neznámé v záv
   assert.equal(u.prettyLogDetail('Smazána smlouva: Byt 2 (bbbbbbbb-1111-2222-3333-444444444444)', ctx), 'Smazána smlouva: Byt 2')
   assert.equal(u.prettyLogDetail('Bez ID', ctx), 'Bez ID')
 })
+
+// ── Platební morálka ──
+test('platební morálka: pozdní a včasné platby, roční okno jen jednou', () => {
+  const pays = [
+    pay('c-off', 2026, 7, 20000, { date: '10. 8. 2026' }),   // včas (splatnost 15. 8.)
+    pay('c-off', 2026, 8, 20000, { date: '20. 9. 2026' }),   // 5 dní pozdě
+    pay('c-off', 2026, 9, 20000, { date: '30. 10. 2026' }),  // 15 dní pozdě
+    pay('c-flat', 2026, 9, 10000, { date: '1. 10. 2026' }),  // byt předem: splatnost 15. 9. → 16 dní pozdě (jiný nájemce)
+  ]
+  const d = u.tenantPaymentDiscipline('t2', { payments: pays, contracts: [office, flat] })
+  assert.deepEqual(d, { count: 3, late: 2, onTime: 1, avgLate: 10, maxLate: 15 })
+  const y = { ...office, id: 'y', tenantId: 't3', paymentFrequency: 'Ročně', dueDay: '31. 3.' }
+  const yp = Array.from({ length: 12 }, (_, m) => pay('y', 2026, m, 1000, { date: '10. 4. 2026', id: 'yp' + m }))
+  assert.equal(u.tenantPaymentDiscipline('t3', { payments: yp, contracts: [y] }).count, 1)
+})

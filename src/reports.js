@@ -2,6 +2,8 @@
 // PDF REPORTY (HTML pro Edge headless --print-to-pdf) – v PDF jen hex barvy, CSS proměnné nefungují
 // ─────────────────────────────────────────
 
+// Firma = část názvu sekce před „ – “ (stejně jako firmOf v utils.js)
+const firmOfSubject = (subject) => { const t = String(subject || ''); const i = t.indexOf(' – '); return (i >= 0 ? t.slice(0, i) : t).trim() }
 const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec']
 
 export const REPORT_CSS = `
@@ -48,7 +50,7 @@ export const REPORT_CSS = `
  * items = overdueItems(...), label = firma / sekce, tenantOf(contract) → nájemce, unitOf(contract) → označení předmětu.
  * Vrací { html, fileName }.
  */
-export function buildOverdueReportHtml({ items = [], label = '', tenantOf = () => null, unitOf = () => '', now = new Date() }) {
+export function buildOverdueReportHtml({ items = [], label = '', tenantOf = () => null, unitOf = () => '', noteOf = () => null, now = new Date() }) {
   const todayStr = now.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
   const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const kc = (n) => `${Math.round(n).toLocaleString('cs-CZ')} Kč`
@@ -62,7 +64,7 @@ export function buildOverdueReportHtml({ items = [], label = '', tenantOf = () =
     return `${MONTHS[it.m]} ${it.y}`
   }
   const byTenant = new Map()
-  items.forEach(it => { const k = it.contract.tenantId || ''; if (!byTenant.has(k)) byTenant.set(k, []); byTenant.get(k).push(it) })
+  items.forEach(it => { const k = `${it.contract.tenantId || ''}|${firmOfSubject(it.subject)}`; if (!byTenant.has(k)) byTenant.set(k, []); byTenant.get(k).push(it) })
   const blocks = [...byTenant.values()]
     .map(list => ({ list, sum: list.reduce((s2, it) => s2 + it.owe, 0) }))
     .sort((a, b) => b.sum - a.sum)
@@ -88,6 +90,7 @@ export function buildOverdueReportHtml({ items = [], label = '', tenantOf = () =
             <div>
               <div class="tenant-name">${esc(tenant?.name || '—')}</div>
               <div class="tenant-unit">${esc(units)}${tenant?.phone ? ` · tel. ${esc(tenant.phone)}` : ''}</div>
+              ${(() => { const n = noteOf(list[0].contract.tenantId, firmOfSubject(list[0].subject)); return n && (n.note || n.promisedDate) ? `<div class="debt-due" style="color:#92400E;font-weight:700">📝 ${esc(n.note || '')}${n.promisedDate ? ` · slíbeno do ${esc(n.promisedDate)}` : ''}</div>` : '' })()}
             </div>
             <div class="tenant-sum">${kc(sum)}</div>
           </div>
