@@ -885,9 +885,9 @@ pub fn delete_amendment(id: String, user: String, state: State<AppState>) -> std
 // ─────────────────────────────────────────
 
 #[tauri::command]
-pub fn update_section(old_name: String, new_name: String, asset_type: String, is_vat_payer: bool, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+pub fn update_section(old_name: String, new_name: String, asset_type: String, is_vat_payer: bool, meters: Option<String>, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
     let db = db!(state);
-    db.update_section(&old_name, &new_name, &asset_type, is_vat_payer)?;
+    db.update_section(&old_name, &new_name, &asset_type, is_vat_payer, meters.as_deref())?;
     db.add_log(&user, "Úprava", "Firmy a sekce", &format!("Sekce {} → {} ({}, DPH: {})", old_name, new_name, asset_type, if is_vat_payer { "ano" } else { "ne" }))?;
     Ok(())
 }
@@ -901,9 +901,9 @@ pub fn update_firm(old_firm: String, new_firm: String, short_name: String, color
 }
 
 #[tauri::command]
-pub fn add_section(name: String, asset_type: String, is_vat_payer: bool, short_name: String, color: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+pub fn add_section(name: String, asset_type: String, is_vat_payer: bool, short_name: String, color: String, meters: Option<String>, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
     let db = db!(state);
-    db.add_section(&name, &asset_type, is_vat_payer, &short_name, &color)?;
+    db.add_section(&name, &asset_type, is_vat_payer, &short_name, &color, meters.as_deref())?;
     db.add_log(&user, "Přidání", "Firmy a sekce", &format!("Nová sekce {}", name))?;
     Ok(())
 }

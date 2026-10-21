@@ -4,6 +4,7 @@ import DialogShell from './DialogShell.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { FirmBadge } from './FirmUI.jsx'
 import { sectionOf, firmColors, FIRM_COLOR_KEYS, ASSET_TYPES, SUBJECT_SEP } from './utils.js'
+import { METER_FIELDS, defaultMeters, sectionMeters } from './MeterUI.jsx'
 
 const TYPE_OPTIONS = Object.entries(ASSET_TYPES).map(([k, v]) => ({ k, label: `${v.icon} ${v.label}` }))
 const COLOR_LABEL = { wine: 'Bordó', royal: 'Modrá', violet: 'Fialová', teal: 'Tyrkysová', orange: 'Oranžová', slate: 'Břidlicová' }
@@ -93,11 +94,17 @@ export default function FirmsSettings({ onClose }) {
       setConfirm({ title: 'Přejmenovat firmu?', text: `„${f.name}“ → „${name}“. Změna se propíše do všech sekcí (${f.sections.length}), předmětů (${n}), smluv, dokumentů, revizí, budov a štítků úkolů. Předtím se udělá záloha.`, okLabel: 'Přejmenovat', onOk: doIt })
     } else doIt()
   }
+  // Měřidla sekce (jen byty a komerční): '' = výchozí podle typu, jinak výčet klíčů
+  const metersArg = () => {
+    if (!edit.meters || (edit.type !== 'residential' && edit.type !== 'commercial')) return ''
+    const sel = METER_FIELDS.map(f => f.key).filter(k => (edit.meters || []).includes(k))
+    return sel.join(',') === defaultMeters(edit.type).join(',') ? '' : (sel.join(',') || 'none')
+  }
   const sectionFullName = (firmName, part) => (part || '').trim() ? `${firmName}${SUBJECT_SEP}${part.trim()}` : firmName
   const saveSection = (f, oldName) => {
     const newName = sectionFullName(f.name, edit.part)
     if (newName !== oldName && allNames.includes(newName)) return showToast(`Sekce „${newName}“ už existuje.`, 'warning')
-    const doIt = () => run('update_section', { oldName, newName, assetType: edit.type, isVatPayer: !!edit.vat }, 'Sekce uložena.')
+    const doIt = () => run('update_section', { oldName, newName, assetType: edit.type, isVatPayer: !!edit.vat, meters: metersArg() }, 'Sekce uložena.')
     if (newName !== oldName) {
       setConfirm({ title: 'Přejmenovat sekci?', text: `„${oldName}“ → „${newName}“. Změna se propíše do předmětů (${assetCount(oldName)}), smluv (${contractCount(oldName)}), dokumentů a revizí. Předtím se udělá záloha.`, okLabel: 'Přejmenovat', onOk: doIt })
     } else doIt()
@@ -106,7 +113,7 @@ export default function FirmsSettings({ onClose }) {
     const name = sectionFullName(f.name, edit.part)
     if (!(edit.part || '').trim()) return showToast('Vyplňte název sekce.', 'warning')
     if (allNames.includes(name)) return showToast(`Sekce „${name}“ už existuje.`, 'warning')
-    run('add_section', { name, assetType: edit.type, isVatPayer: !!edit.vat, shortName: f.short, color: f.color }, `Sekce „${name}“ přidána.`)
+    run('add_section', { name, assetType: edit.type, isVatPayer: !!edit.vat, shortName: f.short, color: f.color, meters: metersArg() }, `Sekce „${name}“ přidána.`)
   }
   const addFirm = () => {
     const firm = (edit.name || '').trim()
@@ -115,7 +122,7 @@ export default function FirmsSettings({ onClose }) {
     if (firm.includes(SUBJECT_SEP)) return showToast('Název firmy nesmí obsahovat „ – “.', 'warning')
     if (firms.some(x => x.name === firm)) return showToast(`Firma „${firm}“ už existuje.`, 'warning')
     if (firms.some(x => x.short.toUpperCase() === short)) return showToast(`Zkratku ${short} už má jiná firma.`, 'warning')
-    run('add_section', { name: sectionFullName(firm, edit.part), assetType: edit.type, isVatPayer: !!edit.vat, shortName: short, color: edit.color }, `Firma „${firm}“ přidána.`)
+    run('add_section', { name: sectionFullName(firm, edit.part), assetType: edit.type, isVatPayer: !!edit.vat, shortName: short, color: edit.color, meters: metersArg() }, `Firma „${firm}“ přidána.`)
   }
   const saveObject = (oldName) => {
     const name = (edit.name || '').trim()
@@ -125,12 +132,20 @@ export default function FirmsSettings({ onClose }) {
 
   const sectionForm = (onSave, label) => formBox(grid(<>
     {field('Název sekce (za „FIRMA – “)', <input className="btn" style={inp} value={edit.part} onChange={e => setEdit({ ...edit, part: e.target.value })} placeholder="např. Komerční prostory" />, true)}
-    {field('Typ předmětů', <select className="btn" style={{ ...inp, cursor: 'pointer' }} value={edit.type} onChange={e => setEdit({ ...edit, type: e.target.value })}>
+    {field('Typ předmětů', <select className="btn" style={{ ...inp, cursor: 'pointer' }} value={edit.type} onChange={e => setEdit({ ...edit, type: e.target.value, meters: defaultMeters(e.target.value) })}>
       {!ASSET_TYPES[edit.type] && <option value={edit.type}>{edit.type}</option>}
       {TYPE_OPTIONS.map(o => <option key={o.k} value={o.k}>{o.label}</option>)}
     </select>)}
     {field('DPH', <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', paddingTop: 6, cursor: 'pointer' }}>
       <input type="checkbox" checked={!!edit.vat} onChange={e => setEdit({ ...edit, vat: e.target.checked })} /> Plátce DPH</label>)}
+    {(edit.type === 'residential' || edit.type === 'commercial') && field('Měřidla (stavy měřidel ve smlouvách)', <div style={{ display: 'flex', gap: '6px 14px', flexWrap: 'wrap', paddingTop: 6 }}>
+      {METER_FIELDS.map(f => (
+        <label key={f.key} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={(edit.meters || []).includes(f.key)}
+            onChange={e => setEdit({ ...edit, meters: e.target.checked ? [...(edit.meters || []), f.key] : (edit.meters || []).filter(k => k !== f.key) })} /> {f.label}
+        </label>
+      ))}
+    </div>)}
   </>), onSave, label)
 
   const objectForm = () => formBox(grid(<>
@@ -180,7 +195,7 @@ export default function FirmsSettings({ onClose }) {
                     <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text2)' }}>{s?.isVatPayer ? 'DPH' : 'bez DPH'}</span>
                     {iconBtn('↑', 'Nahoru', () => moveSection(f, si, -1), si === 0)}
                     {iconBtn('↓', 'Dolů', () => moveSection(f, si, 1), si === f.sections.length - 1)}
-                    {iconBtn('✏️', 'Upravit sekci', () => setEdit({ kind: 'section', name, part: name === f.name ? '' : sectionOf(name), type: s?.assetType || 'commercial', vat: !!s?.isVatPayer }))}
+                    {iconBtn('✏️', 'Upravit sekci', () => setEdit({ kind: 'section', name, part: name === f.name ? '' : sectionOf(name), type: s?.assetType || 'commercial', vat: !!s?.isVatPayer, meters: sectionMeters(s) }))}
                     {iconBtn('🗑️', cnt ? 'Sekci s předměty nelze smazat' : 'Smazat prázdnou sekci', () => setConfirm({ title: 'Smazat sekci?', text: `Sekce „${name}“ bude odstraněna. Předtím se udělá záloha.`, danger: true, okLabel: 'Smazat', onOk: () => run('delete_section', { name }, 'Sekce smazána.') }), cnt > 0)}
                   </div>
                   {editing && sectionForm(() => saveSection(f, name))}
@@ -190,7 +205,7 @@ export default function FirmsSettings({ onClose }) {
             {edit?.kind === 'newSection' && edit.firm === f.name ? sectionForm(() => addSection(f), 'Přidat sekci') : (
               <div style={{ padding: '7px 12px 7px 26px', borderTop: '1px solid var(--border)' }}>
                 <button className="btn btn-sm" disabled={busy} style={{ color: 'var(--accent)', fontWeight: 700 }}
-                  onClick={() => setEdit({ kind: 'newSection', firm: f.name, part: '', type: 'commercial', vat: f.isVatPayer !== false })}>+ Přidat sekci</button>
+                  onClick={() => setEdit({ kind: 'newSection', firm: f.name, part: '', type: 'commercial', vat: f.isVatPayer !== false, meters: defaultMeters('commercial') })}>+ Přidat sekci</button>
               </div>
             )}
 
@@ -227,7 +242,7 @@ export default function FirmsSettings({ onClose }) {
             {field('Zkratka (2–4 znaky)', <input className="btn" style={inp} maxLength={5} value={edit.short} onChange={e => setEdit({ ...edit, short: e.target.value })} />)}
             {field('Barva firmy', colorPicker(edit.color, (k) => setEdit({ ...edit, color: k })), true)}
             {field('První sekce (prázdné = bez sekce)', <input className="btn" style={inp} value={edit.part} onChange={e => setEdit({ ...edit, part: e.target.value })} placeholder="např. Komerční prostory" />)}
-            {field('Typ předmětů', <select className="btn" style={{ ...inp, cursor: 'pointer' }} value={edit.type} onChange={e => setEdit({ ...edit, type: e.target.value })}>
+            {field('Typ předmětů', <select className="btn" style={{ ...inp, cursor: 'pointer' }} value={edit.type} onChange={e => setEdit({ ...edit, type: e.target.value, meters: defaultMeters(e.target.value) })}>
               {TYPE_OPTIONS.map(o => <option key={o.k} value={o.k}>{o.label}</option>)}
             </select>)}
             {field('DPH', <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', paddingTop: 6, cursor: 'pointer' }}>

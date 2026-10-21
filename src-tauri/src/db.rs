@@ -411,6 +411,11 @@ impl Database {
                 created_at  TEXT DEFAULT (datetime('now'))
             );
         ")?;
+        // v1.4.3 — měřidla sekce (subjects.meters), chlazení a ručně zapsané jednotky topení / chlazení
+        let _ = self.conn.execute("ALTER TABLE subjects ADD COLUMN meters TEXT NOT NULL DEFAULT ''", []);
+        let _ = self.conn.execute("ALTER TABLE meter_readings ADD COLUMN cooling REAL", []);
+        let _ = self.conn.execute("ALTER TABLE meter_readings ADD COLUMN heat_unit TEXT", []);
+        let _ = self.conn.execute("ALTER TABLE meter_readings ADD COLUMN cooling_unit TEXT", []);
         // v1.4.1 — byty a ubytovací jednotky se platí předem (říjen do 15. 9.); jednorázově (user_version),
         // aby se pozdější ruční změna splatnosti nepřepsala
         let ver: i64 = self.conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
@@ -1202,7 +1207,7 @@ impl Database {
 
     pub fn get_subjects(&self) -> Result<Vec<Subject>> {
         let mut stmt = self.conn.prepare(
-            "SELECT name, asset_type, is_vat_payer, COALESCE(short_name, ''), COALESCE(color, '') FROM subjects ORDER BY sort_order"
+            "SELECT name, asset_type, is_vat_payer, COALESCE(short_name, ''), COALESCE(color, ''), COALESCE(meters, '') FROM subjects ORDER BY sort_order"
         )?;
         let items = stmt.query_map([], |row| {
             Ok(Subject {
@@ -1211,6 +1216,7 @@ impl Database {
                 is_vat_payer: row.get::<_, i64>(2)? != 0,
                 short_name: row.get(3)?,
                 color: row.get(4)?,
+                meters: row.get(5)?,
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(items)
@@ -1236,7 +1242,7 @@ impl Database {
     // ─────────────────────────────────────────
 
     /// Přejmenuje sekci (subjekt) a všechny odkazy na ni; nastaví typ a DPH.
-    pub fn update_section(&self, old_name: &str, new_name: &str, asset_type: &str, is_vat_payer: bool) -> Result<()> {
+    pub fn update_section(&self, old_name: &str, new_name: &str, asset_type: &str, is_vat_payer: bool, meters: Option<&str>) -> Result<()> {
         let new_name = new_name.trim();
         if new_name.is_empty() { return Err(AppError::Other("Název sekce nesmí být prázdný.".into())); }
         let tx = self.conn.unchecked_transaction()?;
@@ -1251,6 +1257,9 @@ impl Database {
         }
         tx.execute("UPDATE subjects SET asset_type = ?1, is_vat_payer = ?2 WHERE name = ?3",
             params![asset_type, if is_vat_payer { 1 } else { 0 }, new_name])?;
+        if let Some(m) = meters {
+            tx.execute("UPDATE subjects SET meters = ?1 WHERE name = ?2", params![m, new_name])?;
+        }
         tx.commit()?;
         Ok(())
     }
@@ -1304,7 +1313,7 @@ impl Database {
     }
 
     /// Přidá sekci (název "FIRMA – Sekce" nebo jen "FIRMA") na konec své firmy.
-    pub fn add_section(&self, name: &str, asset_type: &str, is_vat_payer: bool, short_name: &str, color: &str) -> Result<()> {
+    pub fn add_section(&self, name: &str, asset_type: &str, is_vat_payer: bool, short_name: &str, color: &str, meters: Option<&str>) -> Result<()> {
         let name = name.trim();
         if name.is_empty() { return Err(AppError::Other("Název sekce nesmí být prázdný.".into())); }
         let exists: i64 = self.conn.query_row("SELECT COUNT(*) FROM subjects WHERE name = ?1", params![name], |r| r.get(0))?;
@@ -1318,8 +1327,8 @@ impl Database {
             Some(p) => { tx.execute("UPDATE subjects SET sort_order = sort_order + 1 WHERE sort_order > ?1", params![p])?; p + 1 }
             None => tx.query_row("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM subjects", [], |r| r.get(0))?,
         };
-        tx.execute("INSERT INTO subjects (id, name, sort_order, asset_type, is_vat_payer, short_name, color) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![Self::new_id(), name, pos, asset_type, if is_vat_payer { 1 } else { 0 }, short_name.trim(), color])?;
+        tx.execute("INSERT INTO subjects (id, name, sort_order, asset_type, is_vat_payer, short_name, color, meters) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![Self::new_id(), name, pos, asset_type, if is_vat_payer { 1 } else { 0 }, short_name.trim(), color, meters.unwrap_or("")])?;
         tx.commit()?;
         Ok(())
     }
@@ -1457,10 +1466,10 @@ impl Database {
     // STAVY MĚŘIDEL
     // ─────────────────────────────────────────
     pub fn get_meter_readings(&self) -> Result<Vec<MeterReading>> {
-        let mut stmt = self.conn.prepare("SELECT id, contract_id, date, kind, electricity, water_cold, water_hot, gas, heat, note FROM meter_readings ORDER BY created_at")?;
+        let mut stmt = self.conn.prepare("SELECT id, contract_id, date, kind, electricity, water_cold, water_hot, gas, heat, note, cooling, heat_unit, cooling_unit FROM meter_readings ORDER BY created_at")?;
         let items = stmt.query_map([], |r| Ok(MeterReading {
             id: r.get(0)?, contract_id: r.get(1)?, date: r.get(2)?, kind: r.get(3)?, electricity: r.get(4)?, water_cold: r.get(5)?,
-            water_hot: r.get(6)?, gas: r.get(7)?, heat: r.get(8)?, note: r.get(9)?,
+            water_hot: r.get(6)?, gas: r.get(7)?, heat: r.get(8)?, note: r.get(9)?, cooling: r.get(10)?, heat_unit: r.get(11)?, cooling_unit: r.get(12)?,
         }))?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(items)
     }
@@ -1468,8 +1477,8 @@ impl Database {
     pub fn add_meter_reading(&self, m: &MeterReading) -> Result<MeterReading> {
         let id = Self::new_id();
         self.conn.execute(
-            "INSERT INTO meter_readings (id, contract_id, date, kind, electricity, water_cold, water_hot, gas, heat, note) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-            params![id, m.contract_id, m.date, m.kind, m.electricity, m.water_cold, m.water_hot, m.gas, m.heat, m.note],
+            "INSERT INTO meter_readings (id, contract_id, date, kind, electricity, water_cold, water_hot, gas, heat, note, cooling, heat_unit, cooling_unit) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+            params![id, m.contract_id, m.date, m.kind, m.electricity, m.water_cold, m.water_hot, m.gas, m.heat, m.note, m.cooling, m.heat_unit, m.cooling_unit],
         )?;
         let mut out = m.clone();
         out.id = id;

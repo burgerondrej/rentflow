@@ -321,6 +321,8 @@ pub struct Subject {
     pub short_name: String,  // zkratka firmy (MCB, BP…) – stejná pro všechny sekce firmy
     #[serde(default)]
     pub color: String,       // barevný klíč firmy (wine, orange, violet, blue, emerald, slate)
+    #[serde(default)]
+    pub meters: String,      // odečítaná měřidla sekce, čárkami (electricity,heat,cooling,waterCold,waterHot,gas); prázdné = výchozí podle typu
 }
 
 // Objekt (budova) a firma, které patří
@@ -420,6 +422,12 @@ pub struct MeterReading {
     pub gas: Option<f64>,
     #[serde(default)]
     pub heat: Option<f64>,
+    #[serde(default)]
+    pub cooling: Option<f64>,
+    #[serde(default)]
+    pub heat_unit: Option<String>,     // jednotka topení zapsaná ručně (GJ, kWh, dílky…)
+    #[serde(default)]
+    pub cooling_unit: Option<String>,
     #[serde(default)]
     pub note: Option<String>,
 }

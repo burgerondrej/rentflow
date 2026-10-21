@@ -496,17 +496,17 @@ function AppInner() {
             {/* Stav kopie na Google Disku (z ní čte Pavel i mobil) — skryto pro Pavla; klik = záloha + kopie (Ctrl+S) */}
             {currentUser !== 'Pavel' && (() => {
               const st = syncStatus
-              let tone = 'green', text = '☁️ Disk: …', title = 'Kopie databáze na Google Disku – z ní čte Pavel i mobil. Klik = záloha a kopie (Ctrl+S).'
+              let tone = 'green', text = '💾 Poslední záloha: …', title = 'Poslední záloha a kopie databáze na Google Disku – z ní čte Pavel i mobil. Klik = záloha (Ctrl+S).'
               if (st) {
-                if (!st.configured) { tone = 'gray'; text = '☁️ Disk nenastaven' }
-                else if (!st.folderOk) { tone = 'red'; text = '☁️ Disk nenalezen' }
-                else if (!st.copyEpoch) { tone = 'red'; text = '☁️ Disk: zatím bez kopie' }
+                if (!st.configured) { tone = 'gray'; text = '💾 Záloha na Google Disk není nastavená' }
+                else if (!st.folderOk) { tone = 'red'; text = '💾 Složka zálohy na Google Disku nenalezena' }
+                else if (!st.copyEpoch) { tone = 'red'; text = '💾 Zatím žádná záloha – Ctrl+S' }
                 else {
                   const d = new Date(st.copyEpoch * 1000), now = new Date()
                   const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
                   const dayDiff = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000)
                   const when = dayDiff <= 0 ? `dnes ${hm}` : dayDiff === 1 ? `včera ${hm}` : `před ${dayDiff} dny`
-                  text = `☁️ Disk: ${when}`
+                  text = `💾 Poslední záloha: ${when}`
                   if (st.pending) { tone = 'amber'; text += ' · neuložené změny – Ctrl+S' }
                 }
               }

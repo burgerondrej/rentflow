@@ -12,7 +12,7 @@ import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { open as shellOpen } from '@tauri-apps/api/shell'
-import { CauceSettleFields, cauceInfo, settlementFromChoice, tenantDebtForContract } from './CauceUI.jsx'
+import { CauceSettleFields, CauceSettleDialog, cauceInfo, settlementFromChoice, tenantDebtForContract, fmtKc } from './CauceUI.jsx'
 import { DebtNoteLine, DebtNoteDialog, findDebtNote } from './DebtNoteUI.jsx'
 import MeterReadings from './MeterUI.jsx'
 import { StatusPill, contractStatus } from './StatusUI.jsx'
@@ -65,6 +65,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
   const terminateDateRef = useRef('') // datum ukončení smlouvy z ConfirmDialogu
   const cauceChoiceRef = useRef({ mode: 'return', offset: '' }) // vypořádání kauce v ConfirmDialogu ukončení
   const [noteFor, setNoteFor] = useState(null) // { tenantId, firm, tenantName } – poznámka k dlužníkovi
+  const [cauceFor, setCauceFor] = useState(null) // smlouva – dialog vypořádání kauce
   const [renewFor, setRenewFor] = useState(null) // smlouva, ze které se zakládají navazující smlouvy
   const [changeFor, setChangeFor] = useState(null) // smlouva, u které se mění nájemce (předávka předmětu)
   const [saldoPay, setSaldoPay] = useState(null) // { it, amount, date, note } – úhrada dlužného měsíce ze salda
@@ -2664,7 +2665,24 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             {(a?.type === 'residential' || a?.type === 'commercial') && c.cauce > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 13, color: 'var(--text2)' }}>Složená kauce</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.cauce.toLocaleString('cs-CZ')} Kč</span>
+                {(() => {
+                  // Stav kauce: drží se / k vrácení / vypořádáno / převedena na navazující smlouvu (CauceUI.cauceInfo)
+                  const ci = cauceInfo(c, contracts, cauceSettlements)
+                  const st = ci?.settlement
+                  const label = !ci ? '' : ci.status === 'held' ? 'drží se' : ci.status === 'toReturn' ? 'k vrácení'
+                    : ci.status === 'transferred' ? 'převedena na navazující smlouvu'
+                    : `vypořádáno – vráceno ${fmtKc(st.returned)}${st.offsetAmount > 0 ? `, započteno ${fmtKc(st.offsetAmount)}` : ''}`
+                  const tone = ci?.status === 'toReturn' ? 'amber' : ci?.status === 'settled' ? 'green' : 'gray'
+                  return (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.cauce.toLocaleString('cs-CZ')} Kč</span>
+                      {label && <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 8px', borderRadius: 999, background: `var(--tone-${tone}-soft)`, color: `var(--tone-${tone}-text)`, border: `1px solid var(--tone-${tone}-border)` }}>{label}</span>}
+                      {!isReadOnly && ci && ci.status !== 'transferred' && (
+                        <button className={`btn btn-sm ${ci.status === 'toReturn' ? 'btn-tone-amber' : ''}`} style={{ fontWeight: 700 }} onClick={() => setCauceFor(c)}>{st ? 'Upravit' : 'Vypořádat'}</button>
+                      )}
+                    </span>
+                  )
+                })()}
               </div>
             )}
 
@@ -3240,6 +3258,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           </DialogShell>
         )
       })()}
+      {cauceFor && <CauceSettleDialog contract={cauceFor} onClose={() => setCauceFor(null)} />}
       {noteFor && <DebtNoteDialog tenantId={noteFor.tenantId} firm={noteFor.firm} tenantName={noteFor.tenantName} onClose={() => setNoteFor(null)} />}
       {changeFor && (
         <ChangeTenantDialog contract={changeFor} onClose={() => setChangeFor(null)} onDone={() => { setChangeFor(null); onClose() }} />
