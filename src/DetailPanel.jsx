@@ -7,6 +7,7 @@ import ChangeTenantDialog from './ChangeTenantDialog.jsx'
 import ContractHistory from './ContractHistory.jsx'
 import DialogShell, { isDialogOpen } from './DialogShell.jsx'
 import { SectionHeader, Segmented, EmptyState } from './UI.jsx'
+import TenantTimeline from './TenantTimeline.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
@@ -889,6 +890,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             <FirmRentSummary rows={tenantRentsByFirm(activeContracts, assets, firms)} large />
           </div>
         )}
+        <TenantTimeline tenantId={id} onOpen={onOpen} />
         {t.tags && t.tags.length > 0 && (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 16 }}>
             {t.tags.map(tag => <span key={tag} className="badge" style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}>{tag}</span>)}

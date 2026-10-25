@@ -11,7 +11,7 @@ const MONTHS_LC = ['leden', 'únor', 'březen', 'duben', 'květen', 'červen', '
 const MONTHS_GEN = ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince']
 
 export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
-  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [], getFirm, theme, firms = [], setNavSelection, objectFirms = [] } = useApp() || {}
+  const { contracts = [], assets = [], tenants = [], tasks = [], revisions = [], payments = [], subjects = [], getFirm, theme, firms = [], setNavSelection, objectFirms = [], cauceSettlements = [], meterReadings = [], subjectData = [] } = useApp() || {}
   const [expandedGroup, setExpandedGroup] = useState(null) // { days, colorVar, list }
   // Kontrola dat – proužek s počtem důležitých nálezů
   const [showCheck, setShowCheck] = useState(false)
@@ -27,7 +27,7 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
       return localStorage.getItem('rf_datacheck_dismissed') || ''
     } catch { return '' }
   })
-  const checkAlert = dataCheckAlerts(computeDataChecks({ contracts, assets, tenants, payments, subjects, objectFirms, firms }))
+  const checkAlert = dataCheckAlerts(computeDataChecks({ contracts, assets, tenants, payments, subjects, objectFirms, firms, cauceSettlements, meterReadings, subjectData }))
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)

@@ -202,7 +202,7 @@ function AppInner() {
     const s = detailStackRef.current
     const top = s[s.length - 1]
     if (top && top.type === type && top.id === id) return
-    setStack([...s, { type, id, tab: null, onReturn: s.length === 0 ? opts?.onReturn : undefined }])
+    setStack([...s, { type, id, tab: opts?.tab || null, onReturn: s.length === 0 ? opts?.onReturn : undefined }])
   }, [])
   const detailExists = (e) => {
     const d = detailDataRef.current

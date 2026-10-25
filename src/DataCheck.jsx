@@ -1,14 +1,20 @@
 import React, { useMemo, useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import DialogShell from './DialogShell.jsx'
-import { parseDate, isContractBillable, isContractOccupying, getCurrentAssetContract, contractSubject, isContractInMonth, getMonthRent, groupMonthStatus, isGroupPayment, dueDateFor, PERIOD_LEN } from './utils.js'
+import { parseDate, isContractBillable, isContractOccupying, getCurrentAssetContract, contractSubject, isContractInMonth, getMonthRent, groupMonthStatus, isGroupPayment, dueDateFor, hasSuccessor, PERIOD_LEN } from './utils.js'
+import { cauceInfo, fmtKc } from './CauceUI.jsx'
+import { sectionMeters } from './MeterUI.jsx'
+
+// Odečty měřidel se hlídají jen u smluv ukončených po zavedení měřidel (v1.4.3) – starší konce by zahltily kontrolu
+const METERS_FROM = new Date(2026, 9, 22)
+const CAUCE_GRACE_DAYS = 30
 
 /**
  * Kontrola dat (jen čtení): najde nesrovnalosti, které rozbíjejí přehledy a platby.
  * Nic neopravuje – u každé položky je odkaz do detailu.
  */
 /** Výpočet všech kontrol (sdílí dialog i proužek na Dashboardu). Vrací [{ id, icon, title, hint, items, tone }]. */
-export function computeDataChecks({ contracts = [], assets = [], tenants = [], payments = [], subjects = [], objectFirms = [], firms = [] }) {
+export function computeDataChecks({ contracts = [], assets = [], tenants = [], payments = [], subjects = [], objectFirms = [], firms = [], cauceSettlements = [], meterReadings = [], subjectData = [] }) {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const tenantOf = (c) => tenants.find(t => t.id === c.tenantId)
     const assetOf = (c) => assets.find(a => a.id === c.assetId)
@@ -163,6 +169,33 @@ export function computeDataChecks({ contracts = [], assets = [], tenants = [], p
         .filter(c => { const n = new Date(); return !dueDateFor(c, n.getFullYear(), n.getMonth()) })
         .map(c => ({ key: c.id, text: label(c), sub: `${c.dueDay} (${c.paymentFrequency || 'Měsíčně'})`, open: ['contract', c.id] })), 'gray')
 
+    // 8i) Odchod nájemce bez odečtu měřidel – stačí odečet „Odchod“ na smlouvě nebo „Nástup“ na další smlouvě jiného nájemce.
+    // Prodloužení téhož nájemce se nehlídá (nikdo neodchází); sekce bez měřidel také ne.
+    const hasReading = (contractId, kind) => meterReadings.some(r => r.contractId === contractId && r.kind === kind)
+    add('meterOut', '🔢', 'Odchod nájemce bez odečtu měřidel', 'Zapište stavy měřidel při odchodu v detailu smlouvy (nebo stav při nástupu u nového nájemce).',
+      contracts.filter(c => {
+        const e = parseDate(c.end)
+        if (c.status !== 'archived' || !e || e < METERS_FROM || e >= today) return false
+        const a = assetOf(c)
+        if (!sectionMeters(subjectData.find(s => s.name === a?.subject) || { assetType: a?.type }).length) return false
+        if (hasSuccessor(c, contracts, true) || hasReading(c.id, 'odchod')) return false
+        const s0 = parseDate(c.start)?.getTime() ?? -Infinity
+        return !contracts.some(o => o.id !== c.id && o.assetId === c.assetId && o.tenantId !== c.tenantId &&
+          (parseDate(o.start)?.getTime() ?? -Infinity) > s0 && hasReading(o.id, 'nastup'))
+      }).map(c => ({ key: c.id, text: label(c), sub: `konec ${c.end}`, open: ['contract', c.id] })))
+
+    // 8j) Kauce stále „k vrácení“ víc než 30 dní po konci smlouvy
+    add('cauceOpen', '💰', 'Nevypořádaná kauce po konci smlouvy', `Kauce je víc než ${CAUCE_GRACE_DAYS} dní po konci smlouvy stále „k vrácení“ – vypořádejte ji v detailu smlouvy nebo ve Smlouvách → 💰 Kauce.`,
+      contracts.filter(c => {
+        const e = parseDate(c.end)
+        return e && (today - e) / 86400000 > CAUCE_GRACE_DAYS && cauceInfo(c, contracts, cauceSettlements)?.status === 'toReturn'
+      }).map(c => ({ key: c.id, text: label(c), sub: `${fmtKc(c.cauce)} · konec ${c.end}`, open: ['contract', c.id] })))
+
+    // 8k) Platná smlouva bytu bez kauce (informativně – byt bez kauce může být záměr)
+    add('noCauce', '🔐', 'Byty bez kauce', 'Platná smlouva bytu nemá zapsanou kauci – pokud byla složena, doplňte ji v úpravě smlouvy.',
+      contracts.filter(c => isContractOccupying(c) && assetOf(c)?.type === 'residential' && !(Number(c.cauce) > 0))
+        .map(c => ({ key: c.id, text: label(c), sub: `smlouva ${range(c)}`, open: ['contract', c.id] })), 'gray')
+
     // 9) Budovy bez firmy
     add('objects', '🏛️', 'Budovy bez firmy', 'Přiřaďte budovu firmě v Nastavení → Firmy a sekce (jinak chybí ve filtrech Revizí a Nákladů).',
       objectFirms.filter(o => !o.firm || !firms.some(f => f.name === o.firm)).map(o => ({ key: o.name, text: o.name, sub: o.firm || 'bez firmy' })), 'gray')
@@ -182,10 +215,10 @@ export function dataCheckAlerts(checks) {
 }
 
 export default function DataCheck({ onClose, onOpen }) {
-  const { contracts = [], assets = [], tenants = [], payments = [], subjects = [], objectFirms = [], firms = [] } = useApp()
+  const { contracts = [], assets = [], tenants = [], payments = [], subjects = [], objectFirms = [], firms = [], cauceSettlements = [], meterReadings = [], subjectData = [] } = useApp()
   const [open, setOpen] = useState(null)
-  const checks = useMemo(() => computeDataChecks({ contracts, assets, tenants, payments, subjects, objectFirms, firms }),
-    [contracts, assets, tenants, payments, subjects, objectFirms, firms])
+  const checks = useMemo(() => computeDataChecks({ contracts, assets, tenants, payments, subjects, objectFirms, firms, cauceSettlements, meterReadings, subjectData }),
+    [contracts, assets, tenants, payments, subjects, objectFirms, firms, cauceSettlements, meterReadings, subjectData])
 
   const problems = checks.filter(c => c.items.length > 0)
   const total = problems.reduce((s, c) => s + c.items.length, 0)
