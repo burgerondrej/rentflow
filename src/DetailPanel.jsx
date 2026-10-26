@@ -8,6 +8,7 @@ import ContractHistory from './ContractHistory.jsx'
 import DialogShell, { isDialogOpen } from './DialogShell.jsx'
 import { SectionHeader, Segmented, EmptyState } from './UI.jsx'
 import TenantTimeline from './TenantTimeline.jsx'
+import AssetRentHistory from './AssetRentHistory.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
 import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
@@ -1609,7 +1610,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           const list = contracts.filter(x => x.assetId === a.id)
             .sort((p, q) => (parseDate(q.start)?.getTime() || 0) - (parseDate(p.start)?.getTime() || 0))
           if (list.length === 0) return <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Na tomto předmětu zatím není žádná smlouva.</div>
-          return (
+          return (<>
+            {/* Vývoj nájmu – u Ostatní ne (na jednom předmětu může běžet víc smluv současně) */}
+            {a.type !== 'ostatni' && <AssetRentHistory assetId={a.id} onOpen={onOpen} />}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {list.map(x => {
                 const tn = tenants.find(tt => tt.id === x.tenantId)
@@ -1627,7 +1630,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 )
               })}
             </div>
-          )
+          </>)
         })()}
 
         {assetTab === 'overview' && (<>

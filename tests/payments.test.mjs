@@ -169,3 +169,13 @@ test('platební morálka: pozdní a včasné platby, roční okno jen jednou', (
   const yp = Array.from({ length: 12 }, (_, m) => pay('y', 2026, m, 1000, { date: '10. 4. 2026', id: 'yp' + m }))
   assert.equal(u.tenantPaymentDiscipline('t3', { payments: yp, contracts: [y] }).count, 1)
 })
+
+// ── Hodnoty k datu (vývoj nájmu předmětu) ──
+test('hodnoty k datu: dodatek uprostřed měsíce platí od svého dne', () => {
+  const c = { ...office, amendments: [{ effectiveFrom: '15. 5. 2026', rent: 22000 }, { effectiveFrom: '5. 9. 2026', rent: 23000, flatFee: 500 }] }
+  assert.equal(u.getEffectiveValuesAt(c, new Date(2026, 4, 14)).rent, 20000)
+  assert.equal(u.getEffectiveValuesAt(c, new Date(2026, 4, 15)).rent, 22000)
+  const v = u.getEffectiveValuesAt(c, new Date(2026, 8, 5, 18, 30))
+  assert.equal(v.rent, 23000)
+  assert.equal(v.flatFee, 500)
+})

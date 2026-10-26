@@ -194,6 +194,15 @@ export function getEffectiveValuesToday(c) {
 }
 
 /**
+ * Vrátí platné finanční hodnoty smlouvy k danému dni (Date) – i uprostřed měsíce, např. k datu účinnosti dodatku.
+ * Používat pro zobrazení historie (vývoj nájmu předmětu); předpis za měsíc vždy přes getMonthRent.
+ */
+export function getEffectiveValuesAt(c, date) {
+  const d = new Date(date)
+  return _getEffVals(c, new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime())
+}
+
+/**
  * Nájem + parking za daný měsíc.
  * Měsíční smlouvy: poměrně podle dní – začátek/konec smlouvy uprostřed měsíce
  * a dodatek s účinností uprostřed měsíce (dny před ním stará sazba, od něj nová).
