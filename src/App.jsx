@@ -20,7 +20,7 @@ import UpdateDialog from './UpdateDialog.jsx'
 import ActivationScreen from './ActivationScreen.jsx'
 import { FirmPickerButton, FirmBadge } from './FirmUI.jsx'
 import DialogShell from './DialogShell.jsx'
-import { isOverlayOpen } from './shortcuts.js'
+import { isOverlayOpen, isTyping } from './shortcuts.js'
 import { contractSubject, selectionMatches, parseDate, isContractOccupying, hasSuccessor, getMonthRent, getMonthDeposits, groupMembersInMonth, isContractBillable, isContractInMonth, PERIOD_LEN } from './utils.js'
 import { invoke } from '@tauri-apps/api/tauri'
 
@@ -140,6 +140,11 @@ function AppInner() {
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [searchIdx, setSearchIdx] = useState(0) // zvýrazněný výsledek (šipky ↑↓, Enter)
   const searchInputRef = useRef(null)
+  // Nedávno otevřené detaily (Ctrl+F bez textu) – jen pohodlí tohoto počítače, localStorage rf_recent_details
+  const [recentDetails, setRecentDetails] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem('rf_recent_details') || '[]'); return Array.isArray(v) ? v : [] } catch { return [] }
+  })
+  const [showShortcuts, setShowShortcuts] = useState(false)
 
   const readOnlyRef = useRef(isReadOnly)
   readOnlyRef.current = isReadOnly
@@ -159,6 +164,11 @@ function AppInner() {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         runBackupRef.current && runBackupRef.current()
+      }
+      // ? → přehled klávesových zkratek (ne při psaní ani s otevřeným oknem)
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey && !isTyping() && !isOverlayOpen()) {
+        e.preventDefault()
+        setShowShortcuts(true)
       }
       if (e.key === 'Escape') {
         setSearchQuery('')
@@ -203,6 +213,11 @@ function AppInner() {
     const top = s[s.length - 1]
     if (top && top.type === type && top.id === id) return
     setStack([...s, { type, id, tab: opts?.tab || null, onReturn: s.length === 0 ? opts?.onReturn : undefined }])
+    setRecentDetails(prev => {
+      const next = [{ type, id }, ...prev.filter(r => !(r.type === type && r.id === id))].slice(0, 8)
+      try { localStorage.setItem('rf_recent_details', JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
   }, [])
   const detailExists = (e) => {
     const d = detailDataRef.current
@@ -361,8 +376,30 @@ function AppInner() {
     history: () => <History />,
   }
   
+  // Nedávno otevřené – stejný tvar jako výsledky hledání (smazané položky se vynechají)
+  const getRecentResults = () => recentDetails.map(r => {
+    if (r.type === 'tenant') {
+      const t = tenants.find(x => x.id === r.id)
+      if (!t) return null
+      const tFirms = [...new Set(contracts.filter(c => c.tenantId === t.id && isContractOccupying(c)).map(c => getFirm && getFirm(contractSubject(c, assets))).filter(Boolean))]
+      return { id: t.id, type: 'tenant', label: 'Nájemce', text: t.name, firms: tFirms }
+    }
+    if (r.type === 'asset') {
+      const a = assets.find(x => x.id === r.id)
+      return a ? { id: a.id, type: 'asset', label: 'Objekt', text: `${a.unit} (${a.subject})`, firms: [getFirm && getFirm(a.subject)].filter(Boolean) } : null
+    }
+    if (r.type === 'contract') {
+      const c = contracts.find(x => x.id === r.id)
+      if (!c) return null
+      const cSubject = contractSubject(c, assets)
+      const text = [tenants.find(t => t.id === c.tenantId)?.name, assets.find(a => a.id === c.assetId)?.unit, cSubject].filter(Boolean).join(' · ')
+      return { id: c.id, type: 'contract', label: 'Smlouva', text, firms: [getFirm && getFirm(cSubject)].filter(Boolean) }
+    }
+    return null
+  }).filter(Boolean)
+
   const ActiveView = VIEWS[view] || (() => <div style={{ padding: 60, textAlign: 'center' }}>Sekce se připravuje.</div>)
-  const searchResults = getSearchResults()
+  const searchResults = searchQuery.trim() ? getSearchResults() : getRecentResults()
 
   return (
     <div className="layout">
@@ -390,6 +427,28 @@ function AppInner() {
               }}
             />
             {pinError && <div style={{ fontSize: 12, color: '#EF4444', textAlign: 'center', fontWeight: 700 }}>Nesprávný PIN — zkus to znovu.</div>}
+        </DialogShell>
+      )}
+      {showShortcuts && (
+        <DialogShell icon="⌨️" tone="blue" title="Klávesové zkratky" subtitle="Tento přehled otevřeš kdykoli klávesou ?" width={480}
+          onClose={() => setShowShortcuts(false)}
+          footer={<button className="btn" onClick={() => setShowShortcuts(false)}>Zavřít</button>}>
+          {[
+            ['Ctrl + F', 'Hledání – bez textu nabídne nedávno otevřené'],
+            ['↑ ↓  Enter', 'Výběr a otevření výsledku hledání'],
+            ['Ctrl + S', 'Záloha databáze (+ kopie na Google Disk)'],
+            ['Ctrl + N', 'Nový záznam na aktuální obrazovce (smlouva, nájemce, předmět, úkol, revize, náklad)'],
+            ['←  →', 'Předchozí / další měsíc v Platbách'],
+            ['Esc', 'Zavřít okno · v detailu krok zpět'],
+            ['Klik mimo detail', 'Zavřít všechny otevřené detaily'],
+            ['?', 'Tento přehled zkratek'],
+          ].map(([k, v], i) => (
+            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '9px 2px', borderTop: i ? '1px solid var(--border2)' : 'none' }}>
+              <kbd style={{ minWidth: 136, textAlign: 'center', fontFamily: 'inherit', fontSize: 12, fontWeight: 800, color: 'var(--text)', background: 'var(--bg2)',
+                border: '1px solid var(--border)', borderBottomWidth: 2, borderRadius: 7, padding: '4px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}>{k}</kbd>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>{v}</span>
+            </div>
+          ))}
         </DialogShell>
       )}
       {updateInfo && (
@@ -431,10 +490,13 @@ function AppInner() {
               />
 
               {/* Našeptávač výsledků */}
-              {isSearchFocused && searchQuery.trim() !== '' && (() => {
+              {isSearchFocused && (searchQuery.trim() !== '' || searchResults.length > 0) && (() => {
                 const TYPE_TONE = { tenant: 'violet', contract: 'blue', asset: 'green', task: 'amber', doc: 'gray' }
                 return (
-                  <div className="dlg" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 1000, borderRadius: 14 }}>
+                  <div className="dlg" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, minWidth: 'min(460px, calc(90vw / var(--ui-zoom, 1)))', zIndex: 1000, borderRadius: 14 }}>
+                    {!searchQuery.trim() && (
+                      <div style={{ padding: '7px 14px', fontSize: 10.5, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>🕑 Nedávno otevřené</div>
+                    )}
                     {searchResults.length > 0 ? searchResults.map((res, i) => {
                       const tone = TYPE_TONE[res.type] || 'gray'
                       const on = i === Math.min(searchIdx, searchResults.length - 1)

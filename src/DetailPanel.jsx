@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -898,53 +898,47 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           </div>
         )}
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-body">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)' }}>Kontaktní údaje</div>
-              {t.tenantType && (
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: isCompany ? 'var(--tone-blue-soft)' : 'var(--tone-green-soft)', color: isCompany ? 'var(--tone-blue-text)' : 'var(--tone-green-text)', border: `1px solid ${isCompany ? 'var(--tone-blue-border)' : 'var(--tone-green-border)'}` }}>
-                  {isCompany ? '🏢 Firma' : '👤 Fyzická osoba'}
-                </span>
-              )}
+        {/* Kontaktní údaje – karta s řádky „popisek – hodnota“ (jako Finanční přehled smlouvy), členěná na oddíly */}
+        {(() => {
+          const sections = isCompany ? [
+            [null, [['Kontaktní osoba', t.contactPerson], ['Telefon', t.phone || '—'], ['E-mail', t.email || '—'], ['WhatsApp', t.whatsapp]]],
+            ['Firma', [['IČ / DIČ', [t.ico, t.dic].filter(Boolean).join(' · ')], ['Sídlo', t.address]]],
+            ['Platby', [['Bankovní účet', t.bankAccount], ['E-mail fakturace', t.billingEmail]]],
+          ] : t.tenantType ? [
+            [null, [['Telefon', t.phone || '—'], ['E-mail', t.email || '—']]],
+            ['Osobní údaje', [['Rodné číslo / datum narození', t.birthDate], ['Číslo OP / pasu', t.idCard], ['Trvalé bydliště', t.address]]],
+            ['Platby', [['Bankovní účet', t.bankAccount]]],
+          ] : [
+            // starší záznamy bez typu nájemce
+            [null, [['Telefon', t.phone || '—'], ['E-mail', t.email || '—'], ['IČO', t.ico], ['DIČ', t.dic], ['Adresa', t.address], ['Bankovní účet', t.bankAccount]]],
+          ]
+          const sub = { padding: '6px 16px', fontSize: 10.5, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', background: 'var(--bg2)', borderTop: '1px solid var(--border)' }
+          return (
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+              <SectionHeader icon="📇" tone="violet" title="Kontaktní údaje"
+                actions={t.tenantType && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: isCompany ? 'var(--tone-blue-soft)' : 'var(--tone-green-soft)', color: isCompany ? 'var(--tone-blue-text)' : 'var(--tone-green-text)', border: `1px solid ${isCompany ? 'var(--tone-blue-border)' : 'var(--tone-green-border)'}` }}>
+                    {isCompany ? '🏢 Firma' : '👤 Fyzická osoba'}
+                  </span>
+                )} />
+              {sections.map(([title, rows]) => {
+                const filled = rows.filter(([, v]) => v)
+                if (!filled.length) return null
+                return (
+                  <React.Fragment key={title || 'main'}>
+                    {title && <div style={sub}>{title}</div>}
+                    {filled.map(([k, v], i) => (
+                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '9px 16px', borderTop: (i || title) ? '1px solid var(--border2)' : 'none', fontSize: 13.5 }}>
+                        <span style={{ color: 'var(--text2)', flexShrink: 0 }}>{k}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--text)', textAlign: 'right', overflowWrap: 'anywhere' }}>{v}</span>
+                      </div>
+                    ))}
+                  </React.Fragment>
+                )
+              })}
             </div>
-            <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
-              {isCompany ? (
-                <>
-                  {t.contactPerson && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Kontaktní osoba:</span><span style={{ fontWeight: 600 }}>{t.contactPerson}</span></div>}
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Telefon:</span><span style={{ fontWeight: 500 }}>{t.phone || '—'}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>E-mail:</span><span style={{ fontWeight: 500 }}>{t.email || '—'}</span></div>
-                  {t.whatsapp && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>WhatsApp:</span><span style={{ fontWeight: 500 }}>{t.whatsapp}</span></div>}
-                  {t.billingEmail && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>E-mail fakturace:</span><span style={{ fontWeight: 500 }}>{t.billingEmail}</span></div>}
-                  {t.ico && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>IČ:</span><span style={{ fontWeight: 500 }}>{t.ico}</span></div>}
-                  {t.dic && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>DIČ:</span><span style={{ fontWeight: 500 }}>{t.dic}</span></div>}
-                  {t.address && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Sídlo firmy:</span><span style={{ fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{t.address}</span></div>}
-                  {t.bankAccount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Bankovní účet:</span><span style={{ fontWeight: 500 }}>{t.bankAccount}</span></div>}
-                </>
-              ) : (
-                <>
-                  {t.birthDate && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Rodné číslo / Datum narození:</span><span style={{ fontWeight: 500 }}>{t.birthDate}</span></div>}
-                  {t.idCard && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Číslo OP / pasu:</span><span style={{ fontWeight: 500 }}>{t.idCard}</span></div>}
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Telefon:</span><span style={{ fontWeight: 500 }}>{t.phone || '—'}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>E-mail:</span><span style={{ fontWeight: 500 }}>{t.email || '—'}</span></div>
-                  {t.address && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Trvalé bydliště:</span><span style={{ fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{t.address}</span></div>}
-                  {t.bankAccount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Bankovní účet:</span><span style={{ fontWeight: 500 }}>{t.bankAccount}</span></div>}
-                </>
-              )}
-              {/* Fallback pro starší záznamy bez tenantType */}
-              {!t.tenantType && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Telefon:</span><span style={{ fontWeight: 500 }}>{t.phone || '—'}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>E-mail:</span><span style={{ fontWeight: 500 }}>{t.email || '—'}</span></div>
-                  {t.ico && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>IČO:</span><span style={{ fontWeight: 500 }}>{t.ico}</span></div>}
-                  {t.dic && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>DIČ:</span><span style={{ fontWeight: 500 }}>{t.dic}</span></div>}
-                  {t.address && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Adresa:</span><span style={{ fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{t.address}</span></div>}
-                  {t.bankAccount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text2)' }}>Bankovní účet:</span><span style={{ fontWeight: 500 }}>{t.bankAccount}</span></div>}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+          )
+        })()}
 
         </>)}
 
@@ -1109,9 +1103,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         })()}
 
         {tenantTab === 'contracts' && (
-        <div className="card">
-          <div className="card-body">
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 12 }}>Platné smlouvy ({activeContracts.length})</div>
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          <SectionHeader icon="📄" tone="blue" title="Platné smlouvy" meta={`${activeContracts.length}×`} />
+          <div style={{ padding: '14px 16px' }}>
             {activeContracts.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <FirmRentSummary rows={tenantRentsByFirm(activeContracts, assets, firms)} large />
@@ -1575,6 +1569,21 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           const isFreeNow = !activeContract && a.status === 'free'
           const aFirm = getFirm ? getFirm(a.subject) : null
           const tabs = [{ id: 'overview', label: 'Přehled' }, { id: 'contracts', label: 'Smlouvy' }, { id: 'docs', label: 'Dokumenty' }]
+          // 4 klíčové údaje (jako detail smlouvy a nájemce) – z aktuální smlouvy předmětu
+          const ac = activeContract
+          const acIncluded = ac?.paymentFrequency === 'Zahrnuto v nájemném'
+          const acEv = ac ? effectiveToday(ac) : null
+          const acFreq = ac && ({ 'Čtvrtletně': 'Nájem / čtvrtletí', 'Pololetně': 'Nájem / pololetí', 'Ročně': 'Nájem / rok' }[ac.paymentFrequency]) || 'Nájem / měsíc'
+          const nowD = new Date()
+          const acSt = ac && !acIncluded ? (ac.groupLabel
+            ? groupMonthStatus(ac.groupLabel, nowD.getFullYear(), nowD.getMonth(), { payments, contracts, assets }).status
+            : contractMonthStatus(ac, nowD.getFullYear(), nowD.getMonth(), { payments, contracts, assets }).status) : null
+          const kv = (label, value, color, onClick) => (
+            <div onClick={onClick} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', cursor: onClick ? 'pointer' : 'default', minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>{label}</div>
+              <div style={{ fontSize: 14.5, fontWeight: 800, color: color || 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
+            </div>
+          )
           return (
             <div style={{ marginBottom: 18 }}>
               <div style={{ background: ts.strong, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1588,6 +1597,15 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <button onClick={handleEditClick} style={{ background: '#fff', color: ts.strong, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
                 )}
               </div>
+              {a.type !== 'ostatni' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
+                  {kv('Nájemce', currentTenant ? currentTenant.name : '—', null, currentTenant ? () => onOpen('tenant', currentTenant.id) : undefined)}
+                  {kv(acFreq, !ac ? '—' : acIncluded ? 'zahrnuto' : `${(acEv.rent + acEv.parking + acEv.flatFee).toLocaleString('cs-CZ')} Kč`)}
+                  {kv('Smlouva do', !ac ? '—' : ac.end || 'neurčito')}
+                  {kv('Tento měsíc', !acSt ? '—' : acSt === 'paid' ? '✓ Uhrazeno' : acSt === 'partial' ? '◐ Částečně' : '✕ Neuhrazeno',
+                    !acSt ? null : acSt === 'paid' ? '#16A34A' : acSt === 'partial' ? '#D97706' : '#DC2626')}
+                </div>
+              )}
               {/* Záložky – neaktivní tmavý text na světlém, aktivní bílý text na barvě typu */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12, paddingBottom: 2, borderBottom: '1px solid var(--border)' }}>
                 {tabs.map(tb => {
@@ -1634,53 +1652,60 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         })()}
 
         {assetTab === 'overview' && (<>
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-body">
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 12 }}>Parametry objektu</div>
-            {a.type === 'ostatni' ? (
-              <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6 }}>
-                {a.notes
-                  ? <span style={{ whiteSpace: 'pre-wrap' }}>{a.notes}</span>
-                  : <span style={{ color: 'var(--text3)', fontStyle: 'italic' }}>Bez popisu.</span>
-                }
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 13 }}>
-                {a.size && a.type !== 'parking' && <div><div style={{ color: 'var(--text2)', fontSize: 11, marginBottom: 2 }}>
-                  {a.type === 'residential' ? 'Dispozice / Plocha' : 'Plocha / Rozměr'}
-                </div><div style={{ fontWeight: 600 }}>{a.size}</div></div>}
-                {a.floor && <div><div style={{ color: 'var(--text2)', fontSize: 11, marginBottom: 2 }}>Podlaží</div><div style={{ fontWeight: 600 }}>{a.floor}</div></div>}
-                {a.format && <div style={{ gridColumn: a.size && a.floor ? '1 / -1' : 'auto' }}><div style={{ color: 'var(--text2)', fontSize: 11, marginBottom: 2 }}>
-                  {a.type === 'ads' ? 'Umístění' : a.type === 'parking' ? 'Umístění' : 'Formát'}
-                </div><div style={{ fontWeight: 600 }}>{a.format}</div></div>}
-                {a.balcony && <div><div style={{ color: 'var(--text2)', fontSize: 11, marginBottom: 2 }}>Balkón / Terasa</div><div style={{ fontWeight: 600 }}>{a.balcony} m²</div></div>}
-                {a.commerceType && <div style={{ gridColumn: '1 / -1' }}><div style={{ color: 'var(--text2)', fontSize: 11, marginBottom: 2 }}>Typ provozu</div><div style={{ fontWeight: 600 }}>{a.commerceType}</div></div>}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-body">
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 12 }}>Aktuální stav</div>
-            {currentTenant && activeContract ? (
-              <div style={{ padding: 10, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer' }} onClick={() => onOpen('contract', activeContract.id)}>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Pronajato na klienta:</div>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{currentTenant.name}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-                  <span style={{ color: 'var(--text2)' }}>Smlouva do: {activeContract.end}</span>
-                  <span style={{ fontWeight: 600, color: 'var(--accent)' }}>Otevřít smlouvu ➔</span>
+        {/* Parametry – dlaždice (u Ostatní popis) */}
+        {(() => {
+          const params = a.type === 'ostatni' ? [] : [
+            a.size && a.type !== 'parking' && [a.type === 'residential' ? 'Dispozice / plocha' : 'Plocha / rozměr', a.size],
+            a.floor && ['Podlaží', a.floor],
+            a.format && [a.type === 'ads' || a.type === 'parking' ? 'Umístění' : 'Formát', a.format],
+            a.balcony && ['Balkón / terasa', `${a.balcony} m²`],
+            a.commerceType && ['Typ provozu', a.commerceType],
+          ].filter(Boolean)
+          return (
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+              <SectionHeader icon={a.type === 'ostatni' ? '📄' : '📐'} tone="green" title={a.type === 'ostatni' ? 'Popis' : 'Parametry'} />
+              {a.type === 'ostatni' ? (
+                <div style={{ padding: '10px 16px', fontSize: 13, color: a.notes ? 'var(--text)' : 'var(--text3)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{a.notes || 'Bez popisu.'}</div>
+              ) : params.length ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, padding: '12px 14px' }}>
+                  {params.map(([label, value]) => (
+                    <div key={label} style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 10, padding: '8px 12px', minWidth: 0 }}>
+                      <div style={{ fontSize: 10, color: 'var(--tone-green-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', overflowWrap: 'anywhere' }}>{value}</div>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <div style={{ padding: '10px 16px', fontSize: 12.5, color: 'var(--text3)' }}>Bez parametrů – doplníš přes Upravit.</div>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* Aktuální nájemce */}
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+          <SectionHeader icon="👤" tone="blue" title="Aktuální nájemce"
+            actions={!isReadOnly && activeContract && activeContract.status === 'active' && (
+              <button className="btn btn-sm btn-tone-blue" onClick={() => setChangeFor(activeContract)}>👤 Změna nájemce</button>
+            )} />
+          {currentTenant && activeContract ? (() => {
+            const words = (currentTenant.name || '').replace(/,|s\.\s*r\.\s*o\.|a\.\s*s\.|spol\./gi, ' ').trim().split(/\s+/).filter(Boolean)
+            const ini = currentTenant.initials || (words.length ? ((words[0][0] || '') + (words[1]?.[0] || words[0][1] || '')).toUpperCase() : '??')
+            return (
+              <div onClick={() => onOpen('contract', activeContract.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer' }}>
+                <span style={{ width: 40, height: 40, borderRadius: 11, background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{ini}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentTenant.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                    smlouva {activeContract.start || '?'} – {activeContract.end || 'neurčito'}{activeContract.dueDay === DUE_PREPAID ? ' · splatnost předem' : ''}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>Otevřít smlouvu ›</span>
               </div>
-            ) : (
-              <div style={{ fontSize: 13, color: 'var(--text3)' }}>Předmět je aktuálně volný.</div>
-            )}
-            {!isReadOnly && activeContract && activeContract.status === 'active' && (
-              <button className="btn btn-sm btn-tone-blue" style={{ width: '100%', marginTop: 10, justifyContent: 'center' }} onClick={() => setChangeFor(activeContract)}>
-                👤 Změna nájemce
-              </button>
-            )}
-          </div>
+            )
+          })() : (
+            <div style={{ padding: 10 }}><EmptyState compact good icon="🟢" title="Volné k pronájmu" text="Na předmětu teď neběží žádná smlouva." /></div>
+          )}
         </div>
 
         </>)}
@@ -1690,15 +1715,10 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
 
         {assetTab === 'overview' && (<>
         {a.type === 'parking' && (
-          <div className="card" style={{ marginTop: 16 }}>
-            <div className="card-body">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text3)' }}>Poznámka</div>
-              </div>
-              {a.notes
-                ? <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{a.notes}</div>
-                : <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Žádná poznámka. Klikni Upravit pro přidání.</div>
-              }
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+            <SectionHeader icon="📝" tone="gray" title="Poznámka" />
+            <div style={{ padding: '10px 16px', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: a.notes ? 'var(--text)' : 'var(--text3)' }}>
+              {a.notes || 'Bez poznámky – doplníš přes Upravit.'}
             </div>
           </div>
         )}
@@ -2558,6 +2578,42 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           ))}
         </div>
         )}
+
+        {/* Ohlášená změna – nejbližší dodatek s budoucí účinností (v rámci platnosti smlouvy) */}
+        {(() => {
+          const today0 = new Date(); today0.setHours(0, 0, 0, 0)
+          const endD = parseDate(c.end)
+          const future = (c.amendments || []).map(am => ({ am, d: parseDate(am.effectiveFrom) }))
+            .filter(x => x.d && x.d > today0 && (!endD || x.d <= endD)).sort((x, y) => x.d - y.d)
+          if (!future.length) return null
+          const { am, d } = future[0]
+          const before = effectiveToday(c), after = getEffectiveValuesAt(c, d)
+          const kcF = (v) => `${Math.round(v).toLocaleString('cs-CZ')} Kč`
+          const delta = (x, y) => `${y > x ? '+' : '−'}${kcF(Math.abs(y - x))}`
+          const per = (PERIOD_LEN[c.paymentFrequency] || 1) > 1 ? ` / ${(c.paymentFrequency || '').toLowerCase()}` : ''
+          const rentB = before.rent + before.parking + before.flatFee, rentA = after.rent + after.parking + after.flatFee
+          const depB = before.deposit + before.depositWater, depA = after.deposit + after.depositWater
+          const parts = []
+          if (Math.abs(rentA - rentB) >= 0.5) parts.push(`nájem ${kcF(rentA)}${per} (${delta(rentB, rentA)})`)
+          if (Math.abs(depA - depB) >= 0.5) parts.push(`zálohy ${kcF(depA)} (${delta(depB, depA)})`)
+          const days = Math.round((d - today0) / 86400000)
+          return (
+            <div onClick={() => setContractTab('amendments')} title="Otevřít dodatky"
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)', borderRadius: 10, cursor: 'pointer' }}>
+              <span style={{ fontSize: 18 }}>📣</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: 'var(--tone-blue-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                  Ohlášená změna · za {days} {days === 1 ? 'den' : days < 5 ? 'dny' : 'dní'}{future.length > 1 ? ` · +${future.length - 1} další` : ''}
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--tone-blue-text)' }}>
+                  Od {am.effectiveFrom}: {parts.length ? parts.join(' · ') : 'dodatek beze změny částek'}
+                </div>
+                {am.note && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{am.note}</div>}
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--tone-blue-text)', whiteSpace: 'nowrap' }}>Dodatky ›</span>
+            </div>
+          )
+        })()}
 
         {/* Finanční sekce */}
         {(() => {
