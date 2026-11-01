@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -2604,6 +2604,27 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           ))}
         </div>
         )}
+
+        {/* Blokace navýšení nájmu – rok od začátku smlouvy / od poslední valorizace */}
+        {(() => {
+          if (a?.type !== 'residential' && a?.type !== 'commercial') return null
+          if (c.paymentFrequency === 'Zahrnuto v nájemném' || !isContractOccupying(c)) return null
+          const lock = rentIncreaseLock(c)
+          if (!lock) return null
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 10 }}>
+              <span style={{ fontSize: 18 }}>❗</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: 'var(--tone-amber-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                  Nájem zatím nelze navyšovat
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--tone-amber-text)' }}>
+                  {lock.reason === 'valorization' ? `Od poslední valorizace (${lock.since}) ještě neuplynul rok.` : 'Od začátku smlouvy ještě neuplynul rok.'} Navýšení je možné od {lock.until}.
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Ohlášená změna – nejbližší dodatek s budoucí účinností (v rámci platnosti smlouvy) */}
         {(() => {

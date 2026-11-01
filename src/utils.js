@@ -385,6 +385,31 @@ export function tenancySince(c, contracts = []) {
   return best
 }
 
+/**
+ * Blokace navýšení nájmu: rok od začátku smlouvy a rok od poslední valorizace (vyšší z obou dat).
+ * Poslední valorizace = Datum poslední valorizace nebo účinný dodatek, který zvýšil nájemné.
+ * Vrací { reason: 'start' | 'valorization', since, until } (data D. M. RRRR), null = nájem lze navýšit.
+ */
+export function rentIncreaseLock(c) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const yearAfter = (d) => new Date(d.getFullYear() + 1, d.getMonth(), d.getDate())
+  let last = parseDate(c?.valorizationDate)
+  if (last && last > today) last = null
+  for (const am of c?.amendments || []) {
+    const d = parseDate(am.effectiveFrom)
+    if (!d || d > today || (last && d <= last)) continue
+    const dayBefore = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1)
+    if (getEffectiveValuesAt(c, d).rent > getEffectiveValuesAt(c, dayBefore).rent) last = d
+  }
+  const start = parseDate(c?.start)
+  const fromStart = start ? yearAfter(start) : null
+  const fromValor = last ? yearAfter(last) : null
+  const byValor = !!fromValor && (!fromStart || fromValor > fromStart)
+  const until = byValor ? fromValor : fromStart
+  if (!until || until <= today) return null
+  return { reason: byValor ? 'valorization' : 'start', since: toCzDate(byValor ? last : start), until: toCzDate(until) }
+}
+
 /** Smlouva „končí“ ve smyslu upozornění: platná, s datem konce a BEZ navazující smlouvy na předmětu. */
 export function isEndingWithoutSuccessor(c, contracts = []) {
   return isContractOccupying(c) && !!parseDate(c.end) && !hasSuccessor(c, contracts)

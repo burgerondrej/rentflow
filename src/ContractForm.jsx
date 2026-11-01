@@ -189,7 +189,7 @@ export default function ContractForm({ onClose }) {
       terminationMonths: formData.terminationMonths ? parseInt(formData.terminationMonths) : null,
       renewalMethod: formData.renewalMethod || null,
       valorizationEnabled: formData.valorizationEnabled ? 1 : 0,
-      valorizationDate: formData.valorizationEnabled ? (formData.valorizationDate || null) : null,
+      valorizationDate: formData.valorizationEnabled && formData.valorizationDate ? isoToCz(formData.valorizationDate) : null,
       invoiceDue: null,
       contractVersion: contractType === 'residential' ? formData.contractVersion : null,
       occupants: contractType === 'residential' && formData.occupants ? parseInt(formData.occupants) : null,

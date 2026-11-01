@@ -190,3 +190,34 @@ test('v nájmu od: zapsané datum má přednost, jinak nejstarší smlouva tého
   assert.equal(u.tenancySince(flat, [flat]), '1. 1. 2026')
   assert.equal(u.tenancySince({ ...flat, start: '' }, []), '')
 })
+
+// ── Blokace navýšení nájmu ──
+test('blokace navýšení: rok od začátku smlouvy, poslední den svítí, další už ne', () => {
+  assert.deepEqual(u.rentIncreaseLock({ ...flat, start: '1. 1. 2026', amendments: [] }),
+    { reason: 'start', since: '1. 1. 2026', until: '1. 1. 2027' })
+  assert.equal(u.rentIncreaseLock({ ...flat, start: '17. 10. 2025', amendments: [] }).until, '17. 10. 2026')
+  assert.equal(u.rentIncreaseLock({ ...flat, start: '16. 10. 2025', amendments: [] }), null)
+  assert.equal(u.rentIncreaseLock({ ...flat, start: '', amendments: [] }), null)
+})
+
+test('blokace navýšení: rok od poslední valorizace, pole i dodatek se zvýšením nájmu', () => {
+  const old = { ...flat, start: '1. 1. 2020', rent: 10000, amendments: [] }
+  assert.equal(u.rentIncreaseLock(old), null)
+  assert.deepEqual(u.rentIncreaseLock({ ...old, valorizationDate: '1. 4. 2026' }),
+    { reason: 'valorization', since: '1. 4. 2026', until: '1. 4. 2027' })
+  assert.equal(u.rentIncreaseLock({ ...old, valorizationDate: '1. 4. 2025' }), null)
+  const raised = { ...old, amendments: [{ effectiveFrom: '1. 3. 2026', rent: 11000 }] }
+  assert.equal(u.rentIncreaseLock(raised).until, '1. 3. 2027')
+  // novější z obou dat rozhoduje
+  assert.equal(u.rentIncreaseLock({ ...raised, valorizationDate: '1. 4. 2026' }).until, '1. 4. 2027')
+  // valorizace v prvním roce smlouvy posouvá blokaci dál
+  assert.equal(u.rentIncreaseLock({ ...raised, start: '1. 2. 2026' }).reason, 'valorization')
+})
+
+test('blokace navýšení: nepočítá snížení, dodatek bez nájmu ani budoucí změnu', () => {
+  const old = { ...flat, start: '1. 1. 2020', rent: 10000 }
+  assert.equal(u.rentIncreaseLock({ ...old, amendments: [{ effectiveFrom: '1. 3. 2026', rent: 9000 }] }), null)
+  assert.equal(u.rentIncreaseLock({ ...old, amendments: [{ effectiveFrom: '1. 3. 2026', deposit: 3000 }] }), null)
+  assert.equal(u.rentIncreaseLock({ ...old, amendments: [{ effectiveFrom: '1. 1. 2027', rent: 11000 }] }), null)
+  assert.equal(u.rentIncreaseLock({ ...old, amendments: [], valorizationDate: '1. 1. 2027' }), null)
+})
