@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import ConfirmDialog from './ConfirmDialog.jsx'
-import { parseDate, toCzDate, getEffectiveValuesToday, firmOf, contractSubject, isContractOccupying, hasSuccessor } from './utils.js'
+import { parseDate, toCzDate, getEffectiveValuesToday, firmOf, contractSubject, isContractOccupying, hasSuccessor, tenancySince } from './utils.js'
 
 const AppContext = createContext()
 
@@ -455,6 +455,7 @@ export function AppProvider({ children }) {
             status: 'active',
             start: newStartCz,
             end: newEndCz,
+            tenancySince: tenancySince(old, contracts) || newStartCz,
             rent: isIncluded ? 0 : (Number(rent) || 0),
             deposit: ev.deposit,
             depositWater: ev.depositWater,
@@ -505,6 +506,7 @@ export function AppProvider({ children }) {
           status: 'active',
           start: toCzDate(start),
           end: end ? toCzDate(end) : '',
+          tenancySince: toCzDate(start), // nový nájemce – vlastní začátek nájmu
           rent: isIncluded ? 0 : (Number(rent) || 0),
           cauce: Number(cauce) || 0,
           deposit: keepDeposits ? ev.deposit : 0,

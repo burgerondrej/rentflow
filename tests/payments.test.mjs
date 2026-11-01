@@ -179,3 +179,14 @@ test('hodnoty k datu: dodatek uprostřed měsíce platí od svého dne', () => {
   assert.equal(v.rent, 23000)
   assert.equal(v.flatFee, 500)
 })
+
+// ── V nájmu od ──
+test('v nájmu od: zapsané datum má přednost, jinak nejstarší smlouva téhož nájemce na předmětu', () => {
+  const old = { ...flat, id: 'c-o', start: '1. 7. 2020', status: 'archived', end: '31. 12. 2025' }
+  const other = { ...flat, id: 'c-x', tenantId: 't9', start: '1. 1. 2015', status: 'archived', end: '30. 6. 2020' }
+  assert.equal(u.tenancySince(flat, [flat, old, other]), '1. 7. 2020')
+  assert.equal(u.tenancySince({ ...flat, tenancySince: '1. 9. 2016' }, [flat, old]), '1. 9. 2016')
+  assert.equal(u.tenancySince(flat, [flat, { ...old, tenancySince: '1. 3. 2018' }]), '1. 3. 2018')
+  assert.equal(u.tenancySince(flat, [flat]), '1. 1. 2026')
+  assert.equal(u.tenancySince({ ...flat, start: '' }, []), '')
+})

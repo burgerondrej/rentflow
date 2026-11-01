@@ -139,6 +139,8 @@ pub struct Contract {
     pub amendments: Vec<ContractAmendment>, // historie změn nájemného/záloh s datem účinnosti
     #[serde(default)]
     pub calendar_year_billing: bool, // pro Ročně: platební okno = Jan–Dec místo výročí smlouvy
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenancy_since: Option<String>, // "V nájmu od" – od kdy reálně trvá nájem (jen evidence)
 }
 
 // ─────────────────────────────────────────

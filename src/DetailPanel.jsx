@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -1168,7 +1168,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
                                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-blue-text)' }}>{asset?.unit || '?'}</div>
-                                      {(c.start || c.end) && <div style={{ fontSize: 10.5, color: 'var(--text3)' }}>{c.start || '—'} → {c.end || 'neurčito'}</div>}
+                                      {(c.start || c.end) && <div style={{ fontSize: 10.5, color: 'var(--text3)' }}>{c.start || '—'} → {c.end || 'neurčito'}{tenancySince(c, contracts) ? ` · v nájmu od ${tenancySince(c, contracts)}` : ''}</div>}
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
                                       <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--price-netto)' }}>{rent.toLocaleString('cs-CZ')} Kč</div>
@@ -1213,6 +1213,16 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                       </div>
                       {/* Finanční řádky */}
                       <div style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {/* V nájmu od */}
+                        {(() => {
+                          const since = tenancySince(c, contracts)
+                          return since && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>V nájmu od</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{since}</span>
+                            </div>
+                          )
+                        })()}
                         {/* Nájemné */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>
@@ -1696,6 +1706,10 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 <span style={{ width: 40, height: 40, borderRadius: 11, background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{ini}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentTenant.name}</div>
+                  {(() => {
+                    const since = tenancySince(activeContract, contracts)
+                    return since && <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text2)' }}>V nájmu od {since}</div>
+                  })()}
                   <div style={{ fontSize: 12, color: 'var(--text3)' }}>
                     smlouva {activeContract.start || '?'} – {activeContract.end || 'neurčito'}{activeContract.dueDay === DUE_PREPAID ? ' · splatnost předem' : ''}
                   </div>
@@ -1872,6 +1886,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         autoRenewalType: c.autoRenewalType || '',
         energySettlements: c.energySettlements ? [...c.energySettlements] : [],
         handoverDate: c.handoverDate ? czToIso(c.handoverDate) : '',
+        tenancySince: c.tenancySince ? czToIso(c.tenancySince) : '',
         flatFee: c.flatFee ? String(c.flatFee) : '',
         flatFeeEnabled: !!(c.flatFee && c.flatFee > 0),
         rentTotal: c.rentTotal ? String(c.rentTotal) : '',
@@ -1907,6 +1922,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         contractNotes: formData.contractNotes || null,
         energySettlements: formData.energySettlements || [],
         handoverDate: formData.handoverDate ? isoToCz(formData.handoverDate) : null,
+        tenancySince: formData.tenancySince ? isoToCz(formData.tenancySince) : null,
         includedParkingSpots: formData.includedParkingEnabled ? (parseInt(formData.includedParkingSpots) || 0) : 0,
         billingSubject: formData.billingSubject || null,
         vatExempt: formData.vatExempt || 0,
@@ -2176,6 +2192,15 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               <input type="date" className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }} value={formData.end} onChange={e => setFormData({...formData, end: e.target.value})} />
             </div>
           </div>
+          {formData.paymentFrequency !== 'Zahrnuto v nájemném' && (
+            <div style={{ marginTop: 8 }}>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>V nájmu od</label>
+              <input type="date" className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }} value={formData.tenancySince || ''} onChange={e => setFormData({...formData, tenancySince: e.target.value})} />
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                Od kdy nájem reálně trvá (jen evidence, platby se tím neřídí).{!formData.tenancySince && tenancySince(c, contracts) ? ` Prázdné = ${tenancySince({ ...c, tenancySince: null }, contracts)}.` : ''}
+              </div>
+            </div>
+          )}
 
           {formData.paymentFrequency === 'Zahrnuto v nájemném' ? (
             <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
@@ -2565,8 +2590,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             🅿️ Platnost se řídí příslušnou nájemní smlouvou — parkovací stání je zahrnuto v nájemném.
           </div>
         ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: c.dueDay ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8 }}>
           {[
+            ...(tenancySince(c, contracts) ? [{ label: 'V nájmu od', value: tenancySince(c, contracts), icon: '🕰' }] : []),
             { label: 'Platnost od', value: c.start || '—', icon: '▶' },
             { label: 'Platnost do', value: c.end || 'Neurčito', icon: '⏹' },
             ...(c.dueDay && c.paymentFrequency !== 'Zahrnuto v nájemném' ? [{ label: 'Splatnost', value: c.dueDay, icon: '📅' }] : []),

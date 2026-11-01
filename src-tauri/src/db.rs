@@ -338,6 +338,8 @@ impl Database {
         // v0.56 migrations
         let _ = self.conn.execute("ALTER TABLE operational_costs ADD COLUMN vat_included INTEGER NOT NULL DEFAULT 0", []);
         let _ = self.conn.execute("ALTER TABLE contracts ADD COLUMN calendar_year_billing INTEGER NOT NULL DEFAULT 0", []);
+        // v1.4.5: od kdy reálně trvá nájem (jen evidence, nic se z toho nepočítá)
+        let _ = self.conn.execute("ALTER TABLE contracts ADD COLUMN tenancy_since TEXT", []);
 
         // v0.57 migrations — subjects + objects tables
         self.conn.execute_batch("
@@ -629,7 +631,7 @@ impl Database {
 
     pub fn get_contracts(&self) -> Result<Vec<Contract>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, tenant_id, asset_id, rent, deposit, cauce, parking, start_date, end_date, status, addenda, due_day, termination_months, renewal_method, valorization_enabled, valorization_date, invoice_due, contract_version, occupants, permanent_residents, payment_frequency, deposit_water, co_residents, contract_notes, energy_settlements, handover_date, included_parking_spots, billing_subject, vat_exempt, group_label, auto_renewal_type, flat_fee, rent_total, COALESCE(calendar_year_billing, 0) FROM contracts ORDER BY created_at"
+            "SELECT id, tenant_id, asset_id, rent, deposit, cauce, parking, start_date, end_date, status, addenda, due_day, termination_months, renewal_method, valorization_enabled, valorization_date, invoice_due, contract_version, occupants, permanent_residents, payment_frequency, deposit_water, co_residents, contract_notes, energy_settlements, handover_date, included_parking_spots, billing_subject, vat_exempt, group_label, auto_renewal_type, flat_fee, rent_total, COALESCE(calendar_year_billing, 0), tenancy_since FROM contracts ORDER BY created_at"
         )?;
         let items = stmt.query_map([], |row| {
             let addenda_str: String = row.get(10).unwrap_or_else(|_| "[]".into());
@@ -670,6 +672,7 @@ impl Database {
                 rent_total: row.get(32).unwrap_or(0.0),
                 amendments: vec![],
                 calendar_year_billing: row.get::<_, i64>(33).unwrap_or(0) != 0,
+                tenancy_since: row.get(34)?,
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
 
@@ -748,9 +751,9 @@ impl Database {
         let addenda_json = serde_json::to_string(&c.addenda)?;
         let energy_json = serde_json::to_string(&c.energy_settlements)?;
         self.conn.execute(
-            "INSERT INTO contracts (id, tenant_id, asset_id, rent, deposit, cauce, parking, start_date, end_date, status, addenda, due_day, termination_months, renewal_method, valorization_enabled, valorization_date, invoice_due, contract_version, occupants, permanent_residents, payment_frequency, deposit_water, co_residents, contract_notes, energy_settlements, handover_date, included_parking_spots, billing_subject, vat_exempt, group_label, auto_renewal_type, flat_fee, rent_total, calendar_year_billing)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34)",
-            params![id, c.tenant_id, c.asset_id, c.rent, c.deposit, c.cauce, c.parking, c.start, c.end, c.status, addenda_json, c.due_day, c.termination_months, c.renewal_method, c.valorization_enabled, c.valorization_date, c.invoice_due, c.contract_version, c.occupants, c.permanent_residents, c.payment_frequency, c.deposit_water, c.co_residents, c.contract_notes, energy_json, c.handover_date, c.included_parking_spots, c.billing_subject, c.vat_exempt, c.group_label, c.auto_renewal_type, c.flat_fee, c.rent_total, c.calendar_year_billing as i64],
+            "INSERT INTO contracts (id, tenant_id, asset_id, rent, deposit, cauce, parking, start_date, end_date, status, addenda, due_day, termination_months, renewal_method, valorization_enabled, valorization_date, invoice_due, contract_version, occupants, permanent_residents, payment_frequency, deposit_water, co_residents, contract_notes, energy_settlements, handover_date, included_parking_spots, billing_subject, vat_exempt, group_label, auto_renewal_type, flat_fee, rent_total, calendar_year_billing, tenancy_since)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35)",
+            params![id, c.tenant_id, c.asset_id, c.rent, c.deposit, c.cauce, c.parking, c.start, c.end, c.status, addenda_json, c.due_day, c.termination_months, c.renewal_method, c.valorization_enabled, c.valorization_date, c.invoice_due, c.contract_version, c.occupants, c.permanent_residents, c.payment_frequency, c.deposit_water, c.co_residents, c.contract_notes, energy_json, c.handover_date, c.included_parking_spots, c.billing_subject, c.vat_exempt, c.group_label, c.auto_renewal_type, c.flat_fee, c.rent_total, c.calendar_year_billing as i64, c.tenancy_since],
         )?;
         self.conn.execute("UPDATE assets SET status='occupied' WHERE id=?1", params![c.asset_id])?;
         let mut result = c.clone();
@@ -763,8 +766,8 @@ impl Database {
         let addenda_json = serde_json::to_string(&c.addenda)?;
         let energy_json = serde_json::to_string(&c.energy_settlements)?;
         self.conn.execute(
-            "UPDATE contracts SET tenant_id=?1, asset_id=?2, rent=?3, deposit=?4, cauce=?5, parking=?6, start_date=?7, end_date=?8, status=?9, addenda=?10, due_day=?11, termination_months=?12, renewal_method=?13, valorization_enabled=?14, valorization_date=?15, invoice_due=?16, contract_version=?17, occupants=?18, permanent_residents=?19, payment_frequency=?20, deposit_water=?21, co_residents=?22, contract_notes=?23, energy_settlements=?24, handover_date=?25, included_parking_spots=?26, billing_subject=?27, vat_exempt=?28, group_label=?29, auto_renewal_type=?30, flat_fee=?31, rent_total=?32, calendar_year_billing=?33 WHERE id=?34",
-            params![c.tenant_id, c.asset_id, c.rent, c.deposit, c.cauce, c.parking, c.start, c.end, c.status, addenda_json, c.due_day, c.termination_months, c.renewal_method, c.valorization_enabled, c.valorization_date, c.invoice_due, c.contract_version, c.occupants, c.permanent_residents, c.payment_frequency, c.deposit_water, c.co_residents, c.contract_notes, energy_json, c.handover_date, c.included_parking_spots, c.billing_subject, c.vat_exempt, c.group_label, c.auto_renewal_type, c.flat_fee, c.rent_total, c.calendar_year_billing as i64, id],
+            "UPDATE contracts SET tenant_id=?1, asset_id=?2, rent=?3, deposit=?4, cauce=?5, parking=?6, start_date=?7, end_date=?8, status=?9, addenda=?10, due_day=?11, termination_months=?12, renewal_method=?13, valorization_enabled=?14, valorization_date=?15, invoice_due=?16, contract_version=?17, occupants=?18, permanent_residents=?19, payment_frequency=?20, deposit_water=?21, co_residents=?22, contract_notes=?23, energy_settlements=?24, handover_date=?25, included_parking_spots=?26, billing_subject=?27, vat_exempt=?28, group_label=?29, auto_renewal_type=?30, flat_fee=?31, rent_total=?32, calendar_year_billing=?33, tenancy_since=?34 WHERE id=?35",
+            params![c.tenant_id, c.asset_id, c.rent, c.deposit, c.cauce, c.parking, c.start, c.end, c.status, addenda_json, c.due_day, c.termination_months, c.renewal_method, c.valorization_enabled, c.valorization_date, c.invoice_due, c.contract_version, c.occupants, c.permanent_residents, c.payment_frequency, c.deposit_water, c.co_residents, c.contract_notes, energy_json, c.handover_date, c.included_parking_spots, c.billing_subject, c.vat_exempt, c.group_label, c.auto_renewal_type, c.flat_fee, c.rent_total, c.calendar_year_billing as i64, c.tenancy_since, id],
         )?;
         Ok(())
     }

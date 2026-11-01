@@ -369,6 +369,22 @@ export function hasSuccessor(c, contracts = [], sameTenant = false) {
     (!sameTenant || o.tenantId === c.tenantId) && (parseDate(o.start)?.getTime() ?? -Infinity) > s)
 }
 
+/**
+ * Od kdy reálně trvá nájem („D. M. RRRR“ nebo ''): zapsané „V nájmu od“, jinak nejstarší začátek smluv téhož nájemce
+ * na předmětu (i přes navazující smlouvy). Jen evidence – platby ani splatnost z toho nic nepočítají.
+ */
+export function tenancySince(c, contracts = []) {
+  if (parseDate(c?.tenancySince)) return c.tenancySince
+  let best = c?.start || '', bestTs = parseDate(best)?.getTime() ?? Infinity
+  for (const o of contracts) {
+    if (o.assetId !== c?.assetId || o.tenantId !== c?.tenantId) continue
+    const v = parseDate(o.tenancySince) ? o.tenancySince : o.start
+    const t = parseDate(v)?.getTime()
+    if (t != null && t < bestTs) { best = v; bestTs = t }
+  }
+  return best
+}
+
 /** Smlouva „končí“ ve smyslu upozornění: platná, s datem konce a BEZ navazující smlouvy na předmětu. */
 export function isEndingWithoutSuccessor(c, contracts = []) {
   return isContractOccupying(c) && !!parseDate(c.end) && !hasSuccessor(c, contracts)

@@ -28,7 +28,7 @@ export default function ContractForm({ onClose }) {
   const [formData, setFormData] = useState({
     tenantId: '', assetId: '',
     rent: '', deposit: '', cauce: '', parking: '', depositWater: '', flatFee: '', flatFeeEnabled: false,
-    start: '', end: '',
+    start: '', end: '', tenancySince: '',
     dueDay: '15. den v měsíci',
     dueDayCustom: '',
     terminationMonths: '',
@@ -181,6 +181,8 @@ export default function ContractForm({ onClose }) {
       parking: contractType === 'residential' && formData.includedParkingEnabled ? (Number(formData.includedParkingRent) || 0) : 0,
       start: isParkingIncluded ? '' : isoToCz(formData.start),
       end: isParkingIncluded ? '' : isoToCz(formData.end),
+      // Bez vyplnění se dotáhne začátek této smlouvy
+      tenancySince: isParkingIncluded ? null : isoToCz(formData.tenancySince || formData.start),
       status: 'active',
       addenda: [],
       dueDay: isParkingIncluded ? null : ((formData.dueDay === 'Vlastní' || formData.dueDay === 'Konkrétní datum') ? formData.dueDayCustom : formData.dueDay),
@@ -336,6 +338,12 @@ export default function ContractForm({ onClose }) {
           {formData.start && `Od: ${isoToCz(formData.start)}`}{formData.start && formData.end && ' · '}{formData.end && `Do: ${isoToCz(formData.end)}`}
         </div>
       )}
+      <div style={{ marginTop: 12 }}>
+        {lbl('V nájmu od')}
+        <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+          value={formData.tenancySince} onChange={e => set('tenancySince', e.target.value)} />
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Od kdy nájem reálně trvá. Nevyplníš-li, použije se začátek smlouvy.</div>
+      </div>
     </>
   )
 
