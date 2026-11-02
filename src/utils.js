@@ -612,6 +612,33 @@ export function overdueItems(ctx, match = () => true) {
 }
 
 /**
+ * Dluh smlouvy pro bublinu v detailu: položky overdueItems této smlouvy (u skupiny celé skupiny),
+ * součet, nejvíc dní po splatnosti a poslední celý uhrazený měsíc (od SALDO_FROM do příštího měsíce).
+ * Vrací { items, owe, maxDays, lastPaid: { y, m } | null } nebo null = nic po splatnosti.
+ */
+export function contractDebt(c, ctx) {
+  const items = overdueItems(ctx).filter(it => c.groupLabel ? it.groupLabel === c.groupLabel : it.contract.id === c.id)
+  if (!items.length) return null
+  const today = new Date()
+  const endY = today.getMonth() === 11 ? today.getFullYear() + 1 : today.getFullYear(), endM = (today.getMonth() + 1) % 12
+  const multi = (PERIOD_LEN[c.paymentFrequency] || 1) > 1
+  let lastPaid = null
+  for (let y = SALDO_FROM.y, m = SALDO_FROM.m; y < endY || (y === endY && m <= endM); m === 11 ? (y++, m = 0) : m++) {
+    let paid
+    if (c.groupLabel) {
+      const g = groupMonthStatus(c.groupLabel, y, m, ctx)
+      paid = (g.members || []).length > 0 && g.status === 'paid'
+    } else {
+      if (!isContractInMonth(c, y, m)) continue
+      const s = contractMonthStatus(c, y, m, ctx)
+      paid = multi ? s.rent.status === 'paid' : s.complete
+    }
+    if (paid) lastPaid = { y, m }
+  }
+  return { items, owe: items.reduce((s, it) => s + it.owe, 0), maxDays: Math.max(...items.map(it => it.od)), lastPaid }
+}
+
+/**
  * Platební okno (klíče "RRRR-M") víceměsíční smlouvy, do kterého patří refYear/refMonth.
  * Měsíčně → jen daný měsíc.
  */

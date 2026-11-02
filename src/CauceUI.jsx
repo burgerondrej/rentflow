@@ -66,7 +66,17 @@ export function CauceSettleFields({ amount, debt = 0, allowLater = true, initial
         <span>Kč (dluh / škoda), zbytek vrátit</span>
       </>)}
       {allowLater && radio('later', 'Vyřeším později (zůstane v přehledu Kauce jako „k vrácení“)')}
-      {debt > 0 && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>Nájemce u této firmy dluží {fmtKc(debt)} po splatnosti – zvaž započtení.</div>}
+      {debt > 0 && <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--tone-red-text)', marginTop: 4 }}>❗ Nájemce u této firmy dluží {fmtKc(debt)} po splatnosti – zvaž započtení z kauce.</div>}
+    </div>
+  )
+}
+
+/** Upozornění na dluh nájemce při ukončení / změně nájemce, když se kauce nevypořádává (nic, pokud dluh není). */
+export function TenantDebtNotice({ debt }) {
+  if (!(debt > 0)) return null
+  return (
+    <div style={{ marginTop: 14, padding: '10px 12px', background: 'var(--tone-red-soft)', border: '1px solid var(--tone-red-border)', borderRadius: 10, fontSize: 13, fontWeight: 700, color: 'var(--tone-red-text)' }}>
+      ❗ Nájemce u této firmy dluží {fmtKc(debt)} po splatnosti.
     </div>
   )
 }

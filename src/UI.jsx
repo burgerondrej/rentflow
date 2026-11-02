@@ -54,3 +54,19 @@ export function EmptyState({ icon, title, text, action, good = false, compact = 
     </div>
   )
 }
+
+/**
+ * Upozornění pod částkou platby, když nesedí s předpisem (překlep, částečná platba, přeplatek). Nic neblokuje.
+ * expected = předpis, paid = už zaplaceno (pak se porovnává se zbývající částkou).
+ */
+export function PayAmountHint({ amount, expected, paid = 0, style }) {
+  const a = Number(String(amount ?? '').replace(',', '.'))
+  const e = Math.round(Number(expected) || 0), rem = Math.max(0, e - Math.round(Number(paid) || 0))
+  if (!(a > 0) || !(e > 0) || Math.abs(a - rem) < 1) return null
+  const kc = (v) => `${Math.round(v).toLocaleString('cs-CZ')} Kč`
+  return (
+    <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--tone-amber-text)', marginTop: 4, ...style }}>
+      ⚠ {paid > 0 ? `Zbývá doplatit ${kc(rem)}` : `Předpis ${kc(e)}`} – zapisuješ o {kc(Math.abs(a - rem))} {a < rem ? 'méně, měsíc zůstane částečně uhrazený' : 'víc (přeplatek)'}.
+    </div>
+  )
+}

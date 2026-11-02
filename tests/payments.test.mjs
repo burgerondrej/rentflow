@@ -130,6 +130,30 @@ test('po splatnosti: částečná platba = zbývající částka, hasPayment', (
   assert.equal(it.rent.hasPayment, true)
 })
 
+test('dluh smlouvy: součet, nejstarší dny a poslední celý uhrazený měsíc', () => {
+  const payments = []
+  for (let m = 0; m <= 7; m++) { payments.push(pay('c-flat', 2026, m, 10000)); payments.push(pay('c-flat', 2026, m, 3000, { paymentType: 'deposit' })) }
+  payments.push(pay('c-flat', 2026, 8, 10000)) // září jen nájem, bez záloh = částečně
+  const d = u.contractDebt(flat, { payments, contracts: [flat, office], assets })
+  assert.equal(d.items.length, 3) // září (zálohy), říjen, listopad (předem)
+  assert.equal(d.owe, 3000 + 13000 + 13000)
+  assert.deepEqual(d.lastPaid, { y: 2026, m: 7 })
+  assert.equal(d.maxDays, 62) // září předem: splatnost 15. 8.
+  assert.equal(u.contractDebt(office, { payments: [], contracts: [office], assets }).lastPaid, null)
+  const all = []
+  for (let m = 0; m <= 10; m++) { all.push(pay('c-flat', 2026, m, 10000)); all.push(pay('c-flat', 2026, m, 3000, { paymentType: 'deposit' })) }
+  assert.equal(u.contractDebt(flat, { payments: all, contracts: [flat], assets }), null)
+})
+test('dluh smlouvy: skupina = dluh celé skupiny', () => {
+  const g1 = { ...office, id: 'g1', assetId: 'a-p1', rent: 1500, groupLabel: 'Skupina X' }
+  const g2 = { ...office, id: 'g2', assetId: 'a-p2', rent: 1500, groupLabel: 'Skupina X' }
+  const gp = (m) => ({ id: `gp${m}`, contractId: 'group:Skupina X', groupLabel: 'Skupina X', month: `2026-${m}`, amount: 3000, paymentType: 'rent', date: '1. 1. 2026' })
+  const ctx = { payments: [0, 1, 2, 3, 4, 5, 6, 7, 8].map(gp), contracts: [g1, g2], assets }
+  const d = u.contractDebt(g2, ctx)
+  assert.equal(d.owe, 3000) // říjen celé skupiny
+  assert.deepEqual(d.lastPaid, { y: 2026, m: 8 })
+})
+
 // ── Saldo ──
 test('saldo: u platby předem zahrnuje i příští měsíc po splatnosti', () => {
   const payments = []

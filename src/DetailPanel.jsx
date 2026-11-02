@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
 import ContractHistory from './ContractHistory.jsx'
 import DialogShell, { isDialogOpen } from './DialogShell.jsx'
-import { SectionHeader, Segmented, EmptyState } from './UI.jsx'
+import { SectionHeader, Segmented, EmptyState, PayAmountHint } from './UI.jsx'
 import TenantTimeline from './TenantTimeline.jsx'
 import AssetRentHistory from './AssetRentHistory.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
@@ -14,7 +14,7 @@ import { open as dialogOpen } from '@tauri-apps/api/dialog'
 import { readBinaryFile, writeBinaryFile, createDir } from '@tauri-apps/api/fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { open as shellOpen } from '@tauri-apps/api/shell'
-import { CauceSettleFields, CauceSettleDialog, cauceInfo, settlementFromChoice, tenantDebtForContract, fmtKc } from './CauceUI.jsx'
+import { CauceSettleFields, CauceSettleDialog, cauceInfo, settlementFromChoice, tenantDebtForContract, TenantDebtNotice, fmtKc } from './CauceUI.jsx'
 import { DebtNoteLine, DebtNoteDialog, findDebtNote } from './DebtNoteUI.jsx'
 import MeterReadings from './MeterUI.jsx'
 import { StatusPill, contractStatus } from './StatusUI.jsx'
@@ -220,6 +220,16 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
     return ext.toUpperCase().slice(0, 4)
   }
 
+  // Otevře nahraný soubor dokumentu (documents/<relatedId>) v programu systému
+  const openDocFile = async (d) => {
+    try {
+      const { appDataDir: _appDataDir, join: _join } = await import('@tauri-apps/api/path')
+      const base = await _appDataDir()
+      const fullPath = await _join(base, 'rentflow', 'documents', d.relatedId)
+      await shellOpen(fullPath)
+    } catch(e) { showToast('Nelze otevřít: ' + e) }
+  }
+
   const renderDocsSection = (defaultSubject) => {
     const entityDocs = documents.filter(d => d.contractLinkId === id || d.relatedId === id)
 
@@ -291,14 +301,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                   {d.relatedId && d.relatedType === 'file' && (
                     <button className="btn btn-sm" style={{ padding: '4px 8px', fontSize: 11 }}
-                      onClick={async () => {
-                        try {
-                          const { appDataDir: _appDataDir, join: _join } = await import('@tauri-apps/api/path')
-                          const base = await _appDataDir()
-                          const fullPath = await _join(base, 'rentflow', 'documents', d.relatedId)
-                          await shellOpen(fullPath)
-                        } catch(e) { showToast('Nelze otevřít: ' + e) }
-                      }}>
+                      onClick={() => openDocFile(d)}>
                       📂 Otevřít
                     </button>
                   )}
@@ -558,6 +561,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <div>
                     <label style={lbl}>Částka (Kč)</label>
                     <input type="number" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'text', background: 'var(--bg)' }} value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+                    {py && pm && <PayAmountHint amount={payAmount} expected={payType === 'deposit' ? getMonthDeposits(contract, py, pm - 1, contracts).deposit : getMonthRent(contract, py, pm - 1)} />}
                   </div>
                   <div>
                     <label style={lbl}>Datum úhrady</label>
@@ -2495,6 +2499,16 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a ? a.unit : 'Neznámý předmět'}</div>
                 </div>
                 {(() => { const st = contractStatus(c); return <StatusPill kind={st.kind} text={st.text} style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }} /> })()}
+                {(() => {
+                  // Nahraný dokument typu „Smlouva“ (nejnovější) – otevře se jedním klikem
+                  const mainDoc = documents
+                    .filter(d => d.contractLinkId === c.id && d.relatedType === 'file' && d.relatedId && d.type === 'Smlouva')
+                    .sort((x, y) => (parseDate(y.uploadedAt)?.getTime() || 0) - (parseDate(x.uploadedAt)?.getTime() || 0))[0]
+                  return mainDoc && (
+                    <button onClick={() => openDocFile(mainDoc)} title={`Otevřít: ${mainDoc.name}`}
+                      style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>📄 Smlouva</button>
+                  )
+                })()}
                 {!isReadOnly && (
                   <button onClick={handleEditClick} style={{ background: '#fff', color: fc.mid, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
                 )}
@@ -2604,6 +2618,35 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           ))}
         </div>
         )}
+
+        {/* Dluh – po splatnosti této smlouvy (u skupiny celé skupiny), stejný výpočet jako Platby → Po splatnosti */}
+        {(() => {
+          if (c.paymentFrequency === 'Zahrnuto v nájemném') return null
+          const debt = contractDebt(c, { payments, contracts, assets })
+          if (!debt) return null
+          const n = debt.items.length, days = debt.maxDays
+          const count = (PERIOD_LEN[c.paymentFrequency] || 1) > 1
+            ? `${n} ${n === 1 ? 'platba' : n < 5 ? 'platby' : 'plateb'}`
+            : `${n} ${n === 1 ? 'měsíc' : n < 5 ? 'měsíce' : 'měsíců'}`
+          const MONTHS_LOC = ['lednu','únoru','březnu','dubnu','květnu','červnu','červenci','srpnu','září','říjnu','listopadu','prosinci']
+          const note = findDebtNote(debtNotes, c.tenantId, firmOf(contractSubject(c, assets)))
+          return (
+            <div onClick={() => setContractTab('payments')} title="Otevřít platby"
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--tone-red-soft)', border: '1px solid var(--tone-red-border)', borderRadius: 10, cursor: 'pointer' }}>
+              <span style={{ fontSize: 18 }}>❗</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: 'var(--tone-red-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                  Po splatnosti · {count}{c.groupLabel ? ` · skupina „${c.groupLabel}“` : ''}
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--tone-red-text)' }}>
+                  {fmtKc(debt.owe)} · {days} {days === 1 ? 'den' : days < 5 ? 'dny' : 'dní'} po splatnosti · {debt.lastPaid ? `naposledy uhrazeno v ${MONTHS_LOC[debt.lastPaid.m]} ${debt.lastPaid.y}` : 'zatím nic neuhrazeno'}
+                </div>
+                {note && <DebtNoteLine note={note} style={{ marginTop: 3 }} />}
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--tone-red-text)', whiteSpace: 'nowrap' }}>Platby ›</span>
+            </div>
+          )
+        })()}
 
         {/* Blokace navýšení nájmu – rok od začátku smlouvy / od poslední valorizace */}
         {(() => {
@@ -3156,8 +3199,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                     <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', boxSizing: 'border-box' }}
                       defaultValue={terminateDateRef.current}
                       onChange={e => { terminateDateRef.current = e.target.value }} />
-                    {cauceHeld && <CauceSettleFields amount={ci.amount} debt={tenantDebtForContract(c, { payments, contracts, assets })}
-                      onChange={v => { cauceChoiceRef.current = v }} />}
+                    {cauceHeld ? <CauceSettleFields amount={ci.amount} debt={tenantDebtForContract(c, { payments, contracts, assets })}
+                      onChange={v => { cauceChoiceRef.current = v }} />
+                      : <TenantDebtNotice debt={tenantDebtForContract(c, { payments, contracts, assets })} />}
                     {c.status === 'active' && (
                       <div style={{ marginTop: 14, padding: '10px 12px', background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)', borderRadius: 10, fontSize: 12.5, color: 'var(--text2)' }}>
                         Přichází na předmět nový nájemce?
@@ -3350,6 +3394,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             <label className="dlg-lbl">Částka (Kč)</label>
             <input type="number" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'text', marginBottom: 12, boxSizing: 'border-box' }}
               value={saldoPay.amount} onChange={e => setSaldoPay({ ...saldoPay, amount: e.target.value })} />
+            <PayAmountHint amount={saldoPay.amount} expected={it.groupLabel ? it.groupExpected : it.expected} style={{ margin: '-8px 0 12px' }} />
             <label className="dlg-lbl">Termín přijetí platby</label>
             <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: 6, boxSizing: 'border-box' }}
               value={saldoPay.date} onChange={e => setSaldoPay({ ...saldoPay, date: e.target.value })} />

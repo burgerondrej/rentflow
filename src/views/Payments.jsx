@@ -4,7 +4,7 @@ import { save } from '@tauri-apps/api/dialog'
 import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import DialogShell from '../DialogShell.jsx'
-import { Segmented, EmptyState } from '../UI.jsx'
+import { Segmented, EmptyState, PayAmountHint } from '../UI.jsx'
 import { isTyping, isOverlayOpen, peekPaymentsFilter, clearPaymentsFilter } from '../shortcuts.js'
 import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, isGroupPayment } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, overdueItems, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
@@ -177,6 +177,7 @@ function PaymentDateModal({ contract, fullAmount, onConfirm, onClose, monthLabel
                 Zbývá doplatit: {((fullAmount || 0) - Number(amount)).toLocaleString('cs-CZ')} Kč
               </div>
             )}
+            {Number(amount) > (fullAmount || 0) && <PayAmountHint amount={amount} expected={fullAmount} />}
           </div>
         )}
 

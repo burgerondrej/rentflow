@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import DialogShell from './DialogShell.jsx'
 import { Segmented } from './UI.jsx'
-import { CauceSettleFields, cauceInfo, settlementFromChoice, tenantDebtForContract } from './CauceUI.jsx'
+import { CauceSettleFields, cauceInfo, settlementFromChoice, tenantDebtForContract, TenantDebtNotice } from './CauceUI.jsx'
 import { parseDate, toCzDate, getEffectiveValuesToday, contractSubject, ASSET_TYPES } from './utils.js'
 
 const dateToIso = (d) => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : ''
@@ -139,8 +139,9 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
               • Před změnou se automaticky udělá záloha databáze.<br />
               • Stavy měřidel při předávce zapište v detailu smlouvy (Přehled → Stavy měřidel).
             </div>
-            {oldCauceHeld && <CauceSettleFields amount={oldCauce.amount} debt={tenantDebtForContract(contract, { payments, contracts, assets })}
-              initial={cauceChoice.mode} onChange={setCauceChoice} />}
+            {oldCauceHeld ? <CauceSettleFields amount={oldCauce.amount} debt={tenantDebtForContract(contract, { payments, contracts, assets })}
+              initial={cauceChoice.mode} onChange={setCauceChoice} />
+              : <TenantDebtNotice debt={tenantDebtForContract(contract, { payments, contracts, assets })} />}
           </div>
         )}
 
