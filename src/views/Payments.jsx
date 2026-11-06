@@ -506,6 +506,7 @@ export default function Payments() {
   const [combinedModal, setCombinedModal]   = useState(null)   // { contract, tenantName, rentAmount, depositAmount }
   const [editAmountModal, setEditAmountModal] = useState(null) // { payment, monthLabel, tenantName }
   const [reportLoading, setReportLoading]   = useState(false)
+  const [search, setSearch]                 = useState('')     // Přehled: hledání nájemce / jednotky napříč firmami
 
   const monthKey   = `${selectedYear}-${selectedMonth}`
   const monthLabel = `${MONTHS[selectedMonth]} ${selectedYear}`
@@ -770,25 +771,45 @@ export default function Payments() {
   }, [selectedMonth, selectedYear])
 
   const subContracts = contractsForSub(activeSub)
+
+  // Hledání v Přehledu (nájemce, IČO, jednotka) napříč firmami – jen tabulka; souhrnné karty zůstávají za vybranou sekci.
+  // Výsledky po blocích firem (pořadí firem z Nastavení), součty vždy za jednu firmu.
+  const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const searchQ = norm(search.trim())
+  const searchActive = searchQ.length >= 2
+  const searchHit = (c) => {
+    const t = getTenantForContract(c), a = getAssetForContract(c)
+    return [t?.name, t?.ico, a?.unit].some(v => norm(v).includes(searchQ))   // ne název skupiny („METROPOLE - …“ by chytal všechny)
+  }
+  const firmRank = (c) => { const i = firms.findIndex(f => f.name === firmOf(getContractSubject(c))); return i < 0 ? firms.length : i }
+  const searchContracts = !searchActive ? [] : (() => {
+    const hits = activeContracts.filter(searchHit)
+    const labels = new Set(hits.map(c => c.groupLabel).filter(Boolean))   // zásah člena skupiny = celá skupina
+    const list = applyOrder(activeContracts.filter(c => searchHit(c) || (c.groupLabel && labels.has(c.groupLabel))))
+    return list.map((c, i) => ({ c, i })).sort((x, y) => firmRank(x.c) - firmRank(y.c) || x.i - y.i).map(x => x.c)
+  })()
+  const tableContracts = searchActive ? searchContracts : subContracts
+  const searchFirms = [...new Set(searchContracts.map(c => firmOf(getContractSubject(c))))]
+
   // Filtr řádků Přehledu: stejná logika stavu jako řádky tabulky (skupina / jednotlivá smlouva vč. záloh u bytů)
   const rowUnpaid = (g) => g.type === 'group' ? gms(g.label).status !== 'paid' : !cms(g.contract).complete
   const rowOverdue = (g) => rowUnpaid(g) && overdueDays(g.type === 'group' ? g.members[0] : g.contract, selectedYear, selectedMonth) > 0
   const rowPasses = (g) => rowFilter === 'unpaid' ? rowUnpaid(g) : rowFilter === 'overdue' ? rowOverdue(g) : true
   const overviewGroups = (() => {
     const out = [], seen = new Set()
-    subContracts.forEach(c => {
+    tableContracts.forEach(c => {
       if (c.groupLabel) {
-        if (!seen.has(c.groupLabel)) { seen.add(c.groupLabel); out.push({ type: 'group', label: c.groupLabel, members: subContracts.filter(x => x.groupLabel === c.groupLabel) }) }
+        if (!seen.has(c.groupLabel)) { seen.add(c.groupLabel); out.push({ type: 'group', label: c.groupLabel, members: tableContracts.filter(x => x.groupLabel === c.groupLabel) }) }
       } else out.push({ type: 'single', contract: c })
     })
     return out
   })()
-  // DEBUG: breakdown per contract
-  const subExpected  = subContracts.reduce((s, c) => s + effRent(c), 0)
-  const subReceived  = (() => {
+  // Předpis / uhrazeno za seznam smluv (souhrn sekce i záhlaví bloku firmy při hledání)
+  const expectedOf = (list) => list.reduce((s, c) => s + effRent(c), 0)
+  const receivedOf = (list) => {
     const seenGroups = new Set()
     let total = 0
-    for (const c of subContracts) {
+    for (const c of list) {
       if (c.groupLabel) {
         if (!seenGroups.has(c.groupLabel)) {
           seenGroups.add(c.groupLabel)
@@ -804,7 +825,9 @@ export default function Payments() {
       }
     }
     return total
-  })()
+  }
+  const subExpected  = expectedOf(subContracts)
+  const subReceived  = receivedOf(subContracts)
   const subRemaining = subExpected - subReceived
   const subPercent   = subExpected > 0 ? Math.round((subReceived / subExpected) * 100) : 0
 
@@ -1197,7 +1220,7 @@ export default function Payments() {
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
           <div style={{ flex: '1 1 65%' }}>
-            {subContracts.length > 0 && (() => {
+            {activeContracts.length > 0 && (() => {
               const nUnpaid = overviewGroups.filter(rowUnpaid).length
               const nOverdue = overviewGroups.filter(rowOverdue).length
               const chip = (id, label, n, tone) => {
@@ -1216,6 +1239,24 @@ export default function Payments() {
                   {chip('all', 'Vše', overviewGroups.length, 'gray')}
                   {chip('unpaid', 'Neuhrazené', nUnpaid, 'red')}
                   {chip('overdue', '⚠ Po splatnosti', nOverdue, 'amber')}
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 10px', width: 280, boxSizing: 'border-box',
+                    background: 'var(--bg)', border: `1.5px solid ${searchActive ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 10 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text3)' }}>🔍</span>
+                    <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Escape' && search) { e.preventDefault(); e.stopPropagation(); setSearch('') } }}
+                      placeholder="Hledat nájemce, jednotku…" title="Hledá ve všech firmách: nájemce, IČO, jednotka"
+                      style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--text)', fontFamily: 'inherit' }} />
+                    {search && <button type="button" onClick={() => setSearch('')} title="Zrušit hledání (Esc)"
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14, padding: 0, lineHeight: 1 }}>✕</button>}
+                  </div>
+                  {searchActive && (
+                    <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                      background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)', color: 'var(--tone-blue-text)' }}>
+                      <span>🔍 Hledání „{search.trim()}“ napříč firmami · {searchContracts.length} {searchContracts.length === 1 ? 'smlouva' : searchContracts.length >= 2 && searchContracts.length <= 4 ? 'smlouvy' : 'smluv'}
+                        {searchFirms.length > 0 && <> u {searchFirms.length} {searchFirms.length === 1 ? 'firmy' : 'firem'}</>} · {monthLabel}</span>
+                      <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--text2)' }}>Esc = zpět na {selectionLabel(activeSub)}</span>
+                    </div>
+                  )}
                 </div>
               )
             })()}
@@ -1225,23 +1266,45 @@ export default function Payments() {
                   <tr style={{ background: 'var(--bg2)', borderBottom: '2px solid var(--border)' }}>
                     <th style={{ padding: '14px 20px', textAlign: 'left',  fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nájemce / Jednotka</th>
                     <th style={{ padding: '14px 12px', textAlign: 'left', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Splatnost</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isBytovySub(activeSub) ? 'Nájemné + parkování' : 'Nájemné'}</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{!searchActive && isBytovySub(activeSub) ? 'Nájemné + parkování' : 'Nájemné'}</th>
                     <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Zálohy</th>
                     <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Komplet uhrazeno dne</th>
                     <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Stav platby</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {subContracts.length > 0 ? (() => {
+                  {tableContracts.length > 0 ? (() => {
                     // Seskupení dle group_label (overviewGroups) + filtr Vše / Neuhrazené / Po splatnosti
                     const groups = overviewGroups.filter(rowPasses)
                     if (groups.length === 0) return (
                       <tr><td colSpan={6} style={{ padding: 16 }}>
-                        <EmptyState good icon="✓" title={rowFilter === 'overdue' ? 'Nic není po splatnosti' : 'Vše uhrazeno'} text={`${selectionLabel(activeSub)} · ${monthLabel}`} />
+                        <EmptyState good icon="✓" title={rowFilter === 'overdue' ? 'Nic není po splatnosti' : 'Vše uhrazeno'} text={`${searchActive ? `Hledání „${search.trim()}“` : selectionLabel(activeSub)} · ${monthLabel}`} />
                       </td></tr>
                     )
 
-                    return groups.map((g, gi) => {
+                    // Hledání: záhlaví bloku firmy (pruh v barvě firmy, součet jen za tuto firmu)
+                    const firmHeadRow = (firmName) => {
+                      const list = searchContracts.filter(c => firmOf(getContractSubject(c)) === firmName)
+                      const f = firms.find(x => x.name === firmName) || null
+                      const col = f ? firmColors(f.color, theme) : null
+                      const exp = expectedOf(list), rec = receivedOf(list)
+                      return (
+                        <tr key={`firm-${firmName}`}>
+                          <td colSpan={6} style={{ padding: '10px 20px', background: col ? col.bg : 'var(--bg2)', boxShadow: col ? `inset 6px 0 0 ${col.mid}` : 'none', borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                              <FirmBadge firm={f} size={24} />
+                              <span style={{ fontWeight: 900, fontSize: 14, color: col ? col.txt : 'var(--text)' }}>{firmName}</span>
+                              <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: 'var(--text2)', whiteSpace: 'nowrap' }}>
+                                Předpis {exp.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })}&nbsp;Kč · uhrazeno {rec.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })}&nbsp;Kč
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    }
+                    const groupFirm = (g) => firmOf(getContractSubject(g.type === 'group' ? g.members[0] : g.contract))
+
+                    const renderRow = (g, gi) => {
                       if (g.type === 'group') {
                         const { label, members } = g
                         // Stav skupiny: platba skupiny proti předpisu všech členů (jednotně s Dashboardem a saldem)
@@ -1417,7 +1480,7 @@ export default function Payments() {
                               <FirmBadge firm={getFirm ? getFirm(getContractSubject(c)) : null} size={22} />
                               <span style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--text)' }}>{tenant?.name || 'Neznámý'}</span>
                             </div>
-                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{asset?.unit || '—'}{isFirmSelection(activeSub) ? ` · ${sectionLabelOf(getContractSubject(c))}` : ''}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{asset?.unit || '—'}{isFirmSelection(activeSub) || searchActive ? ` · ${sectionLabelOf(getContractSubject(c))}` : ''}</div>
                             {payment?.note && (
                               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, fontStyle: 'italic' }}>
                                 💬 {payment.note}
@@ -1536,10 +1599,13 @@ export default function Payments() {
                           </td>
                         </tr>
                       )
-                    })
+                    }
+                    if (!searchActive) return groups.map(renderRow)
+                    return groups.flatMap((g, gi) => gi === 0 || groupFirm(g) !== groupFirm(groups[gi - 1])
+                      ? [firmHeadRow(groupFirm(g)), renderRow(g, gi)] : [renderRow(g, gi)])
                   })() : (
                     <tr><td colSpan="6" style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontStyle: 'italic' }}>
-                      Pro tento subjekt nejsou aktivní žádné smlouvy.
+                      {searchActive ? `Žádná smlouva pro „${search.trim()}“ v měsíci ${monthLabel}.` : 'Pro tento subjekt nejsou aktivní žádné smlouvy.'}
                     </td></tr>
                   )}
                 </tbody>
