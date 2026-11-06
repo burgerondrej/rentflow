@@ -45,7 +45,7 @@ Secrets: TAURI_PRIVATE_KEY, TAURI_KEY_PASSWORD, PAGES_TOKEN, RELEASES_TOKEN.
 
 - Tauri v1 + React 18 + Vite 5 + Rust + SQLite (WAL, FOREIGN KEYS ON). Font DM Sans.
 - Složka: `C:\Users\ondra\rentflow`. App identifier: `cz.rentflow.app`.
-- Produkční DB: `%APPDATA%\cz.rentflow.app\rentflow\rentflow.db` – NIKDY na ni nesahej, nečti ji zápisem, nekopíruj. Pro testy jen kopie.
+- Produkční DB: `%APPDATA%\cz.rentflow.app\rentflow.db` (dokumenty v `…\cz.rentflow.app\rentflow\documents`) – NIKDY na ni nesahej, nečti ji zápisem, nekopíruj. Pro testy jen kopie.
 - Lokalizace CZ, CZK, datum D.M.RRRR.
 - Uživatelé: Ondra (admin) + Pavel (read-only mirror přes GDrive). `const ADMIN_PIN` v kódu NIKDY nepřepisovat.
 - Dev: `npm run tauri:dev`. Build: `npm run tauri:build`.
@@ -68,7 +68,7 @@ Klíčové soubory:
 - `src/AppContext.jsx` – Tauri IPC bridge, state, theme, showToast(message, type), confirmAction({ title, text, okLabel, danger, onOk }) – společné potvrzovací okno, removePayments (zrušení plateb s potvrzením). archiveContract kontroluje jiné aktivní smlouvy.
 - `src/App.jsx` – AppWithActivation wrapper, Ctrl+F (i podle částky předpisu ±1 Kč a čísla účtu nájemce), Ctrl+S, PIN modal, auto-update check po 3 s. Zásobník detailů (openDetail(type, id, { tab, onReturn }) / closeDetail / closeAllDetails). openDetail si pamatuje nedávno otevřené (localStorage rf_recent_details, max 8) – Ctrl+F bez textu je nabídne. Klávesa `?` = přehled zkratek (okno v App.jsx – při nové zkratce ho doplnit). Štítek „💾 Poslední záloha“ (get_sync_status: čas kopie rentflow.db na Google Disku + neuložené změny), klik = Ctrl+S.
 - `src/DetailPanel.jsx` – detaily smlouvy / předmětu / nájemce: barevný pás + klíčové údaje + záložky (smlouva: Přehled/Platby/Dodatky/Dokumenty; předmět: Přehled/Smlouvy/Dokumenty; nájemce: Přehled/Smlouvy/Platby/Dokumenty). Podíl na platbě skupiny (jen zobrazení). Tlačítko „📄 Smlouva“ v hlavičce detailu smlouvy = nejnovější dokument typu „Smlouva“ (soubor) ke smlouvě.
-- `src/views/Payments.jsx` – platební logika (viz níže). Záložky: Přehled za měsíc / Historie 6 měsíců / ⚠ Po splatnosti (všechny měsíce, Zapsat, Report PDF). `src/reports.js` – HTML PDF reportu Po splatnosti (buildOverdueReportHtml, REPORT_CSS).
+- `src/views/Payments.jsx` – platební logika (viz níže). Záložky: Přehled za měsíc / Historie 6 měsíců / ⚠ Po splatnosti (všechny měsíce, Zapsat, Report PDF). Přehled má hledání 🔍 (nájemce / IČO / jednotka, od 2 znaků) napříč firmami – výsledky v blocích po firmách se součtem za firmu, horní karty zůstávají za vybranou sekci; Esc = zpět. `src/reports.js` – HTML PDF reportu Po splatnosti (buildOverdueReportHtml, REPORT_CSS).
 - `src/views/Export.jsx` – PDF přes getEffectiveValuesToday(c), sloupec Paušál. PDF = Edge headless `--print-to-pdf` (bez Google Fonts @import).
 - `src/ActivationScreen.jsx` – aktivace (hash SHA-256 v Rustu, stav v settings.json "activated").
 - `src-tauri/src/db.rs` – migrace (seed subjektů ODSTRANĚN, fresh install = prázdné tabulky). Tabulky v1.4.3: cauce_settlements (contract_id PK), debt_notes (UNIQUE tenant_id + firm; přejmenování firmy je propisuje), meter_readings (vč. cooling, heat_unit, cooling_unit), subjects.meters – bez FK na smlouvy (obnova z koše). v1.4.5: contracts.tenancy_since. `main.rs`: při prvním spuštění nové verze (`last_version.txt`) záloha DB PŘED migracemi → `backups/backup-…-pred-vX.Y.Z.db` (VACUUM INTO).
@@ -144,6 +144,7 @@ Budovy (`objects`, sloupec `firm`) patří firmám – Revize a Provozní nákla
 - „V nájmu od“ (contract.tenancySince, zobrazení přes tenancySince) = od kdy reálně trvá nájem, jen evidence: nevstupuje do plateb, saldo ani platebních oken (začátek smlouvy se kvůli historii nepřepisuje). Nevyplněné u nové smlouvy = začátek smlouvy, navazující smlouva datum převezme, změna nájemce začíná od předávky. Jen datum, žádné „x let“.
 - Blokace navýšení nájmu (bublina ❗ v detailu smlouvy, rentIncreaseLock): jen platné smlouvy bytů a komerčních prostor, ne „Zahrnuto v nájemném“. Rok od ZAČÁTKU SMLOUVY (ne od „V nájmu od“, navazující smlouva začíná znovu) nebo od poslední valorizace, rozhoduje pozdější datum. Poslední valorizace = Datum poslední valorizace (pole jen u komerčních) nebo účinný dodatek, který zvýšil holé nájemné. Text bez „dle zákona“ (společný pro byty i komerční).
 - Bublina dluhu v detailu smlouvy (contractDebt, nad blokací navýšení): položky z overdueItems (skupina = celá skupina), součet, dny po splatnosti, „naposledy uhrazeno v <měsíci>“ = poslední celý uhrazený měsíc od SALDO_FROM (víceměsíční = nájem okna), jinak „zatím nic neuhrazeno“. Ne u „Zahrnuto v nájemném“. Klik = záložka Platby.
+- Hledání v Platbách → Přehled: nehledá podle group_label (skupiny „METROPOLE - …“ by chytly vše); nalezená smlouva ze skupiny přivede celou skupinu. Součty VŽDY za každou firmu zvlášť (striktní oddělení), pořadí firem podle Nastavení, uvnitř applyContractOrder.
 - Smlouvy: záložky Platné (aktivní + ukončené s budoucím koncem) / Ukončené.
 - Po splatnosti: dueDateFor(c, y, m) z pole due_day („15. den v měsíci“ měsíčně, „30. 4.“ ročně; „Dle vystavené faktury“ = neurčuje se); overdueDays() zobrazit v Platbách, na kartách firem a v detailu nájemce.
 - Platba předem: due_day „15. den předchozího měsíce na měsíc následující“ (DUE_PREPAID; byty a ubytovací jednotky, vybraná parkovací stání) → splatnost 15. den PŘEDCHOZÍHO měsíce (říjen do 15. 9.). Platby se dál zapisují za měsíc, kterého se týkají (v Platbách listopad = listopadový nájem). Saldo i Po splatnosti proto počítají až do příštího měsíce.
@@ -160,9 +161,10 @@ Firmy (sytá paleta, utils FIRM_PALETTE): MCB bordó #7A1029, BP modrá #2563EB,
 Styl (v1.4): dialogy DialogShell; hlavičky sekcí tiché (ikona v barevném čtverečku); segmentové přepínače; přepínač měsíců v Platbách = tmavě zelená pilulka (nahoře i plovoucí dole, sticky – na konci stránky nic nepřekrývá); vyhledávání = paleta (↑↓ Enter Esc); bloky firem v detailu nájemce (pruh v barvě firmy + součet / měs.).
 Styl (v1.3): karty barevné podle TYPU předmětu + proužek a zkratka FIRMY vlevo; uvnitř bílé rámečky (nájemce, platnost/nájem) s 1.5px čarami. Detaily = plný barevný pás + 4 klíčové údaje + kontrastní záložky (neaktivní tmavý text na světlém, aktivní bílý na barvě). Hlavička stránky = karta s ikonou sekce (`.page-header data-icon` / `data-type`) a čísly. Ondra nechce „prázdný vzdušný“ minimalismus – chce přehledné, výrazné, barevné.
 
-## 7. Pavel – read-only sync (mimo repo, NEMĚNIT bez souhlasu)
+## 7. Pavel a maminka – read-only sync (mimo repo, NEMĚNIT bez souhlasu)
 
-Tok: Ondra PC → Google Drive (mirror mode, `C:\Users\ondra\Můj disk\...`) → Pavel (2 PC: "Pavel Burger" práce, "pavel" doma).
+Tok: Ondra PC → Google Drive (mirror mode, `C:\Users\ondra\Můj disk\RentFlow backup`) → čtenáři v profilu Pavel: Pavel (2 PC: "Pavel Burger" práce, "pavel" doma) + maminka (notebook, od 11/2026).
+Maminka: složka sdílená jako Čtenář, skripty `C:\Users\ondra\Documents\RentFlow-ctenar` (nastavit-rentflow.ps1 = jednorázové nastavení; rentflow-sync.ps1 a rentflow-launch.ps1 samy najdou uživatele i cestu na Disku, Plánovač bez admina), návod v Claude Docs „RentFlow na notebooku maminky“ (https://claude.ai/artifact/AN2RuzZxK9sYbdXvoHkm8J). Nová instalace startuje v profilu Ondra (localStorage rentflow_user) – na Pavla přepnout ručně.
 Pavel: `rentflow-sync.ps1` (maže -wal/-shm, 3× retry, kontrola velikosti, log `rentflow-sync.log`, documents přes CreateDirectory) + `rentflow-launch.ps1` (ukončí RF → sync -Force → spustí RF) + ikona na ploše + task "RentFlow DB Sync" (1×/min).
 Aktualizace appky u Pavla jdou přes auto-updater (latest.json) – nic ručně.
 
@@ -209,6 +211,7 @@ Pravidla:
 - v1.4.5: „V nájmu od“ – evidence skutečného začátku nájmu (pole ve formuláři a úpravě smlouvy; zobrazení v detailu smlouvy, předmětu a nájemce; převzetí při prodloužení).
 - v1.4.6: bublina „Nájem zatím nelze navyšovat“ v detailu smlouvy (rok od začátku smlouvy nebo od poslední valorizace), oprava formátu Data poslední valorizace u nové smlouvy.
 - v1.4.7: dluh po splatnosti v detailu smlouvy (naposledy uhrazeno), kontrola částky při zápisu platby, upozornění na dluh při ukončení a změně nájemce, tlačítko „📄 Smlouva“ v hlavičce detailu smlouvy.
+- v1.4.8: hledání v Platbách (Přehled za měsíc) napříč firmami – nájemce, IČO, jednotka; bloky po firmách se součtem za firmu.
 - Nápady na později: uživatelský manuál RF (vč. splatnosti předem a Po splatnosti); „Co dnes řešit“ na Dashboardu, předávací protokol PDF, evidence klíčů a čipů. NE: hromadná valorizace, import z banky, upomínky PDF, připomínka valorizace, hromadné „Uhrazeno“, začátky smluv v Kalendáři.
 - localStorage pro currentUser.
 - Odložené: sdružování parkovacích stání (group_label) – částečně implementováno.
@@ -216,4 +219,4 @@ Pravidla:
 ## 11. Údržba tohoto souboru
 
 Na konci každé větší session navrhni úpravu CLAUDE.md (nová pravidla, poučení, verze). Zapisuj jen po odsouhlasení.
-Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 2. 11. 2026: v1.4.7).
+Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 6. 11. 2026: v1.4.8).
