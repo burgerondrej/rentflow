@@ -70,3 +70,13 @@ export function PayAmountHint({ amount, expected, paid = 0, style }) {
     </div>
   )
 }
+
+/** „3 nájemci“ / „5 nájemců“ – víc souběžných smluv na jednom předmětu (podle popisku strany smlouvy). */
+export function partiesLabel(n, tenantLabel = 'Nájemce') {
+  const few = n >= 2 && n <= 4
+  const forms = {
+    'Smluvní strana': few ? 'smluvní strany' : 'smluvních stran',
+    'Klient': few ? 'klienti' : 'klientů',
+  }
+  return `${n} ${forms[tenantLabel] || (few ? 'nájemci' : 'nájemců')}`
+}

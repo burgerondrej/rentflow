@@ -360,13 +360,30 @@ export function groupMonthStatus(label, y, m, ctx) {
 // NAVAZUJÍCÍ SMLOUVY – aby se nic nepočítalo dvakrát
 // ─────────────────────────────────────────
 
-/** Má smlouva na stejném předmětu pozdější (navazující) smlouvu? sameTenant = jen prodloužení téhož nájemce. */
+/**
+ * Má smlouva na stejném předmětu pozdější (navazující) smlouvu? sameTenant = jen prodloužení téhož nájemce.
+ * Navazující = začíná až po konci této smlouvy (prodloužení i změna nájemce končí den před novým začátkem).
+ * Souběžné smlouvy na jednom předmětu (např. Ostatní pronajaté více nájemcům) se navzájem nenavazují.
+ */
 export function hasSuccessor(c, contracts = [], sameTenant = false) {
   const sd = parseDate(c.start)
-  if (!sd) return false // bez data začátku nelze určit pořadí smluv
-  const s = sd.getTime()
-  return contracts.some(o => o.id !== c.id && o.assetId === c.assetId && (o.status === 'active' || isContractBillable(o)) &&
-    (!sameTenant || o.tenantId === c.tenantId) && (parseDate(o.start)?.getTime() ?? -Infinity) > s)
+  const ed = parseDate(c.end)
+  if (!sd || !ed) return false // bez začátku nelze určit pořadí, bez konce smlouva trvá (jiná je souběžná)
+  const s = sd.getTime(), e = ed.getTime()
+  return contracts.some(o => {
+    if (o.id === c.id || o.assetId !== c.assetId || !(o.status === 'active' || isContractBillable(o))) return false
+    if (sameTenant && o.tenantId !== c.tenantId) return false
+    const os = parseDate(o.start)?.getTime() ?? -Infinity
+    return os > s && os >= e
+  })
+}
+
+/**
+ * Všechny smlouvy, které na předmětu platí DNES (souběžné smlouvy více nájemců); navazující od budoucna ne.
+ * Když dnes neplatí žádná, nejbližší budoucí (jako currentPerAsset).
+ */
+export function currentAssetContracts(contracts = [], assetId) {
+  return currentPerAsset((contracts || []).filter(c => c.assetId === assetId && isContractOccupying(c)))
 }
 
 /**

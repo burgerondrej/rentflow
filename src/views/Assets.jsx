@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import AssetForm from '../AssetForm.jsx'
-import { getCurrentAssetContract, isContractOccupying, selectionMatches, firmOf, firmColors, assetTypeStyle, getEffectiveValuesToday } from '../utils.js'
+import { getCurrentAssetContract, currentAssetContracts, isContractOccupying, parseDate, selectionMatches, firmOf, firmColors, assetTypeStyle, getEffectiveValuesToday } from '../utils.js'
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
+import { partiesLabel } from '../UI.jsx'
 import { useNewShortcut } from '../shortcuts.js'
 
 
@@ -87,6 +88,9 @@ export default function Assets({ type, activeSubject, onOpen }) {
     const activeContract = getCurrentAssetContract(contracts, asset.id)
     const currentTenant = activeContract ? tenants.find(t => t.id === activeContract.tenantId) : null
     const isFree = !activeContract && asset.status !== 'occupied'
+    // Souběžné smlouvy více nájemců na jednom předmětu (např. Ostatní)
+    const curList = currentAssetContracts(contracts, asset.id)
+    const multi = curList.length > 1
 
     // Barvy a ikona typu – jedna sada pro celou aplikaci (styles.css)
     const ts = assetTypeStyle(asset.type)
@@ -133,14 +137,42 @@ export default function Assets({ type, activeSubject, onOpen }) {
           )}
           {/* Nájemce / volné */}
           <div style={{ padding: '9px 12px', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${cardBorder}` }}>
-            <div style={{ fontSize: 10, color: accentColor, textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.6px', marginBottom: 2 }}>{isFree ? 'Stav' : conf.tenantLabel}</div>
+            <div style={{ fontSize: 10, color: accentColor, textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.6px', marginBottom: 2 }}>{isFree ? 'Stav' : multi ? partiesLabel(curList.length, conf.tenantLabel) : conf.tenantLabel}</div>
+            {multi ? curList.map(c => (
+              <div key={c.id} style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.4 }}>
+                {tenants.find(t => t.id === c.tenantId)?.name || 'Neznámý'}
+              </div>
+            )) : (
             <div style={{ fontSize: 16, fontWeight: 800, color: isFree ? '#16A34A' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {isFree ? 'Volné k pronájmu' : (currentTenant ? currentTenant.name : 'Neznámý')}
             </div>
+            )}
             <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.subject}</div>
           </div>
           {/* Platnost, nájem, zálohy – aktuálně platné hodnoty (dodatky) */}
-          {!isFree && activeContract && (() => {
+          {!isFree && activeContract && multi && (() => {
+            // Víc smluv: nejbližší konec + součet nájmu (předmět patří jedné firmě)
+            const ends = curList.map(c => parseDate(c.end)).filter(Boolean).sort((a, b) => a - b)
+            const nearest = ends.length ? curList.find(c => parseDate(c.end)?.getTime() === ends[0].getTime()).end : null
+            const sum = curList.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném')
+              .reduce((t, c) => { const ev = getEffectiveValuesToday(c); return t + ev.rent + ev.parking + ev.flatFee }, 0)
+            const sub = (t) => <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text2)', marginTop: 1 }}>{t}</div>
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${cardBorder}` }}>
+                <div style={{ padding: '9px 12px', borderRight: `1.5px solid ${cardBorder}` }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 3 }}>🗓️ Platnost do</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{nearest || 'Neurčito'}</div>
+                  {nearest && sub('nejbližší')}
+                </div>
+                <div style={{ padding: '9px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 3 }}>💰 {conf.priceLabel} celkem</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', whiteSpace: 'nowrap' }}>{sum.toLocaleString('cs-CZ')} Kč</div>
+                  {sub(`${curList.length} ${curList.length <= 4 ? "smlouvy" : "smluv"}`)}
+                </div>
+              </div>
+            )
+          })()}
+          {!isFree && activeContract && !multi && (() => {
             const ev = getEffectiveValuesToday(activeContract)
             const isCommercial = asset.type === 'commercial'
             const isResidential = asset.type === 'residential'

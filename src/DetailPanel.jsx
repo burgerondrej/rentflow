@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
 import ContractHistory from './ContractHistory.jsx'
 import DialogShell, { isDialogOpen } from './DialogShell.jsx'
-import { SectionHeader, Segmented, EmptyState, PayAmountHint } from './UI.jsx'
+import { SectionHeader, Segmented, EmptyState, PayAmountHint, partiesLabel } from './UI.jsx'
 import TenantTimeline from './TenantTimeline.jsx'
 import AssetRentHistory from './AssetRentHistory.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
@@ -1398,6 +1398,11 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
     if (!a) return <div style={{ padding: '24px 32px' }}>Předmět nenalezen.</div>
     const activeContract = getCurrentAssetContract(contracts, id)
     const currentTenant = activeContract ? tenants.find(t => t.id === activeContract.tenantId) : null
+    // Souběžné smlouvy více nájemců na jednom předmětu (např. Ostatní)
+    const curList = currentAssetContracts(contracts, id)
+    const multiCur = curList.length > 1
+    const partyWord = a.type === 'ostatni' ? 'Smluvní strana' : (a.type === 'ads' || a.type === 'parking') ? 'Klient' : 'Nájemce'
+    const curRent = (c) => { if (c.paymentFrequency === 'Zahrnuto v nájemném') return 0; const ev = getEffectiveValuesToday(c); return ev.rent + ev.parking + ev.flatFee }
 
     const handleEditClick = () => {
       setFormData({
@@ -1611,7 +1616,19 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <button onClick={handleEditClick} style={{ background: '#fff', color: ts.strong, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
                 )}
               </div>
-              {a.type !== 'ostatni' && (
+              {multiCur && (() => {
+                const ends = curList.map(c => parseDate(c.end)).filter(Boolean).sort((x, y) => x - y)
+                const nearest = ends.length ? curList.find(c => parseDate(c.end)?.getTime() === ends[0].getTime()).end : 'neurčito'
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
+                    {kv(partyWord, partiesLabel(curList.length, partyWord))}
+                    {kv('Nájem celkem', `${curList.reduce((t, c) => t + curRent(c), 0).toLocaleString('cs-CZ')} Kč`)}
+                    {kv('Smlouva do', nearest)}
+                    {kv('Pronajímatel', aFirm ? aFirm.name : a.subject)}
+                  </div>
+                )
+              })()}
+              {a.type !== 'ostatni' && !multiCur && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
                   {kv('Nájemce', currentTenant ? currentTenant.name : '—', null, currentTenant ? () => onOpen('tenant', currentTenant.id) : undefined)}
                   {kv(acFreq, !ac ? '—' : acIncluded ? 'zahrnuto' : `${(acEv.rent + acEv.parking + acEv.flatFee).toLocaleString('cs-CZ')} Kč`)}
@@ -1696,7 +1713,27 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           )
         })()}
 
+        {/* Víc souběžných smluv – seznam, klik = detail smlouvy */}
+        {multiCur && (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+          <SectionHeader icon="👥" tone="blue" title={`Platné smlouvy (${curList.length})`} />
+          {curList.map((c, i) => {
+            const t = tenants.find(x => x.id === c.tenantId)
+            return (
+              <div key={c.id} onClick={() => onOpen('contract', c.id)}
+                style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr) auto auto', gap: 12, alignItems: 'center', padding: '10px 16px', cursor: 'pointer', borderTop: i ? '1px solid var(--border)' : 'none' }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t?.name || 'Neznámý'}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{c.end ? `do ${c.end}` : 'neurčito'}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'right' }}>{c.paymentFrequency === 'Zahrnuto v nájemném' ? 'zahrnuto' : `${curRent(c).toLocaleString('cs-CZ')} Kč`}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent)' }}>›</span>
+              </div>
+            )
+          })}
+        </div>
+        )}
+
         {/* Aktuální nájemce */}
+        {!multiCur && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
           <SectionHeader icon="👤" tone="blue" title="Aktuální nájemce"
             actions={!isReadOnly && activeContract && activeContract.status === 'active' && (
@@ -1725,6 +1762,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             <div style={{ padding: 10 }}><EmptyState compact good icon="🟢" title="Volné k pronájmu" text="Na předmětu teď neběží žádná smlouva." /></div>
           )}
         </div>
+        )}
 
         </>)}
 

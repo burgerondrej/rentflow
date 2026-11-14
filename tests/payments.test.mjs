@@ -168,6 +168,23 @@ test('navazující smlouva: součty nezdvojují (currentPerAsset), hasSuccessor'
   const nw = { ...office, id: 'new', start: '1. 11. 2026' }
   assert.equal(u.hasSuccessor(old, [old, nw]), true)
   assert.deepEqual(u.currentPerAsset([old, nw]).map(c => c.id), ['old'])
+  assert.deepEqual(u.currentAssetContracts([old, nw], 'a-off').map(c => c.id), ['old'])
+})
+test('změna nájemce: stará smlouva končí den před předávkou → navazující', () => {
+  const old = { ...office, id: 'old', end: '14. 10. 2026', status: 'archived' }
+  const nw = { ...office, id: 'new', tenantId: 't9', start: '15. 10. 2026' }
+  assert.equal(u.hasSuccessor(old, [old, nw]), true)
+  assert.equal(u.hasSuccessor(old, [old, nw], true), false)
+})
+test('souběžné smlouvy více nájemců na jednom předmětu se navzájem nenavazují', () => {
+  const a = { ...base, id: 'o1', assetId: 'a-ost', tenantId: 't1', start: '1. 1. 2026', end: '', rent: 4000 }
+  const b = { ...base, id: 'o2', assetId: 'a-ost', tenantId: 't2', start: '1. 3. 2026', end: '31. 12. 2027', rent: 3500 }
+  const c = { ...base, id: 'o3', assetId: 'a-ost', tenantId: 't3', start: '1. 6. 2026', end: '', rent: 2000 }
+  const fut = { ...base, id: 'o4', assetId: 'a-ost', tenantId: 't4', start: '1. 1. 2027', end: '', rent: 1000 }
+  const all = [a, b, c, fut]
+  for (const x of [a, b, c]) assert.equal(u.hasSuccessor(x, all), false)
+  assert.equal(u.isEndingWithoutSuccessor(b, all), true)
+  assert.deepEqual(u.currentAssetContracts(all, 'a-ost').map(x => x.id), ['o1', 'o2', 'o3'])
 })
 
 // ── Historie ──

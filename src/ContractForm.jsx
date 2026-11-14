@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
-import { parseDate, getCurrentAssetContract, isEndingArchived, firmOf, assetTypeStyle, DUE_PREPAID } from './utils.js'
+import { parseDate, getCurrentAssetContract, currentAssetContracts,isEndingArchived, firmOf, assetTypeStyle, DUE_PREPAID } from './utils.js'
 import DialogShell from './DialogShell.jsx'
 
 
@@ -73,6 +73,8 @@ export default function ContractForm({ onClose }) {
 
   // Obsazenost předmětu dle dat smluv (ukončená smlouva drží předmět do posledního dne nájmu)
   const assetBusyLabel = (a) => {
+    const n = currentAssetContracts(contracts, a.id).length
+    if (n > 1) return ` (${n} ${n <= 4 ? 'smlouvy' : 'smluv'})`
     const cur = getCurrentAssetContract(contracts, a.id)
     if (!cur) return a.status === 'occupied' ? ' (obsazeno)' : ''
     return isEndingArchived(cur) ? ` (obsazeno do ${cur.end})` : ' (obsazeno)'
