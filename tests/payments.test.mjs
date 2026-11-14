@@ -176,6 +176,17 @@ test('změna nájemce: stará smlouva končí den před předávkou → navazuj�
   assert.equal(u.hasSuccessor(old, [old, nw]), true)
   assert.equal(u.hasSuccessor(old, [old, nw], true), false)
 })
+test('Pozemky a Auta: pronajímatel = sekce předmětu (billing_subject se ignoruje), typ ze sekce', () => {
+  const as = [
+    { id: 'a-car', type: 'vehicle', unit: 'Auto', subject: 'FIRMA B – Auta' },
+    { id: 'a-land', type: 'land', unit: 'Pozemek', subject: 'FIRMA A – Pozemky' },
+  ]
+  assert.equal(u.contractSubject({ assetId: 'a-car', billingSubject: 'FIRMA A' }, as), 'FIRMA B – Auta')
+  assert.equal(u.contractSubject({ assetId: 'a-land', billingSubject: 'FIRMA B' }, as), 'FIRMA A – Pozemky')
+  assert.equal(u.contractSubject({ assetId: 'a-ad', billingSubject: 'FIRMA A – Reklama' }, assets), 'FIRMA A – Reklama')
+  assert.equal(u.assetTypeOfSection('other'), 'ostatni')
+  assert.equal(u.assetTypeOfSection('vehicle'), 'vehicle')
+})
 test('souběžné smlouvy více nájemců na jednom předmětu se navzájem nenavazují', () => {
   const a = { ...base, id: 'o1', assetId: 'a-ost', tenantId: 't1', start: '1. 1. 2026', end: '', rent: 4000 }
   const b = { ...base, id: 'o2', assetId: 'a-ost', tenantId: 't2', start: '1. 3. 2026', end: '31. 12. 2027', rent: 3500 }

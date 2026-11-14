@@ -58,7 +58,7 @@ const getAccentColor = (name) => {
 // Správné české řazení písmen (Č za C, Š za S atd.)
 const czSort = (a, b) => a.localeCompare(b, 'cs', { sensitivity: 'base' })
 
-const CONTRACT_TYPE_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️' }
+const CONTRACT_TYPE_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗' }
 
 export default function Tenants({ onOpen }) {
   const { tenants = [], contracts = [], assets = [], isReadOnly, billingGroups = [], subjects = [], firms = [] } = useApp()
@@ -266,7 +266,7 @@ export default function Tenants({ onOpen }) {
                 const isDphSubject = c.vatExempt === 2 ? true
                   : c.vatExempt === 1 ? false
                   : (billingGroups.find(g => firmOf(effectiveSubject) === g.val)?.isVatPayer ?? true)
-                const showDph = (asset?.type === 'commercial' || asset?.type === 'ads' || asset?.type === 'parking') && isDphSubject
+                const showDph = (asset?.type === 'commercial' || asset?.type === 'ads' || asset?.type === 'parking' || asset?.type === 'land' || asset?.type === 'vehicle') && isDphSubject
                 const rent = Number(c.rent || 0) + (asset?.type === 'residential' && c.parking > 0 ? Number(c.parking || 0) : 0)
                 const deposit = Number(c.deposit || 0)
                 return (

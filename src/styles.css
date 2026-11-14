@@ -96,6 +96,8 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .page-header[data-type="commercial"]::before  { background: var(--asset-commercial-bg);  border-color: var(--asset-commercial-border); }
 .page-header[data-type="ads"]::before         { background: var(--asset-ads-bg);         border-color: var(--asset-ads-border); }
 .page-header[data-type="parking"]::before     { background: var(--asset-parking-bg);     border-color: var(--asset-parking-border); }
+.page-header[data-type="land"]::before        { background: var(--asset-land-bg);        border-color: var(--asset-land-border); }
+.page-header[data-type="vehicle"]::before     { background: var(--asset-vehicle-bg);     border-color: var(--asset-vehicle-border); }
 .page-header[data-type="ostatni"]::before     { background: var(--asset-ostatni-bg);     border-color: var(--asset-ostatni-border); }
 .page-title { font-size: 22px; font-weight: 800; letter-spacing: -.5px; color: var(--text); }
 .page-sub { font-size: 13px; font-weight: 500; color: var(--text2); margin-top: 3px; }
@@ -313,6 +315,9 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --asset-commercial-bg:  #F8F5FF; --asset-commercial-header:  #F1EBFE; --asset-commercial-accent:  #5B21B6; --asset-commercial-border:  #D6BCFA;
   --asset-ads-bg:         #FFF8F0; --asset-ads-header:         #FEF0DF; --asset-ads-accent:         #C2410C; --asset-ads-border:         #FBD38D;
   --asset-parking-bg:     #F0F7FF; --asset-parking-header:     #E0F0FE; --asset-parking-accent:     #0B509E; --asset-parking-border:     #90CDF4;
+  --asset-land-bg:        #FBF6EF; --asset-land-header:        #F3E6D3; --asset-land-accent:        #7C4A1E; --asset-land-border:        #DDBF97;
+  --asset-vehicle-bg:     #FFF1F4; --asset-vehicle-header:     #FFE0E8; --asset-vehicle-accent:     #9F1239; --asset-vehicle-border:     #FDA4B8;
+  --asset-land-strong: #8B5A2B; --asset-vehicle-strong: #BE123C;
   --asset-ostatni-bg:     #F0FDFA; --asset-ostatni-header:     #CCFBF1; --asset-ostatni-accent:     #0F766E; --asset-ostatni-border:     #99F6E4;
   /* Plná barva typu (pás v detailu, bílé písmo) */
   --asset-residential-strong: #0F6E56; --asset-commercial-strong: #5B21B6; --asset-ads-strong: #C2410C; --asset-parking-strong: #0B509E; --asset-ostatni-strong: #0F766E;
@@ -331,6 +336,9 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --asset-commercial-bg:  #1e1828; --asset-commercial-header:  #261e34; --asset-commercial-accent:  #b8a8e8; --asset-commercial-border:  rgba(184,168,232,0.32);
   --asset-ads-bg:         #2a1d12; --asset-ads-header:         #36251a; --asset-ads-accent:         #f0b27a; --asset-ads-border:         rgba(240,178,122,0.32);
   --asset-parking-bg:     #171f2c; --asset-parking-header:     #1c2838; --asset-parking-accent:     #7ab4e8; --asset-parking-border:     rgba(122,180,232,0.32);
+  --asset-land-bg:        #221c16; --asset-land-header:        #2e251c; --asset-land-accent:        #d9a46b; --asset-land-border:        rgba(217,164,107,0.32);
+  --asset-vehicle-bg:     #26171c; --asset-vehicle-header:     #331d24; --asset-vehicle-accent:     #f08aa6; --asset-vehicle-border:     rgba(240,138,166,0.32);
+  --asset-land-strong: #9A6A3A; --asset-vehicle-strong: #A8304F;
   --asset-ostatni-bg:     #172220; --asset-ostatni-header:     #1e2e2a; --asset-ostatni-accent:     #5ec8bc; --asset-ostatni-border:     rgba(94,200,188,0.32);
   --asset-residential-strong: #1E7A55; --asset-commercial-strong: #6A4BB0; --asset-ads-strong: #B4541E; --asset-parking-strong: #2A5D9E; --asset-ostatni-strong: #1C7A72;
 }
@@ -344,6 +352,8 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .modal-header-ads        { background: linear-gradient(135deg, #9A3412 0%, #FB923C 100%); }
 .modal-header-parking    { background: linear-gradient(135deg, #1E3A8A 0%, #60A5FA 100%); }
 .modal-header-contract   { background: linear-gradient(135deg, #0F172A 0%, #334155 100%); }
+.modal-header-land      { background: linear-gradient(135deg, #5c3a17 0%, #8b5a2b 100%); }
+.modal-header-vehicle   { background: linear-gradient(135deg, #881337 0%, #be123c 100%); }
 .modal-header-ostatni   { background: linear-gradient(135deg, #134e4a 0%, #0d9488 100%); }
 
 /* ═══════════════════════════════════════════════════════════

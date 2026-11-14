@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, ASSET_TYPES, assetTypeOfSection, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -26,12 +26,14 @@ const TYPE_META = {
   commercial:  { headerClass: 'modal-header-commercial',  icon: '🏢', label: 'Komerční prostor' },
   ads:         { headerClass: 'modal-header-ads',        icon: '📢', label: 'Reklamní plocha' },
   parking:     { headerClass: 'modal-header-parking',    icon: '🅿️', label: 'Parkovací místo' },
+  land:        { headerClass: 'modal-header-land',       icon: '🌳', label: 'Pozemek / plocha' },
+  vehicle:     { headerClass: 'modal-header-vehicle',    icon: '🚗', label: 'Auto' },
   ostatni:     { headerClass: 'modal-header-ostatni',    icon: '📋', label: 'Ostatní' },
   contract:    { headerClass: 'modal-header-contract',   icon: '📄', label: 'Detail smlouvy' },
 }
 
 export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange, backLabel }) {
-  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
+  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, moveAsset, confirmAction, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
 
   const SEP = ' – '
   const PREDEFINED_TAGS = [
@@ -1120,8 +1122,8 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {(() => {
-                  const typeIcon  = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', ostatni: '📄' }
-                  const typeLabel = { residential: 'Bytová jednotka', commercial: 'Komerční prostor', ads: 'Reklamní plocha', parking: 'Parkovací stání', ostatni: 'Ostatní' }
+                  const typeIcon  = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', ostatni: '📄' }
+                  const typeLabel = { residential: 'Bytová jednotka', commercial: 'Komerční prostor', ads: 'Reklamní plocha', parking: 'Parkovací stání', land: 'Pozemek / plocha', vehicle: 'Auto', ostatni: 'Ostatní' }
                   // Barvy typu předmětu – jedna sada pro celou aplikaci (styles.css, i tmavý režim)
                   const typeColor = { residential: 'var(--asset-residential-accent)', commercial: 'var(--asset-commercial-accent)', ads: 'var(--asset-ads-accent)', parking: 'var(--asset-parking-accent)', ostatni: 'var(--asset-ostatni-accent)' }
                   const typeBg    = { residential: 'var(--asset-residential-bg)', commercial: 'var(--asset-commercial-bg)', ads: 'var(--asset-ads-bg)', parking: 'var(--asset-parking-bg)', ostatni: 'var(--asset-ostatni-bg)' }
@@ -1194,7 +1196,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                     const bdr = typeBdr[aType] || 'var(--border)'
                   const effectiveSub = c.billingSubject || asset?.subject || ''
                   const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(effectiveSub) === g.val)?.isVatPayer ?? true)
-                  const showDph = (aType === 'commercial' || aType === 'ads' || aType === 'parking' || aType === 'ostatni') && isDphSubject
+                  const showDph = (aType === 'commercial' || aType === 'ads' || aType === 'parking' || aType === 'land' || aType === 'vehicle' || aType === 'ostatni') && isDphSubject
                   const _eff = effectiveToday(c)
                   const rent = _eff.rent + (aType === 'residential' ? _eff.parking : 0)
                   const deposit = _eff.deposit
@@ -1406,6 +1408,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
 
     const handleEditClick = () => {
       setFormData({
+        subject: a.subject || '',
         unit: a.unit || '', size: a.size || '', floor: a.floor || '',
         format: a.format || '', notes: a.notes || '',
         dueDay: activeContract?.dueDay || '15. den v měsíci',
@@ -1424,15 +1427,51 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
 
     const handleSave = (e) => {
       e.preventDefault()
-      updateAsset(id, formData)
-      setIsEditing(false)
+      const { subject: newSubject, ...rest } = formData
+      if (!newSubject || newSubject === a.subject) {
+        updateAsset(id, rest)
+        setIsEditing(false)
+        return
+      }
+      // Přesun do jiné sekce: typ předmětu = typ sekce; pronajímatel = firma sekce
+      const newType = assetTypeOfSection(subjectData.find(s => s.name === newSubject)?.assetType)
+      const firmChange = firmOf(newSubject) !== firmOf(a.subject)
+      const assetContracts = contracts.filter(c => c.assetId === id)
+      if (firmChange && assetContracts.some(c => c.groupLabel)) {
+        showToast('Předmět má smlouvu ve skupině plateb – před přesunem k jiné firmě ji ze skupiny vyřaď.')
+        return
+      }
+      confirmAction({
+        title: 'Přesunout předmět?',
+        text: `„${a.unit}“ se přesune do sekce ${newSubject}${newType !== a.type ? ` (${ASSET_TYPES[newType]?.label || newType})` : ''}. Pronajímatelem bude ${firmOf(newSubject)}. Smlouvy (${assetContracts.length}), platby i dokumenty zůstanou u předmětu.`,
+        okLabel: 'Přesunout',
+        onOk: async () => { if (await moveAsset(id, { ...rest, subject: newSubject, type: newType })) setIsEditing(false) },
+      })
     }
+
+    // Sekce = pronajímatel; změna sekce = přesun předmětu (i do jiného typu, např. z Ostatní do Aut)
+    const sectionSelect = (
+      <div>
+        <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Sekce (pronajímatel)</label>
+        <select className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }} value={formData.subject || a.subject} onChange={e => setFormData({ ...formData, subject: e.target.value })}>
+          {firms.map(f => (
+            <optgroup key={f.name} label={`${f.short} · ${f.name}`}>
+              {f.sections.map(s => <option key={s} value={s}>{ASSET_TYPES[assetTypeOfSection(subjectData.find(x => x.name === s)?.assetType)]?.icon} {s}</option>)}
+            </optgroup>
+          ))}
+        </select>
+        {formData.subject && formData.subject !== a.subject && (
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--tone-amber-text)', marginTop: 4 }}>Po uložení se předmět přesune – potvrdíš v dalším kroku.</div>
+        )}
+      </div>
+    )
 
     if (isEditing) {
       if (a.type === 'ostatni') {
         return (
           <form onSubmit={handleSave} style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>Úprava záznamu</div>
+            {sectionSelect}
             <div>
               <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Název *</label>
               <input type="text" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }} value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} required autoFocus />
@@ -1452,14 +1491,15 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
       return (
         <form onSubmit={handleSave} style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>Úprava parametrů</div>
+          {sectionSelect}
           <div>
             <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Název jednotky / plochy *</label>
             <input type="text" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }} value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} required autoFocus />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {(a.type !== 'parking') && (
+            {(a.type !== 'parking' && a.type !== 'vehicle') && (
               <div>
-                <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Velikost</label>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{a.type === 'land' ? 'Výměra' : 'Velikost'}</label>
                 <input type="text" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }} value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} />
               </div>
             )}
@@ -1469,18 +1509,18 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 <input type="text" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }} value={formData.floor} onChange={e => setFormData({...formData, floor: e.target.value})} />
               </div>
             ) : null}
-            {a.type === 'ads' ? (
+            {a.type === 'ads' || a.type === 'land' || a.type === 'vehicle' ? (
               <div>
-                <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Umístění</label>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{a.type === 'vehicle' ? 'SPZ' : 'Umístění'}</label>
                 <input type="text" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }} value={formData.format} onChange={e => setFormData({...formData, format: e.target.value})} />
               </div>
             ) : null}
           </div>
-          {a.type === 'parking' && (
+          {(a.type === 'parking' || a.type === 'land' || a.type === 'vehicle') && (
             <div>
               <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Poznámka</label>
               <textarea className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left', height: 80, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
-                placeholder="Volitelná poznámka k parkovacímu stání…"
+                placeholder={a.type === 'parking' ? 'Volitelná poznámka k parkovacímu stání…' : 'Volitelná poznámka…'}
                 value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} />
             </div>
           )}
@@ -1686,9 +1726,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         {/* Parametry – dlaždice (u Ostatní popis) */}
         {(() => {
           const params = a.type === 'ostatni' ? [] : [
-            a.size && a.type !== 'parking' && [a.type === 'residential' ? 'Dispozice / plocha' : 'Plocha / rozměr', a.size],
+            a.size && a.type !== 'parking' && [a.type === 'residential' ? 'Dispozice / plocha' : a.type === 'land' ? 'Výměra' : 'Plocha / rozměr', a.size],
             a.floor && ['Podlaží', a.floor],
-            a.format && [a.type === 'ads' || a.type === 'parking' ? 'Umístění' : 'Formát', a.format],
+            a.format && [a.type === 'vehicle' ? 'SPZ' : a.type === 'ads' || a.type === 'parking' || a.type === 'land' ? 'Umístění' : 'Formát', a.format],
             a.balcony && ['Balkón / terasa', `${a.balcony} m²`],
             a.commerceType && ['Typ provozu', a.commerceType],
           ].filter(Boolean)
@@ -1770,7 +1810,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         {assetTab === 'docs' && renderDocsSection(a.subject)}
 
         {assetTab === 'overview' && (<>
-        {a.type === 'parking' && (
+        {(a.type === 'parking' || a.type === 'land' || a.type === 'vehicle') && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
             <SectionHeader icon="📝" tone="gray" title="Poznámka" />
             <div style={{ padding: '10px 16px', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: a.notes ? 'var(--text)' : 'var(--text3)' }}>
@@ -2073,7 +2113,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               {(() => {
                 const freqLabelMap = { 'Čtvrtletně': 'Čtvrtletní', 'Pololetně': 'Pololetní', 'Ročně': 'Roční' }
                 const base = freqLabelMap[formData.paymentFrequency] || 'Měsíční'
-                const withDph = (a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking') && isDphSubject
+                const withDph = (a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle') && isDphSubject
                 return (
                   <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>
                     {withDph ? `${base} nájemné bez DPH (Kč)` : `${base} nájemné (Kč)`}
@@ -2081,7 +2121,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 )
               })()}
               <input type="number" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }} value={formData.rent} onChange={e => setFormData({...formData, rent: e.target.value})} required />
-              {(a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking') && isDphSubject && Number(formData.rent) > 0 && (
+              {(a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle') && isDphSubject && Number(formData.rent) > 0 && (
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
                   s DPH: <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{(Number(formData.rent) * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
                 </div>
@@ -2139,7 +2179,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               )}
             </div>
           )}
-          {(a?.type === 'ads' || a?.type === 'parking' || a?.type === 'ostatni') && (
+          {(a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'ostatni') && (
             <div>
               <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Frekvence plateb</label>
               <select className="btn" style={{ width: '100%', cursor: 'pointer' }}
@@ -2158,7 +2198,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               )}
             </div>
           )}
-          {(a?.type === 'ads' || a?.type === 'parking' || a?.type === 'ostatni') && formData.paymentFrequency !== 'Zahrnuto v nájemném' && (
+          {(a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'ostatni') && formData.paymentFrequency !== 'Zahrnuto v nájemném' && (
             <div>
               {['Čtvrtletně','Pololetně','Ročně'].includes(formData.paymentFrequency) && (
                 <>
@@ -2286,7 +2326,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           )}
 
           {/* Podmínky smlouvy – komerční/reklamy/parking/ostatní */}
-          {(a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'ostatni') && (
+          {(a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'ostatni') && (
             formData.paymentFrequency === 'Zahrnuto v nájemném' ? (
               <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
                 🅿️ Způsob prodloužení smlouvy se řídí nadřazenou smlouvou — parkovací stání je zahrnuto v nájemném.
@@ -2769,7 +2809,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 <span style={{ fontSize: 13, color: 'var(--text2)' }}>🅿️ Nájemné</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Zahrnuto v nájemném</span>
               </div>
-            ) : (a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'ostatni') && isDphSubject ? (
+            ) : (a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'ostatni') && isDphSubject ? (
               <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                   <span style={{ fontSize: 13, color: 'var(--text2)' }}>Nájemné bez DPH</span>

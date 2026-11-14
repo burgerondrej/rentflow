@@ -17,6 +17,8 @@ const CONFIG = {
   commercial:  { title: 'Komerční prostory', sub: 'Správa kanceláří', btnLabel: '+ Nový komerční prostor', tenantLabel: 'Nájemce', priceLabel: 'Nájemné' },
   ads:         { title: 'Reklamní plochy', sub: 'Billboardy a reklamy', btnLabel: '+ Nová reklamní plocha', tenantLabel: 'Klient', priceLabel: 'Měsíční nájemné' },
   parking:     { title: 'Parkovací stání', sub: 'Parkovací místa', btnLabel: '+ Nové parkovací stání', tenantLabel: 'Klient', priceLabel: 'Měsíční nájemné' },
+  land:        { title: 'Pozemky a další plochy', sub: 'Pozemky, ploty a jiné plochy', btnLabel: '+ Nový pozemek / plocha', tenantLabel: 'Nájemce', priceLabel: 'Nájemné' },
+  vehicle:     { title: 'Auta', sub: 'Pronájem vozidel', btnLabel: '+ Nové auto', tenantLabel: 'Nájemce', priceLabel: 'Nájemné' },
   ostatni:     { title: 'Ostatní', sub: 'Interní a skupinové smlouvy', btnLabel: '+ Nový záznam', tenantLabel: 'Smluvní strana', priceLabel: 'Částka' }
 }
 

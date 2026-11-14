@@ -6,7 +6,7 @@ import { invoke } from '@tauri-apps/api/tauri'
 import DialogShell from '../DialogShell.jsx'
 import { Segmented, EmptyState, PayAmountHint } from '../UI.jsx'
 import { isTyping, isOverlayOpen, peekPaymentsFilter, clearPaymentsFilter } from '../shortcuts.js'
-import { assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, isGroupPayment } from '../utils.js'
+import { OWN_SUBJECT_TYPES, assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, isGroupPayment } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, overdueItems, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
 import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
 import { buildOverdueReportHtml } from '../reports.js'
@@ -564,7 +564,7 @@ export default function Payments() {
 
   const getContractSubject = (c) => {
     const asset = getAssetForContract(c)
-    if (asset?.type === 'ostatni') return asset.subject
+    if (OWN_SUBJECT_TYPES.includes(asset?.type)) return asset.subject
     return c.billingSubject || asset?.subject || ''
   }
 
@@ -1856,7 +1856,7 @@ export default function Payments() {
         const tenant  = getTenantForContract(c)
         const asset   = getAssetForContract(c)
         const history = contractHistory(c.id)
-        const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️' }
+        const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗' }
         const isResidential = asset?.type === 'residential'
         const ev            = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth, contracts) }
         const rentTotal     = getMonthRentParking(c, selectedYear, selectedMonth)

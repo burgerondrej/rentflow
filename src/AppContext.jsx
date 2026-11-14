@@ -342,6 +342,24 @@ export function AppProvider({ children }) {
     }
   }
 
+  // Přesun předmětu do jiné sekce (pronajímatel) a typu – ID zůstává, takže smlouvy, platby i dokumenty jdou s ním
+  const moveAsset = async (id, updates) => {
+    if (guardWrite()) return false
+    const existing = assets.find(x => x.id === id)
+    if (!existing) return false
+    try {
+      const updated = { ...existing, ...updates }
+      await invoke('update_asset', { id, asset: updated, user: currentUser })
+      setAssets(prev => prev.map(x => x.id === id ? updated : x))
+      logAction('Úprava', 'Předměty', `Přesun předmětu ${updated.unit}: ${existing.subject} → ${updated.subject}`)
+      return true
+    } catch (err) {
+      console.error('moveAsset error:', err)
+      showToast('Přesun předmětu se nepovedl.')
+      return false
+    }
+  }
+
   const deleteAsset = async (id) => {
     if (guardWrite()) return
     try {
@@ -974,7 +992,7 @@ export function AppProvider({ children }) {
     // CRUD – Nájemníci
     addTenant, updateTenant, deleteTenant, archiveTenant,
     // CRUD – Předměty
-    addAsset, updateAsset, deleteAsset, archiveAsset,
+    addAsset, updateAsset, moveAsset, deleteAsset, archiveAsset,
     // CRUD – Smlouvy
     addContract, updateContract, deleteContract, archiveContract, renewContracts, changeTenant,
     // CRUD – Platby

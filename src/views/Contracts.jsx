@@ -7,7 +7,7 @@ import { StatusPill, contractStatus } from '../StatusUI.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
 import { useNewShortcut, peekContractsFilter, clearContractsFilter } from '../shortcuts.js'
 import { cauceInfo, fmtKc, CauceSettleDialog } from '../CauceUI.jsx'
-import { contractSubject } from '../utils.js'
+import { contractSubject, OWN_SUBJECT_TYPES } from '../utils.js'
 
 export default function Contracts({ activeSubject, onOpen }) {
   const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [] } = useApp()
@@ -65,7 +65,7 @@ export default function Contracts({ activeSubject, onOpen }) {
     }
 
     const eff = effectiveToday(c)
-    const assetSubject = (asset.type === 'ostatni') ? asset.subject : (c.billingSubject || asset.subject)
+    const assetSubject = OWN_SUBJECT_TYPES.includes(asset.type) ? asset.subject : (c.billingSubject || asset.subject)
     return { ...c, tenantName: tenant.name, assetUnit: asset.unit, assetType: asset.type, assetSubject, daysLeft,
       totalDeposit: eff.deposit + eff.depositWater,
       effRent: eff.rent, effParking: eff.parking, effFlatFee: eff.flatFee }
@@ -210,7 +210,7 @@ export default function Contracts({ activeSubject, onOpen }) {
 
           {(() => {
             const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(c.assetSubject) === g.val)?.isVatPayer ?? true)
-            const showDph = (c.assetType === 'commercial' || c.assetType === 'ads' || c.assetType === 'parking') && isDphSubject
+            const showDph = (c.assetType === 'commercial' || c.assetType === 'ads' || c.assetType === 'parking' || c.assetType === 'land' || c.assetType === 'vehicle') && isDphSubject
             return (
               <div style={{ display: 'grid', gridTemplateColumns: c.totalDeposit > 0 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 0, background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${innerBorderColor}` }}>
                 <div style={{ padding: '9px 12px', borderRight: `1.5px solid ${innerBorderColor}` }}>

@@ -21,8 +21,17 @@ export const ASSET_TYPES = {
   commercial:  { icon: '🏢', label: 'Komerční prostor' },
   ads:         { icon: '📢', label: 'Reklamní plocha' },
   parking:     { icon: '🅿️', label: 'Parkovací stání' },
+  land:        { icon: '🌳', label: 'Pozemky a další plochy' },
+  vehicle:     { icon: '🚗', label: 'Auta' },
   ostatni:     { icon: '📄', label: 'Ostatní' },
 }
+
+/** Typy, u kterých je pronajímatel VŽDY sekce předmětu (billing_subject se nepoužije). */
+export const OWN_SUBJECT_TYPES = ['ostatni', 'land', 'vehicle']
+/** Typy s volbou frekvence plateb (měsíčně / čtvrtletně / ročně …), bez záloh a kauce. */
+export const FREQ_TYPES = ['ads', 'parking', 'land', 'vehicle', 'ostatni']
+/** Typ předmětu z typu sekce (subjects.asset_type: 'other' = Ostatní). */
+export const assetTypeOfSection = (sectionType) => (sectionType === 'other' || !ASSET_TYPES[sectionType]) ? 'ostatni' : sectionType
 
 /** Barvy typu předmětu jako CSS proměnné: { bg, header, accent, border, icon, label } */
 export function assetTypeStyle(type) {
@@ -80,10 +89,10 @@ const FIRM_PALETTE = {
   emerald: { light: { bg: '#FFEDE0', mid: '#EA580C', txt: '#7C2D07', sub: '#C2410C' }, dark: { bg: '#43180A', mid: '#FF8A47', txt: '#FFEDE0', sub: '#FFC09A' } },
 }
 
-/** Subjekt (pronajímatel) smlouvy: u typu Ostatní subjekt předmětu, jinak billing_subject nebo subjekt předmětu. */
+/** Subjekt (pronajímatel) smlouvy: u Ostatní / Pozemků / Aut subjekt předmětu, jinak billing_subject nebo subjekt předmětu. */
 export function contractSubject(c, assets) {
   const asset = (assets || []).find(a => a.id === c?.assetId)
-  if (asset?.type === 'ostatni') return asset.subject || ''
+  if (OWN_SUBJECT_TYPES.includes(asset?.type)) return asset.subject || ''
   return c?.billingSubject || asset?.subject || ''
 }
 

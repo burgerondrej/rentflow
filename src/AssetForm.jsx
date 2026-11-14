@@ -10,11 +10,16 @@ const CONFIG = {
   commercial:  { title: 'Nový komerční prostor' },
   ads:         { title: 'Nová reklamní plocha' },
   parking:     { title: 'Nové parkovací stání' },
+  land:        { title: 'Nový pozemek / plocha' },
+  vehicle:     { title: 'Nové auto' },
   ostatni:     { title: 'Nový záznam — Ostatní' }
 }
 
 export default function AssetForm({ type, onClose }) {
-  const { addAsset, subjects = [], firms = [] } = useApp()
+  const { addAsset, subjects = [], firms = [], subjectData = [] } = useApp()
+  // Pozemky a Auta: jen sekce daného typu (pronajímatel = sekce)
+  const typedOnly = type === 'land' || type === 'vehicle'
+  const sectionFits = (s) => !typedOnly || subjectData.find(x => x.name === s)?.assetType === type
   const conf = CONFIG[type]
 
   const [formData, setFormData] = useState({
@@ -25,6 +30,10 @@ export default function AssetForm({ type, onClose }) {
     floor:           '',
     adsLocation:     '',
     adsDimensions:   '',
+    landSize:        '',
+    landLocation:    '',
+    plate:           '',
+    note:            '',
     parkingLocation: '',
     parkingLabel:    '',
     balcony:         '',
@@ -53,6 +62,11 @@ export default function AssetForm({ type, onClose }) {
     } else if (type === 'parking') {
       size = formData.parkingLabel
       format = formData.parkingLocation
+    } else if (type === 'land') {
+      size = formData.landSize ? `${formData.landSize} m²` : ''
+      format = formData.landLocation
+    } else if (type === 'vehicle') {
+      format = formData.plate
     } else if (type === 'ostatni') {
       // unit = název, notes = popis — žádná plocha ani podlaží
     }
@@ -60,19 +74,21 @@ export default function AssetForm({ type, onClose }) {
     addAsset({ type, subject: type === 'ostatni' ? 'Ostatní' : formData.subject, unit, size, floor, format, status: 'free',
       balcony: type === 'residential' ? formData.balcony || null : null,
       commerceType: type === 'commercial' ? formData.commerceType || null : null,
-      notes: type === 'ostatni' ? formData.description || null : null })
+      notes: type === 'ostatni' ? formData.description || null : typedOnly ? formData.note || null : null })
     onClose()
   }
 
   const lbl = (text) => <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{text}</label>
   const inp = { width: '100%', textAlign: 'left', cursor: 'text' }
 
-  const ASSET_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', ostatni: '📄' }
+  const ASSET_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', ostatni: '📄' }
   const ASSET_SUB  = {
     residential: 'Bytový fond – obytná jednotka',
     commercial:  'Komerční prostory',
     ads:         'Reklamní a billboardové plochy',
     parking:     'Parkovací stání a plochy',
+    land:        'Pozemky, ploty a další plochy',
+    vehicle:     'Pronájem vozidel',
     ostatni:     'Interní / skupinové záznamy',
   }
 
@@ -92,12 +108,17 @@ export default function AssetForm({ type, onClose }) {
               <select className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }} value={formData.subject} onChange={e => set('subject', e.target.value)} required>
                 <option value="" disabled>— Vyberte subjekt —</option>
                 {/* Seskupeno po firmách – JIHOTANK a JIHOTANK CB nesmí jít zaměnit */}
-                {firms.filter(f => f.name !== 'Ostatní').map(f => (
+                {firms.filter(f => f.name !== 'Ostatní' && f.sections.some(sectionFits)).map(f => (
                   <optgroup key={f.name} label={`${f.short} · ${f.name}`}>
-                    {f.sections.map(s => <option key={s} value={s}>{s}</option>)}
+                    {f.sections.filter(sectionFits).map(s => <option key={s} value={s}>{s}</option>)}
                   </optgroup>
                 ))}
               </select>
+              {typedOnly && !firms.some(f => f.sections.some(sectionFits)) && (
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tone-amber-text)', marginTop: 6 }}>
+                  Zatím není žádná sekce typu „{type === 'land' ? 'Pozemky a další plochy' : 'Auta'}“ – založ ji v Nastavení → Firmy (např. „METROPOLE CB – {type === 'land' ? 'Pozemky' : 'Auta'}“).
+                </div>
+              )}
             </div>
           )}
 
@@ -194,6 +215,39 @@ export default function AssetForm({ type, onClose }) {
               <div>
                 {lbl('Označení parkovacího stání')}
                 <input type="text" className="btn" style={inp} value={formData.parkingLabel} onChange={e => set('parkingLabel', e.target.value)} />
+              </div>
+            </>
+          )}
+
+          {typedOnly && (
+            <>
+              <div>
+                {lbl(type === 'land' ? 'Název pozemku / plochy *' : 'Auto (značka a model) *')}
+                <input type="text" className="btn" style={inp} placeholder={type === 'land' ? 'např. Pozemek U Staré trati' : 'např. Mercedes-Benz S 580 L'} value={formData.unit} onChange={e => set('unit', e.target.value)} required autoFocus />
+              </div>
+              {type === 'land' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    {lbl('Výměra')}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input type="text" className="btn" style={{ flex: 1, textAlign: 'left', cursor: 'text' }} placeholder="1200" value={formData.landSize} onChange={e => set('landSize', e.target.value)} />
+                      <span style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 600 }}>m²</span>
+                    </div>
+                  </div>
+                  <div>
+                    {lbl('Umístění / parcela')}
+                    <input type="text" className="btn" style={inp} placeholder="parc. č. 123/4" value={formData.landLocation} onChange={e => set('landLocation', e.target.value)} />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  {lbl('SPZ')}
+                  <input type="text" className="btn" style={inp} placeholder="1C2 3456" value={formData.plate} onChange={e => set('plate', e.target.value)} />
+                </div>
+              )}
+              <div>
+                {lbl('Poznámka')}
+                <textarea className="btn" style={{ ...inp, height: 70, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }} value={formData.note} onChange={e => set('note', e.target.value)} />
               </div>
             </>
           )}

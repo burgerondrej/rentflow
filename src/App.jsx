@@ -362,6 +362,8 @@ function AppInner() {
     commercial: () => <Assets type="commercial" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     ads: () => <Assets type="ads" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     parking: () => <Assets type="parking" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
+    land: () => <Assets type="land" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
+    vehicle: () => <Assets type="vehicle" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     ostatni: () => <Assets type="ostatni" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     contracts: () => <Contracts activeSubject={subject} onOpen={(id) => openDetail('contract', id)} />, 
     payments: () => <Payments />, 

@@ -317,7 +317,7 @@ pub struct TrashItem {
 #[serde(rename_all = "camelCase")]
 pub struct Subject {
     pub name: String,
-    pub asset_type: String,  // "residential" | "commercial" | "ads" | "parking" | "other"
+    pub asset_type: String,  // "residential" | "commercial" | "ads" | "parking" | "land" | "vehicle" | "other"
     pub is_vat_payer: bool,
     #[serde(default)]
     pub short_name: String,  // zkratka firmy (MCB, BP…) – stejná pro všechny sekce firmy

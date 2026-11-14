@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
-import { parseDate, getCurrentAssetContract, currentAssetContracts,isEndingArchived, firmOf, assetTypeStyle, DUE_PREPAID } from './utils.js'
+import { parseDate, getCurrentAssetContract, currentAssetContracts, isEndingArchived, FREQ_TYPES, firmOf, assetTypeStyle, DUE_PREPAID } from './utils.js'
 import DialogShell from './DialogShell.jsx'
 
 
@@ -9,6 +9,8 @@ const CONTRACT_TYPES = [
   { id: 'commercial',  icon: '🏢', label: 'Komerční prostor',  sub: 'Obchodní / kancelářský', gradient: 'linear-gradient(135deg, #3730a3 0%, #4f46e5 50%, #6d28d9 100%)' },
   { id: 'ads',         icon: '📢', label: 'Reklamní plocha',   sub: 'Billboard / reklama',    gradient: 'linear-gradient(135deg, #c2410c 0%, #ea580c 60%, #f97316 100%)' },
   { id: 'parking',     icon: '🅿️', label: 'Parkovací stání',  sub: 'Parkování',              gradient: 'linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%)' },
+  { id: 'land',        icon: '🌳', label: 'Pozemek / plocha',  sub: 'Pozemky a další plochy', gradient: 'linear-gradient(135deg, #5c3a17 0%, #8b5a2b 60%, #b07a45 100%)' },
+  { id: 'vehicle',     icon: '🚗', label: 'Auto',              sub: 'Pronájem vozidla',       gradient: 'linear-gradient(135deg, #881337 0%, #be123c 60%, #e11d48 100%)' },
   { id: 'ostatni',     icon: '📄', label: 'Ostatní',           sub: 'Interní / skupinové',    gradient: 'linear-gradient(135deg, #0f766e 0%, #0d9488 60%, #14b8a6 100%)' },
 ]
 
@@ -86,7 +88,7 @@ export default function ContractForm({ onClose }) {
       if (!groupedAssets[a.subject]) groupedAssets[a.subject] = []
       groupedAssets[a.subject].push(a)
     })
-    const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', ostatni: '📄' }
+    const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', ostatni: '📄' }
     return Object.entries(groupedAssets).map(([subject, assetsInGroup]) => {
       const needsSub = assetsInGroup.some(a => a.type === 'parking' || a.type === 'ads')
       if (needsSub) {
@@ -170,7 +172,7 @@ export default function ContractForm({ onClose }) {
     // Striktní oddělení firem: název skupiny nesmí patřit jiné firmě
     const conflict = groupLabelConflict(formData.groupLabel, formData.assetId, formData.billingSubject || null, null)
     if (conflict) { showToast(`Skupina „${formData.groupLabel}“ už patří firmě ${conflict}. Zvol jiný název skupiny.`); return }
-    const freqTypes = ['ads', 'parking', 'ostatni']
+    const freqTypes = FREQ_TYPES
     const isParkingIncluded = contractType === 'parking' && formData.paymentFrequency === 'Zahrnuto v nájemném'
     addContract({
       tenantId: formData.tenantId,
@@ -718,6 +720,8 @@ export default function ContractForm({ onClose }) {
       // ── REKLAMNÍ PLOCHA / PARKOVACÍ STÁNÍ / OSTATNÍ ────────────────────
       case 'ads':
       case 'parking':
+      case 'land':
+      case 'vehicle':
       case 'ostatni': {
         const rentVal = Number(formData.rent) || 0
         const rentDph = rentVal * 1.21
@@ -967,7 +971,7 @@ export default function ContractForm({ onClose }) {
           <form id="contract-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Rozcestník */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
               {CONTRACT_TYPES.map(({ id, icon, label }) => {
                 const isSelected = contractType === id
                 return (
