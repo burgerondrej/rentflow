@@ -98,6 +98,7 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .page-header[data-type="parking"]::before     { background: var(--asset-parking-bg);     border-color: var(--asset-parking-border); }
 .page-header[data-type="land"]::before        { background: var(--asset-land-bg);        border-color: var(--asset-land-border); }
 .page-header[data-type="vehicle"]::before     { background: var(--asset-vehicle-bg);     border-color: var(--asset-vehicle-border); }
+.page-header[data-type="service"]::before     { background: var(--asset-service-bg);     border-color: var(--asset-service-border); }
 .page-header[data-type="ostatni"]::before     { background: var(--asset-ostatni-bg);     border-color: var(--asset-ostatni-border); }
 .page-title { font-size: 22px; font-weight: 800; letter-spacing: -.5px; color: var(--text); }
 .page-sub { font-size: 13px; font-weight: 500; color: var(--text2); margin-top: 3px; }
@@ -318,6 +319,8 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --asset-land-bg:        #FBF6EF; --asset-land-header:        #F3E6D3; --asset-land-accent:        #7C4A1E; --asset-land-border:        #DDBF97;
   --asset-vehicle-bg:     #FFF1F4; --asset-vehicle-header:     #FFE0E8; --asset-vehicle-accent:     #9F1239; --asset-vehicle-border:     #FDA4B8;
   --asset-land-strong: #8B5A2B; --asset-vehicle-strong: #BE123C;
+  --asset-service-bg:     #EEF2FF; --asset-service-header:     #E0E7FF; --asset-service-accent:     #3730A3; --asset-service-border:     #A5B4FC;
+  --asset-service-strong: #4338CA;
   --asset-ostatni-bg:     #F0FDFA; --asset-ostatni-header:     #CCFBF1; --asset-ostatni-accent:     #0F766E; --asset-ostatni-border:     #99F6E4;
   /* Plná barva typu (pás v detailu, bílé písmo) */
   --asset-residential-strong: #0F6E56; --asset-commercial-strong: #5B21B6; --asset-ads-strong: #C2410C; --asset-parking-strong: #0B509E; --asset-ostatni-strong: #0F766E;
@@ -339,6 +342,8 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
   --asset-land-bg:        #221c16; --asset-land-header:        #2e251c; --asset-land-accent:        #d9a46b; --asset-land-border:        rgba(217,164,107,0.32);
   --asset-vehicle-bg:     #26171c; --asset-vehicle-header:     #331d24; --asset-vehicle-accent:     #f08aa6; --asset-vehicle-border:     rgba(240,138,166,0.32);
   --asset-land-strong: #9A6A3A; --asset-vehicle-strong: #A8304F;
+  --asset-service-bg:     #1b1c2e; --asset-service-header:     #23253d; --asset-service-accent:     #a5b4fc; --asset-service-border:     rgba(165,180,252,0.32);
+  --asset-service-strong: #4F46C8;
   --asset-ostatni-bg:     #172220; --asset-ostatni-header:     #1e2e2a; --asset-ostatni-accent:     #5ec8bc; --asset-ostatni-border:     rgba(94,200,188,0.32);
   --asset-residential-strong: #1E7A55; --asset-commercial-strong: #6A4BB0; --asset-ads-strong: #B4541E; --asset-parking-strong: #2A5D9E; --asset-ostatni-strong: #1C7A72;
 }
@@ -354,6 +359,7 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .modal-header-contract   { background: linear-gradient(135deg, #0F172A 0%, #334155 100%); }
 .modal-header-land      { background: linear-gradient(135deg, #5c3a17 0%, #8b5a2b 100%); }
 .modal-header-vehicle   { background: linear-gradient(135deg, #881337 0%, #be123c 100%); }
+.modal-header-service   { background: linear-gradient(135deg, #312e81 0%, #4f46e5 100%); }
 .modal-header-ostatni   { background: linear-gradient(135deg, #134e4a 0%, #0d9488 100%); }
 
 /* ═══════════════════════════════════════════════════════════

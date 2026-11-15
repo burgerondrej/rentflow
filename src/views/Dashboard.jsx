@@ -3,7 +3,7 @@ import { useApp } from '../AppContext.jsx'
 import DialogShell from '../DialogShell.jsx'
 import { setPaymentsFilterOnOpen } from '../shortcuts.js'
 import DataCheck, { computeDataChecks, dataCheckAlerts } from '../DataCheck.jsx'
-import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, overdueItems, contractMonthStatus, groupMonthStatus, hasSuccessor } from '../utils.js'
+import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, overdueItems, contractMonthStatus, groupMonthStatus, hasSuccessor, ASSET_TYPES, assetTypeStyle, getCurrentAssetContract } from '../utils.js'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
 
@@ -149,7 +149,13 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
     const cur = { ...st, pct: st.exp > 0 ? Math.min(1, st.rec / st.exp) : null }
     const ending = activeContracts.filter(c => firmOf(contractSubject(c, assets)) === f.name && c.paymentFrequency !== 'Zahrnuto v nájemném' &&
       (() => { const e = parseDate(c.end); return e && e >= today && (e - today) / 86400000 <= 60 })()).length
-    return { firm: f, cur, unpaid: Math.max(0, cur.exp - cur.rec), ending, overdue: firmOverdue(f.name) }
+    // Předměty firmy podle typu: pronajato / celkem (firma = sekce předmětu, obsazenost ze smluv)
+    const own = assets.filter(a => firmOf(a.subject) === f.name)
+    const types = Object.keys(ASSET_TYPES).map(t => {
+      const list = own.filter(a => a.type === t)
+      return { type: t, total: list.length, rented: list.filter(a => getCurrentAssetContract(contracts, a.id)).length }
+    }).filter(x => x.total > 0)
+    return { firm: f, cur, unpaid: Math.max(0, cur.exp - cur.rec), ending, overdue: firmOverdue(f.name), types }
   }).filter(x => x.cur.n > 0)
   const openFirmPayments = (f, filter) => {
     setPaymentsFilterOnOpen(filter || null)
@@ -209,7 +215,7 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
       {/* 0. KARTY FIREM – kliknutím do Plateb dané firmy */}
       {firmCards.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14, marginBottom: 28 }}>
-          {firmCards.map(({ firm: f, cur, unpaid, ending, overdue }) => {
+          {firmCards.map(({ firm: f, cur, unpaid, ending, overdue, types }) => {
             const c = firmColors(f.color, theme)
             const pct = cur.pct ?? 1
             const r = 19, circ = 2 * Math.PI * r
@@ -249,6 +255,23 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: ending ? '#D97706' : 'var(--text3)' }}>
                   {ending ? `${ending} ${ending === 1 ? 'smlouva končí' : ending < 5 ? 'smlouvy končí' : 'smluv končí'} do 60 dní` : 'Žádná smlouva brzy nekončí'}
                 </div>
+                {/* Předměty podle typu: pronajato / celkem – klik = seznam daného typu za firmu */}
+                {types.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 9, paddingTop: 9, borderTop: '1px solid var(--border)' }}>
+                    {types.map(t => {
+                      const ts = assetTypeStyle(t.type)
+                      const free = t.total - t.rented
+                      return (
+                        <span key={t.type} title={`${ASSET_TYPES[t.type].label}: ${t.rented} pronajato z ${t.total}${free ? ` (${free} volné)` : ''}`}
+                          onClick={e => { e.stopPropagation(); if (setNavSelection) setNavSelection(firmSelection(f.name)); if (onNav) onNav(t.type) }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: ts.bg, border: `1px solid ${ts.border}`,
+                            fontSize: 11.5, fontWeight: 800, color: ts.accent, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                          <span style={{ fontSize: 12 }}>{ts.icon}</span>{t.rented}/{t.total}
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )
           })}

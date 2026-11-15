@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
-import { parseDate, getCurrentAssetContract, currentAssetContracts, isEndingArchived, FREQ_TYPES, firmOf, assetTypeStyle, DUE_PREPAID } from './utils.js'
+import { parseDate, getCurrentAssetContract, currentAssetContracts, isEndingArchived, FREQ_TYPES, CONTRACT_ONLY_TYPES, firmOf, assetTypeStyle, DUE_PREPAID } from './utils.js'
 import DialogShell from './DialogShell.jsx'
 
 
@@ -11,6 +11,7 @@ const CONTRACT_TYPES = [
   { id: 'parking',     icon: '🅿️', label: 'Parkovací stání',  sub: 'Parkování',              gradient: 'linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%)' },
   { id: 'land',        icon: '🌳', label: 'Pozemek / plocha',  sub: 'Pozemky a další plochy', gradient: 'linear-gradient(135deg, #5c3a17 0%, #8b5a2b 60%, #b07a45 100%)' },
   { id: 'vehicle',     icon: '🚗', label: 'Auto',              sub: 'Pronájem vozidla',       gradient: 'linear-gradient(135deg, #881337 0%, #be123c 60%, #e11d48 100%)' },
+  { id: 'service',     icon: '🤝', label: 'Servisní smlouva',  sub: 'Správa a služby',        gradient: 'linear-gradient(135deg, #312e81 0%, #4338ca 60%, #6366f1 100%)' },
   { id: 'ostatni',     icon: '📄', label: 'Ostatní',           sub: 'Interní / skupinové',    gradient: 'linear-gradient(135deg, #0f766e 0%, #0d9488 60%, #14b8a6 100%)' },
 ]
 
@@ -88,7 +89,7 @@ export default function ContractForm({ onClose }) {
       if (!groupedAssets[a.subject]) groupedAssets[a.subject] = []
       groupedAssets[a.subject].push(a)
     })
-    const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', ostatni: '📄' }
+    const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', service: '🤝', ostatni: '📄' }
     return Object.entries(groupedAssets).map(([subject, assetsInGroup]) => {
       const needsSub = assetsInGroup.some(a => a.type === 'parking' || a.type === 'ads')
       if (needsSub) {
@@ -138,7 +139,8 @@ export default function ContractForm({ onClose }) {
   const selectedConf = CONTRACT_TYPES.find(t => t.id === contractType)
   const totalRent = (Number(formData.rent) || 0) + (Number(formData.parking) || 0)
   const selectedAsset = (assets || []).find(a => a.id === formData.assetId)
-  const effectiveSubject = formData.billingSubject || selectedAsset?.subject || ''
+  // Pozemky, Auta, Servisní smlouvy: pronajímatel = sekce předmětu (fakturační subjekt se nepoužije)
+  const effectiveSubject = (CONTRACT_ONLY_TYPES.includes(selectedAsset?.type) ? '' : formData.billingSubject) || selectedAsset?.subject || ''
   const isDphSubject = formData.vatExempt === 2 ? true
     : formData.vatExempt === 1 ? false
     : (billingGroups.find(g => firmOf(effectiveSubject) === g.val)?.isVatPayer ?? true)
@@ -722,6 +724,7 @@ export default function ContractForm({ onClose }) {
       case 'parking':
       case 'land':
       case 'vehicle':
+      case 'service':
       case 'ostatni': {
         const rentVal = Number(formData.rent) || 0
         const rentDph = rentVal * 1.21

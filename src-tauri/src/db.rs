@@ -708,14 +708,14 @@ impl Database {
         subject.split(" – ").next().unwrap_or(subject).trim().to_string()
     }
 
-    /// Firma (pronajímatel) smlouvy: u Ostatní / Pozemků / Aut subjekt předmětu, jinak billing_subject nebo subjekt předmětu.
+    /// Firma (pronajímatel) smlouvy: u Ostatní / Pozemků / Aut / Servisních smluv subjekt předmětu, jinak billing_subject nebo subjekt předmětu.
     fn firm_of_contract(&self, asset_id: &str, billing_subject: &Option<String>) -> Result<String> {
         let (asset_type, asset_subject): (String, String) = self.conn.query_row(
             "SELECT asset_type, COALESCE(subject, '') FROM assets WHERE id = ?1",
             params![asset_id], |r| Ok((r.get(0)?, r.get(1)?)),
         ).unwrap_or_default();
         let subj = match billing_subject {
-            Some(b) if !matches!(asset_type.as_str(), "ostatni" | "land" | "vehicle") && !b.trim().is_empty() => b.clone(),
+            Some(b) if !matches!(asset_type.as_str(), "ostatni" | "land" | "vehicle" | "service") && !b.trim().is_empty() => b.clone(),
             _ => asset_subject,
         };
         Ok(Self::firm_of(&subj))

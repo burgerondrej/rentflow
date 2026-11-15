@@ -7,7 +7,7 @@ import { firmOf, sectionOf, firmColors, firmSelection, isFirmSelection, selectio
 // Barvy a zkratky firem pocházejí z DB (subjects.color / short_name) – žádné názvy v kódu.
 // ─────────────────────────────────────────
 
-const TYPE_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', other: '📄', ostatni: '📄' }
+const TYPE_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', service: '🤝', other: '📄', ostatni: '📄' }
 const TONE = { ok: '#16A34A', bad: '#DC2626', warn: '#D97706', muted: 'var(--text3)' }
 
 /** Barevná zkratka firmy (MCB, BP…). filled = plná barva, jinak světlý podklad. */

@@ -1856,7 +1856,7 @@ export default function Payments() {
         const tenant  = getTenantForContract(c)
         const asset   = getAssetForContract(c)
         const history = contractHistory(c.id)
-        const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗' }
+        const typeIcon = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', service: '🤝' }
         const isResidential = asset?.type === 'residential'
         const ev            = { ...getEffectiveValues(c, selectedYear, selectedMonth), ...getMonthDeposits(c, selectedYear, selectedMonth, contracts) }
         const rentTotal     = getMonthRentParking(c, selectedYear, selectedMonth)

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import AssetForm from '../AssetForm.jsx'
-import { getCurrentAssetContract, currentAssetContracts, isContractOccupying, parseDate, selectionMatches, firmOf, firmColors, assetTypeStyle, getEffectiveValuesToday, contractShowsVat } from '../utils.js'
+import { getCurrentAssetContract, currentAssetContracts, isContractOccupying, parseDate, selectionMatches, firmOf, firmColors, assetTypeStyle, getEffectiveValuesToday, contractShowsVat, assetFreeSince } from '../utils.js'
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
 import { partiesLabel } from '../UI.jsx'
@@ -19,6 +19,7 @@ const CONFIG = {
   parking:     { title: 'Parkovací stání', sub: 'Parkovací místa', btnLabel: '+ Nové parkovací stání', tenantLabel: 'Klient', priceLabel: 'Měsíční nájemné' },
   land:        { title: 'Pozemky a další plochy', sub: 'Pozemky, ploty a jiné plochy', btnLabel: '+ Nový pozemek / plocha', tenantLabel: 'Nájemce', priceLabel: 'Nájemné' },
   vehicle:     { title: 'Auta', sub: 'Pronájem vozidel', btnLabel: '+ Nové auto', tenantLabel: 'Nájemce', priceLabel: 'Nájemné' },
+  service:     { title: 'Servisní smlouvy', sub: 'Správa, administrativa a další služby', btnLabel: '+ Nová servisní smlouva', tenantLabel: 'Nájemce', priceLabel: 'Nájemné' },
   ostatni:     { title: 'Ostatní', sub: 'Interní a skupinové smlouvy', btnLabel: '+ Nový záznam', tenantLabel: 'Smluvní strana', priceLabel: 'Částka' }
 }
 
@@ -149,6 +150,13 @@ export default function Assets({ type, activeSubject, onOpen }) {
               {isFree ? 'Volné k pronájmu' : (currentTenant ? currentTenant.name : 'Neznámý')}
             </div>
             )}
+            {/* Volné od: den po konci poslední smlouvy + jak dlouho */}
+            {isFree && (() => {
+              const fs = assetFreeSince(contracts, asset.id)
+              if (!fs) return null
+              const d = fs.days
+              return <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', whiteSpace: 'nowrap' }}>od {fs.date} · {d === 0 ? 'od dneška' : `${d} ${d === 1 ? 'den' : d < 5 ? 'dny' : 'dní'}`}</div>
+            })()}
             <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.subject}</div>
           </div>
           {/* Platnost, nájem, zálohy – aktuálně platné hodnoty (dodatky) */}

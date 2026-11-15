@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import DialogShell from './DialogShell.jsx'
-import { assetTypeStyle } from './utils.js'
+import { assetTypeStyle, ASSET_TYPES } from './utils.js'
 
 
 
@@ -12,13 +12,14 @@ const CONFIG = {
   parking:     { title: 'Nové parkovací stání' },
   land:        { title: 'Nový pozemek / plocha' },
   vehicle:     { title: 'Nové auto' },
+  service:     { title: 'Nová servisní smlouva' },
   ostatni:     { title: 'Nový záznam — Ostatní' }
 }
 
 export default function AssetForm({ type, onClose }) {
   const { addAsset, subjects = [], firms = [], subjectData = [] } = useApp()
-  // Pozemky a Auta: jen sekce daného typu (pronajímatel = sekce)
-  const typedOnly = type === 'land' || type === 'vehicle'
+  // Pozemky, Auta a Servisní smlouvy: jen sekce daného typu (pronajímatel = sekce)
+  const typedOnly = type === 'land' || type === 'vehicle' || type === 'service'
   const sectionFits = (s) => !typedOnly || subjectData.find(x => x.name === s)?.assetType === type
   const conf = CONFIG[type]
 
@@ -67,6 +68,8 @@ export default function AssetForm({ type, onClose }) {
       format = formData.landLocation
     } else if (type === 'vehicle') {
       format = formData.plate
+    } else if (type === 'service') {
+      // unit = název smlouvy, notes = popis služby
     } else if (type === 'ostatni') {
       // unit = název, notes = popis — žádná plocha ani podlaží
     }
@@ -81,7 +84,7 @@ export default function AssetForm({ type, onClose }) {
   const lbl = (text) => <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{text}</label>
   const inp = { width: '100%', textAlign: 'left', cursor: 'text' }
 
-  const ASSET_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', ostatni: '📄' }
+  const ASSET_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', service: '🤝', ostatni: '📄' }
   const ASSET_SUB  = {
     residential: 'Bytový fond – obytná jednotka',
     commercial:  'Komerční prostory',
@@ -89,6 +92,7 @@ export default function AssetForm({ type, onClose }) {
     parking:     'Parkovací stání a plochy',
     land:        'Pozemky, ploty a další plochy',
     vehicle:     'Pronájem vozidel',
+    service:     'Správa, administrativa a další služby',
     ostatni:     'Interní / skupinové záznamy',
   }
 
@@ -116,7 +120,7 @@ export default function AssetForm({ type, onClose }) {
               </select>
               {typedOnly && !firms.some(f => f.sections.some(sectionFits)) && (
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tone-amber-text)', marginTop: 6 }}>
-                  Zatím není žádná sekce typu „{type === 'land' ? 'Pozemky a další plochy' : 'Auta'}“ – založ ji v Nastavení → Firmy (např. „METROPOLE CB – {type === 'land' ? 'Pozemky' : 'Auta'}“).
+                  Zatím není žádná sekce typu „{ASSET_TYPES[type]?.label}“ – založ ji v Nastavení → Firmy (např. „{firms.find(f => f.name !== 'Ostatní')?.name || 'Firma'} – {type === 'land' ? 'Pozemky' : ASSET_TYPES[type]?.label}“).
                 </div>
               )}
             </div>
@@ -222,8 +226,8 @@ export default function AssetForm({ type, onClose }) {
           {typedOnly && (
             <>
               <div>
-                {lbl(type === 'land' ? 'Název pozemku / plochy *' : 'Auto (značka a model) *')}
-                <input type="text" className="btn" style={inp} placeholder={type === 'land' ? 'např. Pozemek U Staré trati' : 'např. Mercedes-Benz S 580 L'} value={formData.unit} onChange={e => set('unit', e.target.value)} required autoFocus />
+                {lbl(type === 'land' ? 'Název pozemku / plochy *' : type === 'service' ? 'Název servisní smlouvy *' : 'Auto (značka a model) *')}
+                <input type="text" className="btn" style={inp} placeholder={type === 'land' ? 'např. Pozemek U Staré trati' : type === 'service' ? 'např. Správa a administrativa – ABC s.r.o.' : 'např. Mercedes-Benz S 580 L'} value={formData.unit} onChange={e => set('unit', e.target.value)} required autoFocus />
               </div>
               {type === 'land' ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -239,14 +243,14 @@ export default function AssetForm({ type, onClose }) {
                     <input type="text" className="btn" style={inp} placeholder="parc. č. 123/4" value={formData.landLocation} onChange={e => set('landLocation', e.target.value)} />
                   </div>
                 </div>
-              ) : (
+              ) : type === 'vehicle' && (
                 <div>
                   {lbl('SPZ')}
                   <input type="text" className="btn" style={inp} placeholder="1C2 3456" value={formData.plate} onChange={e => set('plate', e.target.value)} />
                 </div>
               )}
               <div>
-                {lbl('Poznámka')}
+                {lbl(type === 'service' ? 'Popis služby / poznámka' : 'Poznámka')}
                 <textarea className="btn" style={{ ...inp, height: 70, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }} value={formData.note} onChange={e => set('note', e.target.value)} />
               </div>
             </>

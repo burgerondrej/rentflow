@@ -23,13 +23,14 @@ export const ASSET_TYPES = {
   parking:     { icon: '🅿️', label: 'Parkovací stání' },
   land:        { icon: '🌳', label: 'Pozemky a další plochy' },
   vehicle:     { icon: '🚗', label: 'Auta' },
+  service:     { icon: '🤝', label: 'Servisní smlouvy' },
   ostatni:     { icon: '📄', label: 'Ostatní' },
 }
 
 /** Typy, u kterých je pronajímatel VŽDY sekce předmětu (billing_subject se nepoužije). */
-export const OWN_SUBJECT_TYPES = ['ostatni', 'land', 'vehicle']
+export const OWN_SUBJECT_TYPES = ['ostatni', 'land', 'vehicle', 'service']
 /** Typy s volbou frekvence plateb (měsíčně / čtvrtletně / ročně …), bez záloh a kauce. */
-export const FREQ_TYPES = ['ads', 'parking', 'land', 'vehicle', 'ostatni']
+export const FREQ_TYPES = ['ads', 'parking', 'land', 'vehicle', 'service', 'ostatni']
 /** Typ předmětu z typu sekce (subjects.asset_type: 'other' = Ostatní). */
 export const assetTypeOfSection = (sectionType) => (sectionType === 'other' || !ASSET_TYPES[sectionType]) ? 'ostatni' : sectionType
 
@@ -116,7 +117,7 @@ export function contractShowsVat(c, assets, billingGroups) {
 }
 
 /** Typy, u kterých se místo „V nájmu od“ ukazuje „Smlouva platná od“ (začátek smlouvy). */
-export const CONTRACT_ONLY_TYPES = ['land', 'vehicle']
+export const CONTRACT_ONLY_TYPES = ['land', 'vehicle', 'service']
 
 /**
  * Měsíční nájem nájemce rozdělený STRIKTNĚ po firmách (pronajímatelích).
@@ -534,6 +535,24 @@ export function getCurrentAssetContract(contracts, assetId) {
   if (holding.length <= 1) return holding[0] || null
   const today = new Date(); today.setHours(0, 0, 0, 0)
   return holding.find(c => { const s = parseDate(c.start); return !s || s <= today }) || holding[0]
+}
+
+/**
+ * Od kdy je předmět volný: { date: 'D. M. RRRR', days } = den po konci poslední skončené smlouvy a počet dní do dneška.
+ * null, když na předmětu platí smlouva (getCurrentAssetContract) nebo předmět ještě nikdy pronajatý nebyl.
+ */
+export function assetFreeSince(contracts, assetId) {
+  if (getCurrentAssetContract(contracts, assetId)) return null
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  let last = null
+  for (const c of contracts || []) {
+    if (c.assetId !== assetId) continue
+    const e = parseDate(c.end)
+    if (e && e < today && (!last || e > last)) last = e
+  }
+  if (!last) return null
+  const d = new Date(last); d.setDate(d.getDate() + 1)
+  return { date: `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`, days: Math.round((today - d) / 86400000) }
 }
 
 /**

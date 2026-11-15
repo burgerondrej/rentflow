@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, ASSET_TYPES, assetTypeOfSection, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt, contractVatPayer, contractShowsVat, CONTRACT_ONLY_TYPES } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, ASSET_TYPES, assetTypeOfSection, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt, contractVatPayer, contractShowsVat, CONTRACT_ONLY_TYPES, assetFreeSince } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -28,6 +28,7 @@ const TYPE_META = {
   parking:     { headerClass: 'modal-header-parking',    icon: '🅿️', label: 'Parkovací místo' },
   land:        { headerClass: 'modal-header-land',       icon: '🌳', label: 'Pozemek / plocha' },
   vehicle:     { headerClass: 'modal-header-vehicle',    icon: '🚗', label: 'Auto' },
+  service:     { headerClass: 'modal-header-service',    icon: '🤝', label: 'Servisní smlouva' },
   ostatni:     { headerClass: 'modal-header-ostatni',    icon: '📋', label: 'Ostatní' },
   contract:    { headerClass: 'modal-header-contract',   icon: '📄', label: 'Detail smlouvy' },
 }
@@ -1122,8 +1123,8 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {(() => {
-                  const typeIcon  = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', ostatni: '📄' }
-                  const typeLabel = { residential: 'Bytová jednotka', commercial: 'Komerční prostor', ads: 'Reklamní plocha', parking: 'Parkovací stání', land: 'Pozemek / plocha', vehicle: 'Auto', ostatni: 'Ostatní' }
+                  const typeIcon  = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', service: '🤝', ostatni: '📄' }
+                  const typeLabel = { residential: 'Bytová jednotka', commercial: 'Komerční prostor', ads: 'Reklamní plocha', parking: 'Parkovací stání', land: 'Pozemek / plocha', vehicle: 'Auto', service: 'Servisní smlouva', ostatni: 'Ostatní' }
                   // Barvy typu předmětu – jedna sada pro celou aplikaci (styles.css, i tmavý režim)
                   const typeColor = { residential: 'var(--asset-residential-accent)', commercial: 'var(--asset-commercial-accent)', ads: 'var(--asset-ads-accent)', parking: 'var(--asset-parking-accent)', ostatni: 'var(--asset-ostatni-accent)' }
                   const typeBg    = { residential: 'var(--asset-residential-bg)', commercial: 'var(--asset-commercial-bg)', ads: 'var(--asset-ads-bg)', parking: 'var(--asset-parking-bg)', ostatni: 'var(--asset-ostatni-bg)' }
@@ -1195,7 +1196,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                     const bg  = typeBg[aType]  || 'var(--bg2)'
                     const bdr = typeBdr[aType] || 'var(--border)'
                   const isDphSubject = contractVatPayer(c, assets, billingGroups)
-                  const showDph = (aType === 'commercial' || aType === 'ads' || aType === 'parking' || aType === 'land' || aType === 'vehicle' || aType === 'ostatni') && isDphSubject
+                  const showDph = (aType === 'commercial' || aType === 'ads' || aType === 'parking' || aType === 'land' || aType === 'vehicle' || aType === 'service' || aType === 'ostatni') && isDphSubject
                   const _eff = effectiveToday(c)
                   const rent = _eff.rent + (aType === 'residential' ? _eff.parking : 0)
                   const deposit = _eff.deposit
@@ -1500,7 +1501,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             <input type="text" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }} value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} required autoFocus />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {(a.type !== 'parking' && a.type !== 'vehicle') && (
+            {(a.type !== 'parking' && a.type !== 'vehicle' && a.type !== 'service') && (
               <div>
                 <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{a.type === 'land' ? 'Výměra' : 'Velikost'}</label>
                 <input type="text" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }} value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} />
@@ -1519,9 +1520,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               </div>
             ) : null}
           </div>
-          {(a.type === 'parking' || a.type === 'land' || a.type === 'vehicle') && (
+          {(a.type === 'parking' || a.type === 'land' || a.type === 'vehicle' || a.type === 'service') && (
             <div>
-              <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Poznámka</label>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{a.type === 'service' ? 'Popis služby / poznámka' : 'Poznámka'}</label>
               <textarea className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left', height: 80, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
                 placeholder={a.type === 'parking' ? 'Volitelná poznámka k parkovacímu stání…' : 'Volitelná poznámka…'}
                 value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} />
@@ -1738,8 +1739,8 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         })()}
 
         {assetTab === 'overview' && (<>
-        {/* Parametry – dlaždice (u Ostatní popis) */}
-        {(() => {
+        {/* Parametry – dlaždice (u Ostatní popis; Servisní smlouvy parametry nemají) */}
+        {a.type !== 'service' && (() => {
           const params = a.type === 'ostatni' ? [] : [
             a.size && a.type !== 'parking' && [a.type === 'residential' ? 'Dispozice / plocha' : a.type === 'land' ? 'Výměra' : 'Plocha / rozměr', a.size],
             a.floor && ['Podlaží', a.floor],
@@ -1824,7 +1825,12 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               </div>
             )
           })() : (
-            <div style={{ padding: 10 }}><EmptyState compact good icon="🟢" title="Volné k pronájmu" text="Na předmětu teď neběží žádná smlouva." /></div>
+            <div style={{ padding: 10 }}><EmptyState compact good icon="🟢" title="Volné k pronájmu" text={(() => {
+              const fs = assetFreeSince(contracts, a.id)
+              if (!fs) return 'Na předmětu teď neběží žádná smlouva.'
+              const d = fs.days
+              return `Volné od ${fs.date}${d > 0 ? ` (${d} ${d === 1 ? 'den' : d < 5 ? 'dny' : 'dní'})` : ''} – na předmětu teď neběží žádná smlouva.`
+            })()} /></div>
           )}
         </div>
         )}
@@ -1835,9 +1841,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         {assetTab === 'docs' && renderDocsSection(a.subject)}
 
         {assetTab === 'overview' && (<>
-        {(a.type === 'parking' || a.type === 'land' || a.type === 'vehicle') && (
+        {(a.type === 'parking' || a.type === 'land' || a.type === 'vehicle' || a.type === 'service') && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <SectionHeader icon="📝" tone="gray" title="Poznámka" />
+            <SectionHeader icon="📝" tone="gray" title={a.type === 'service' ? 'Popis služby' : 'Poznámka'} />
             <div style={{ padding: '10px 16px', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: a.notes ? 'var(--text)' : 'var(--text3)' }}>
               {a.notes || 'Bez poznámky – doplníš přes Upravit.'}
             </div>
@@ -2132,7 +2138,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               {(() => {
                 const freqLabelMap = { 'Čtvrtletně': 'Čtvrtletní', 'Pololetně': 'Pololetní', 'Ročně': 'Roční' }
                 const base = freqLabelMap[formData.paymentFrequency] || 'Měsíční'
-                const withDph = (a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle') && isDphSubject
+                const withDph = (a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'service') && isDphSubject
                 return (
                   <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>
                     {withDph ? `${base} nájemné bez DPH (Kč)` : `${base} nájemné (Kč)`}
@@ -2140,7 +2146,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 )
               })()}
               <input type="number" className="btn" style={{ width: '100%', cursor: 'text', textAlign: 'left' }} value={formData.rent} onChange={e => setFormData({...formData, rent: e.target.value})} required />
-              {(a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle') && isDphSubject && Number(formData.rent) > 0 && (
+              {(a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'service') && isDphSubject && Number(formData.rent) > 0 && (
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
                   s DPH: <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{(Number(formData.rent) * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</span>
                 </div>
@@ -2198,7 +2204,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               )}
             </div>
           )}
-          {(a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'ostatni') && (
+          {(a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'service' || a?.type === 'ostatni') && (
             <div>
               <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Frekvence plateb</label>
               <select className="btn" style={{ width: '100%', cursor: 'pointer' }}
@@ -2217,7 +2223,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               )}
             </div>
           )}
-          {(a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'ostatni') && formData.paymentFrequency !== 'Zahrnuto v nájemném' && (
+          {(a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'service' || a?.type === 'ostatni') && formData.paymentFrequency !== 'Zahrnuto v nájemném' && (
             <div>
               {['Čtvrtletně','Pololetně','Ročně'].includes(formData.paymentFrequency) && (
                 <>
@@ -2345,7 +2351,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           )}
 
           {/* Podmínky smlouvy – komerční/reklamy/parking/ostatní */}
-          {(a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'ostatni') && (
+          {(a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'service' || a?.type === 'ostatni') && (
             formData.paymentFrequency === 'Zahrnuto v nájemném' ? (
               <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--tone-green-text)' }}>
                 🅿️ Způsob prodloužení smlouvy se řídí nadřazenou smlouvou — parkovací stání je zahrnuto v nájemném.
@@ -2828,7 +2834,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 <span style={{ fontSize: 13, color: 'var(--text2)' }}>🅿️ Nájemné</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Zahrnuto v nájemném</span>
               </div>
-            ) : (a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'ostatni') && isDphSubject ? (
+            ) : (a?.type === 'commercial' || a?.type === 'ads' || a?.type === 'parking' || a?.type === 'land' || a?.type === 'vehicle' || a?.type === 'service' || a?.type === 'ostatni') && isDphSubject ? (
               <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                   <span style={{ fontSize: 13, color: 'var(--text2)' }}>Nájemné bez DPH</span>

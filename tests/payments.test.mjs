@@ -291,3 +291,15 @@ test('DPH smlouvy: ruční volba, firma pronajímatele (u aut sekce předmětu),
   assert.equal(u.contractShowsVat({ assetId: 'flat' }, assets, groups), false)
   assert.equal(u.contractShowsVat({ assetId: 'flat', vatExempt: 2 }, assets, groups), false)
 })
+
+test('volné od: den po konci poslední skončené smlouvy, jen bez platné smlouvy', () => {
+  const ended = { ...base, id: 'e1', assetId: 'a1', status: 'archived', start: '1. 1. 2025', end: '31. 8. 2026' }
+  const older = { ...base, id: 'e0', assetId: 'a1', status: 'archived', start: '1. 1. 2024', end: '31. 12. 2024' }
+  assert.deepEqual(u.assetFreeSince([older, ended], 'a1'), { date: '1. 9. 2026', days: 45 })
+  // nikdy nepronajato
+  assert.equal(u.assetFreeSince([], 'a1'), null)
+  // platná smlouva (i ukončená s budoucím koncem) = není volné
+  const cur = { ...base, id: 'c1', assetId: 'a1', status: 'archived', start: '1. 1. 2026', end: '31. 12. 2026' }
+  assert.equal(u.assetFreeSince([ended, cur], 'a1'), null)
+  assert.equal(u.assetFreeSince([ended, { ...base, id: 'c2', assetId: 'a1', start: '1. 9. 2026', end: '' }], 'a1'), null)
+})

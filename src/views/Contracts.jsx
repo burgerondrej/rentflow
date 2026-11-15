@@ -210,7 +210,7 @@ export default function Contracts({ activeSubject, onOpen }) {
 
           {(() => {
             const isDphSubject = contractVatPayer(c, assets, billingGroups)
-            const showDph = (c.assetType === 'commercial' || c.assetType === 'ads' || c.assetType === 'parking' || c.assetType === 'land' || c.assetType === 'vehicle') && isDphSubject
+            const showDph = (c.assetType === 'commercial' || c.assetType === 'ads' || c.assetType === 'parking' || c.assetType === 'land' || c.assetType === 'vehicle' || c.assetType === 'service') && isDphSubject
             return (
               <div style={{ display: 'grid', gridTemplateColumns: c.totalDeposit > 0 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 0, background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${innerBorderColor}` }}>
                 <div style={{ padding: '9px 12px', borderRight: `1.5px solid ${innerBorderColor}` }}>

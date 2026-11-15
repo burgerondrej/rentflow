@@ -58,7 +58,7 @@ const getAccentColor = (name) => {
 // Správné české řazení písmen (Č za C, Š za S atd.)
 const czSort = (a, b) => a.localeCompare(b, 'cs', { sensitivity: 'base' })
 
-const CONTRACT_TYPE_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗' }
+const CONTRACT_TYPE_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', service: '🤝' }
 
 export default function Tenants({ onOpen }) {
   const { tenants = [], contracts = [], assets = [], isReadOnly, billingGroups = [], subjects = [], firms = [] } = useApp()
@@ -263,7 +263,7 @@ export default function Tenants({ onOpen }) {
                 const asset = assets.find(a => a.id === c.assetId)
                 const icon = CONTRACT_TYPE_ICON[asset?.type] || '📄'
                 const isDphSubject = contractVatPayer(c, assets, billingGroups)
-                const showDph = (asset?.type === 'commercial' || asset?.type === 'ads' || asset?.type === 'parking' || asset?.type === 'land' || asset?.type === 'vehicle') && isDphSubject
+                const showDph = (asset?.type === 'commercial' || asset?.type === 'ads' || asset?.type === 'parking' || asset?.type === 'land' || asset?.type === 'vehicle' || asset?.type === 'service') && isDphSubject
                 const rent = Number(c.rent || 0) + (asset?.type === 'residential' && c.parking > 0 ? Number(c.parking || 0) : 0)
                 const deposit = Number(c.deposit || 0)
                 return (
