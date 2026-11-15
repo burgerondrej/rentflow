@@ -119,7 +119,7 @@ function genPortfolioBySubject(contracts, assets, tenants, subjectFilter, subjec
         <td>${a?.unit || '—'}</td>
         <td>${t?.name || '—'}</td>
         <td>${c.start || '—'}</td>
-        <td>${c.end || 'Neurčito'}</td>
+        <td>${c.end || 'Na dobu neurčitou'}</td>
         <td><span class="${daysBadge}">${daysText}</span></td>
         <td class="amount">${fmtCzk(ev.rent)}</td>
         <td class="amount">${ev.parking > 0 ? fmtCzk(ev.parking) : '—'}</td>
@@ -184,7 +184,7 @@ function genTenantCard(tenant, contracts, assets, fi) {
         <div class="card-header">${firmChip(fi(contractSubject(c, assets)))}${a?.unit || '—'} <span style="font-size:11px;font-weight:500;color:#666">${contractSubject(c, assets)}</span>
           ${isActive ? (c.status === 'archived' ? `<span class="badge badge-orange" style="float:right">Končí ${c.end}</span>` : '<span class="badge badge-green" style="float:right">Aktivní</span>') : '<span class="badge badge-gray" style="float:right">Ukončena</span>'}
         </div>
-        <div class="row"><span class="label">Platnost</span><span class="value">${c.start || '—'} → ${c.end || 'Neurčito'}</span></div>
+        <div class="row"><span class="label">Platnost</span><span class="value">${c.start || '—'} → ${c.end || 'Na dobu neurčitou'}</span></div>
         <div class="row"><span class="label">Nájemné</span><span class="value">${fmtCzk(ev.rent)}</span></div>
         ${ev.deposit > 0 ? `<div class="row"><span class="label">Zálohy energií a služeb</span><span class="value">${fmtCzk(ev.deposit)}</span></div>` : ''}
         ${c.cauce > 0 ? `<div class="row"><span class="label">Složená kauce</span><span class="value">${fmtCzk(c.cauce)}</span></div>` : ''}

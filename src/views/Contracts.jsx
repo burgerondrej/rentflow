@@ -220,7 +220,7 @@ export default function Contracts({ activeSubject, onOpen }) {
                     <span style={{ fontSize: 11 }}>🗓️</span>
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)' }}>Platnost do</div>
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{c.end || 'Neurčito'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{c.end || 'Na dobu neurčitou'}</div>
                   {!isArchived && isEndingSoon && <div style={{ fontSize: 10, color: 'var(--amber-t)', fontWeight: 600, marginTop: 2 }}>Končí za {c.daysLeft} dní</div>}
                   {!isArchived && isExpired && <div style={{ fontSize: 10, color: 'var(--red-t)', fontWeight: 600, marginTop: 2 }}>Propadlá ({Math.abs(c.daysLeft)} dní)</div>}
                 </div>

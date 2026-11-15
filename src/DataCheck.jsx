@@ -19,7 +19,7 @@ export function computeDataChecks({ contracts = [], assets = [], tenants = [], p
     const tenantOf = (c) => tenants.find(t => t.id === c.tenantId)
     const assetOf = (c) => assets.find(a => a.id === c.assetId)
     const label = (c) => `${assetOf(c)?.unit || '?'} · ${tenantOf(c)?.name || '?'}`
-    const range = (c) => `${c.start || '?'} – ${c.end || 'neurčito'}`
+    const range = (c) => `${c.start || '?'} – ${c.end || 'na dobu neurčitou'}`
     const out = []
     const add = (id, icon, title, hint, items, tone = 'amber') => out.push({ id, icon, title, hint, items, tone })
 

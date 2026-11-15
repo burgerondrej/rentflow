@@ -355,7 +355,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <div key={g.c.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
                     <div onClick={() => onOpen && onOpen('contract', g.c.id)} title="Otevřít smlouvu"
                       style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 800, color: 'var(--text2)', cursor: 'pointer' }}>
-                      📄 Smlouva {g.a?.unit || '—'} <span style={{ fontWeight: 600, color: 'var(--text3)' }}>· {g.c.start || '?'} – {g.c.end || 'neurčito'}</span>
+                      📄 Smlouva {g.a?.unit || '—'} <span style={{ fontWeight: 600, color: 'var(--text3)' }}>· {g.c.start || '?'} – {g.c.end || 'na dobu neurčitou'}</span>
                       <StatusPill kind={contractStatus(g.c).kind} text={contractStatus(g.c).text} size="sm" />
                     </div>
                     {g.docs.map(docRow)}
@@ -1198,7 +1198,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
                                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tone-blue-text)' }}>{asset?.unit || '?'}</div>
-                                      {(c.start || c.end) && <div style={{ fontSize: 10.5, color: 'var(--text3)' }}>{c.start || '—'} → {c.end || 'neurčito'}{tenancySince(c, contracts) ? ` · v nájmu od ${tenancySince(c, contracts)}` : ''}</div>}
+                                      {(c.start || c.end) && <div style={{ fontSize: 10.5, color: 'var(--text3)' }}>{c.start || '—'} → {c.end || 'na dobu neurčitou'}{tenancySince(c, contracts) ? ` · v nájmu od ${tenancySince(c, contracts)}` : ''}</div>}
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
                                       <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--price-netto)' }}>{rent.toLocaleString('cs-CZ')} Kč</div>
@@ -1337,7 +1337,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                           <>
                             <div style={{ height: 1, background: bdr, margin: '2px 0' }} />
                             <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                              Platnost: <strong style={{ color: 'var(--text2)' }}>{c.start || '—'}</strong> → <strong style={{ color: 'var(--text2)' }}>{c.end || 'neurčito'}</strong>
+                              Platnost: <strong style={{ color: 'var(--text2)' }}>{c.start || '—'}</strong> → <strong style={{ color: 'var(--text2)' }}>{c.end || 'na dobu neurčitou'}</strong>
                             </div>
                           </>
                         )}
@@ -1686,7 +1686,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               </div>
               {multiCur && (() => {
                 const ends = curList.map(c => parseDate(c.end)).filter(Boolean).sort((x, y) => x - y)
-                const nearest = ends.length ? curList.find(c => parseDate(c.end)?.getTime() === ends[0].getTime()).end : 'neurčito'
+                const nearest = ends.length ? curList.find(c => parseDate(c.end)?.getTime() === ends[0].getTime()).end : 'Na dobu neurčitou'
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
                     {kv(partyWord, partiesLabel(curList.length, partyWord))}
@@ -1711,7 +1711,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                     const net = ac && !acIncluded ? acEv.rent + acEv.parking + acEv.flatFee : 0
                     return kv(vat ? `${acFreq} bez DPH` : acFreq, !ac ? '—' : acIncluded ? 'zahrnuto' : `${net.toLocaleString('cs-CZ')} Kč`, null, undefined, vat && net > 0 ? fmtVat(net) : null)
                   })()}
-                  {kv('Smlouva do', !ac ? '—' : ac.end || 'neurčito')}
+                  {kv('Smlouva do', !ac ? '—' : ac.end || 'Na dobu neurčitou')}
                   {kv('Tento měsíc', !acSt ? '—' : acSt === 'paid' ? '✓ Uhrazeno' : acSt === 'partial' ? '◐ Částečně' : '✕ Neuhrazeno',
                     !acSt ? null : acSt === 'paid' ? '#16A34A' : acSt === 'partial' ? '#D97706' : '#DC2626')}
                 </div>
@@ -1750,7 +1750,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <div key={x.id} onClick={() => onOpen('contract', x.id)} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 10, cursor: 'pointer' }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tn ? tn.name : '—'}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>{x.start || '?'} – {x.end || 'neurčito'}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>{x.start || '?'} – {x.end || 'na dobu neurčitou'}</div>
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap' }}>{x.paymentFrequency === 'Zahrnuto v nájemném' ? 'zahrnuto' : `${(ev.rent + ev.parking + ev.flatFee).toLocaleString('cs-CZ')} Kč`}</div>
                     <StatusPill kind={st.kind} text={st.text} size="sm" />
@@ -1802,7 +1802,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               <div key={c.id} onClick={() => onOpen('contract', c.id)}
                 style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr) auto auto', gap: 12, alignItems: 'center', padding: '10px 16px', cursor: 'pointer', borderTop: i ? '1px solid var(--border)' : 'none' }}>
                 <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t?.name || 'Neznámý'}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{c.end ? `do ${c.end}` : 'neurčito'}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{c.end ? `do ${c.end}` : 'na dobu neurčitou'}</span>
                 <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'right' }}>
                   {c.paymentFrequency === 'Zahrnuto v nájemném' ? 'zahrnuto' : `${curRent(c).toLocaleString('cs-CZ')} Kč`}
                   {curVat(c) && curRent(c) > 0 && <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--price-brutto)' }}>{fmtVat(curRent(c))}</div>}
@@ -1832,7 +1832,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   {CONTRACT_ONLY_TYPES.includes(a.type) ? (<>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text2)' }}>Smlouva platná od {activeContract.start || '?'}</div>
                     <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                      do {activeContract.end || 'neurčito'}{activeContract.dueDay === DUE_PREPAID ? ' · splatnost předem' : ''}
+                      {activeContract.end ? `do ${activeContract.end}` : 'na dobu neurčitou'}{activeContract.dueDay === DUE_PREPAID ? ' · splatnost předem' : ''}
                     </div>
                   </>) : (<>
                   {(() => {
@@ -1840,7 +1840,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                     return since && <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text2)' }}>V nájmu od {since}</div>
                   })()}
                   <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                    smlouva {activeContract.start || '?'} – {activeContract.end || 'neurčito'}{activeContract.dueDay === DUE_PREPAID ? ' · splatnost předem' : ''}
+                    smlouva {activeContract.start || '?'} – {activeContract.end || 'na dobu neurčitou'}{activeContract.dueDay === DUE_PREPAID ? ' · splatnost předem' : ''}
                   </div>
                   </>)}
                 </div>
@@ -1979,6 +1979,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         parking: c.parking || 0,
         start: czToIso(c.start),
         end: czToIso(c.end),
+        openEnd: !c.end, // smlouva bez konce = na dobu neurčitou
         dueDay: (() => {
           const d = c.dueDay || '15. den v měsíci'
           if (d === '15. den v měsíci' || d === DUE_PREPAID || d === 'Dle vystavené faktury') return d
@@ -2036,7 +2037,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         cauce: Number(formData.cauce),
         parking: (a?.type === 'residential' && formData.includedParkingEnabled) ? (Number(formData.includedParkingRent) || 0) : Number(formData.parking || 0),
         start: isoToCz(formData.start), 
-        end: isoToCz(formData.end),
+        end: formData.openEnd ? '' : isoToCz(formData.end),
         dueDay: (formData.dueDay === 'Vlastní' || formData.dueDay === 'Konkrétní datum') ? formData.dueDayCustom : formData.dueDay,
         terminationMonths: formData.terminationMonths ? parseInt(formData.terminationMonths) : null,
         renewalMethod: formData.renewalMethod || null,
@@ -2318,8 +2319,15 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               <input type="date" className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }} value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Platnost do</label>
-              <input type="date" className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }} value={formData.end} onChange={e => setFormData({...formData, end: e.target.value})} />
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Platnost do{!formData.openEnd && formData.paymentFrequency !== 'Zahrnuto v nájemném' ? ' *' : ''}</label>
+              {formData.openEnd ? <div className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'default', fontWeight: 800, background: 'var(--tone-green-soft)', borderColor: 'var(--tone-green-border)', color: 'var(--tone-green-text)' }}>♾ Na dobu neurčitou</div> : (
+                <input type="date" className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }} value={formData.end} onChange={e => setFormData({...formData, end: e.target.value})}
+                  required={formData.paymentFrequency !== 'Zahrnuto v nájemném'} />
+              )}
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', marginTop: 6, whiteSpace: 'nowrap' }}>
+                <input type="checkbox" checked={!!formData.openEnd} onChange={e => setFormData({ ...formData, openEnd: e.target.checked, end: e.target.checked ? '' : formData.end })} />
+                Na dobu neurčitou
+              </label>
             </div>
           </div>
           {formData.paymentFrequency !== 'Zahrnuto v nájemném' && (
@@ -2734,7 +2742,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           {[
             ...(!CONTRACT_ONLY_TYPES.includes(a?.type) && tenancySince(c, contracts) ? [{ label: 'V nájmu od', value: tenancySince(c, contracts), icon: '🕰' }] : []),
             { label: 'Platnost od', value: c.start || '—', icon: '▶' },
-            { label: 'Platnost do', value: c.end || 'Neurčito', icon: '⏹' },
+            { label: 'Platnost do', value: c.end || '♾ Na dobu neurčitou', icon: '⏹' },
             ...(c.dueDay && c.paymentFrequency !== 'Zahrnuto v nájemném' ? [{ label: 'Splatnost', value: c.dueDay, icon: '📅' }] : []),
           ].map(({ label, value, icon }) => (
             <div key={label} style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 10, padding: '10px 14px' }}>

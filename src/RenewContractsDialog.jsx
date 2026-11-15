@@ -41,11 +41,12 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
     return dateToIso(e ? new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1) : new Date())
   })
   const [endIso, setEndIso] = useState('')
+  const [openEnd, setOpenEnd] = useState(false) // nová smlouva na dobu neurčitou
   const [saving, setSaving] = useState(false)
 
 
   const newStart = isoToDate(startIso)
-  const newEnd = isoToDate(endIso)
+  const newEnd = openEnd ? null : isoToDate(endIso)
   const dayBefore = newStart ? new Date(newStart.getFullYear(), newStart.getMonth(), newStart.getDate() - 1) : null
   const chosen = candidates.filter(c => selected.has(c.id))
   const isIncluded = (c) => c.paymentFrequency === 'Zahrnuto v nájemném'
@@ -62,6 +63,7 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
 
   const errors = []
   if (!newStart) errors.push('Zadejte začátek nové smlouvy.')
+  if (!openEnd && !newEnd) errors.push('Zadejte konec nové smlouvy, nebo zaškrtněte „Na dobu neurčitou“.')
   if (newStart && newEnd && newEnd < newStart) errors.push('Konec nové smlouvy je před jejím začátkem.')
   if (chosen.length === 0) errors.push('Označte alespoň jednu smlouvu.')
   if (chosen.some(c => !isIncluded(c) && (rents[c.id] === '' || isNaN(Number(rents[c.id])) || Number(rents[c.id]) < 0))) errors.push('Vyplňte nájemné u všech označených smluv.')
@@ -103,9 +105,15 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
               value={startIso} onChange={e => setStartIso(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Nová smlouva do <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--text3)' }}>(prázdné = na dobu neurčitou)</span></label>
-            <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'var(--bg2)', boxSizing: 'border-box' }}
-              value={endIso} onChange={e => setEndIso(e.target.value)} />
+            <label style={lbl}>Nová smlouva do{openEnd ? '' : ' *'}</label>
+            {openEnd ? <div className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'default', fontWeight: 800, background: 'var(--tone-green-soft)', borderColor: 'var(--tone-green-border)', color: 'var(--tone-green-text)' }}>♾ Na dobu neurčitou</div> : (
+              <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'var(--bg2)', boxSizing: 'border-box' }}
+                value={endIso} onChange={e => setEndIso(e.target.value)} />
+            )}
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', marginTop: 6, whiteSpace: 'nowrap' }}>
+              <input type="checkbox" checked={openEnd} onChange={e => { setOpenEnd(e.target.checked); if (e.target.checked) setEndIso('') }} />
+              Na dobu neurčitou
+            </label>
           </div>
         </div>
 
@@ -137,7 +145,7 @@ export default function RenewContractsDialog({ contract, onClose, onDone }) {
                     </td>
                     <td style={{ padding: '8px 8px', fontSize: 11, color: 'var(--text3)', maxWidth: 220 }}>{c.groupLabel || '—'}</td>
                     <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>
-                      <div style={{ fontSize: 12, color: 'var(--text2)' }}>{c.end || 'neurčito'}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text2)' }}>{c.end || 'na dobu neurčitou'}</div>
                       {note && <div style={{ fontSize: 10, fontWeight: 600, color: note.warn ? 'var(--tone-amber-text)' : 'var(--text3)' }}>{note.warn ? '⚠️ ' : ''}{note.text}</div>}
                     </td>
                     <td style={{ padding: '8px 8px', textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text2)' }}>

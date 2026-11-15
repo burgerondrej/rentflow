@@ -178,7 +178,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${cardBorder}` }}>
                 <div style={{ padding: '9px 12px', borderRight: `1.5px solid ${cardBorder}` }}>
                   <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 3 }}>🗓️ Platnost do</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{nearest || 'Neurčito'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{nearest || 'Na dobu neurčitou'}</div>
                   {nearest && sub('nejbližší')}
                 </div>
                 <div style={{ padding: '9px 12px', textAlign: 'center' }}>
@@ -207,7 +207,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
             )
             return (
               <div style={{ display: 'grid', gridTemplateColumns: showDeposit ? '1fr 1fr 1fr' : '1fr 1fr', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${cardBorder}` }}>
-                {cell('Platnost do', '🗓️', <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{activeContract.end || 'Neurčito'}</div>, 'left', false)}
+                {cell('Platnost do', '🗓️', <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{activeContract.end || 'Na dobu neurčitou'}</div>, 'left', false)}
                 {cell(conf.priceLabel + (vat ? ' bez DPH' : ''), '💰', <>
                   <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', whiteSpace: 'nowrap' }}>{included ? 'zahrnuto' : `${net.toLocaleString('cs-CZ')} Kč`}</div>
                   {vat && net > 0 && <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--price-brutto)', whiteSpace: 'nowrap' }}>s DPH {(net * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>}

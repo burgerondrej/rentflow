@@ -128,7 +128,7 @@ export default function SearchModal({ onClose, onOpenTenant, onOpenContract, onN
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{c.tenant}</div>
                     <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>
-                      {((c.rent || 0) + (c.parking || 0)).toLocaleString('cs-CZ')} Kč/měs · do {c.end}
+                      {((c.rent || 0) + (c.parking || 0)).toLocaleString('cs-CZ')} Kč/měs · {c.end ? `do ${c.end}` : 'na dobu neurčitou'}
                     </div>
                   </div>
                   {c.daysLeft !== null && c.daysLeft <= 30 && (

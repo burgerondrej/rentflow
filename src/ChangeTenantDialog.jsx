@@ -33,6 +33,7 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
   const [rent, setRent] = useState(String(ev.rent))
   const [cauce, setCauce] = useState('')
   const [endIso, setEndIso] = useState('')
+  const [openEnd, setOpenEnd] = useState(false) // nová smlouva na dobu neurčitou
   const [keepDeposits, setKeepDeposits] = useState(true)
   const [keepGroup, setKeepGroup] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -42,7 +43,7 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
   const [cauceChoice, setCauceChoice] = useState({ mode: 'return', offset: '' })
 
   const start = isoToDate(startIso)
-  const end = isoToDate(endIso)
+  const end = openEnd ? null : isoToDate(endIso)
   const dayBefore = start ? new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1) : null
   const oldStart = parseDate(contract.start)
   const oldEnd = parseDate(contract.end)
@@ -59,6 +60,7 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
   if (mode === 'new' && tenants.some(t => (t.name || '').trim().toLowerCase() === newT.name.trim().toLowerCase())) errs2.push('Nájemce s tímto jménem už existuje – vyberte ho ze seznamu.')
   const errs3 = []
   if (!isIncluded && (rent === '' || isNaN(Number(rent)) || Number(rent) < 0)) errs3.push('Vyplňte nájemné.')
+  if (!openEnd && !end) errs3.push('Zadejte konec nové smlouvy, nebo zaškrtněte „Na dobu neurčitou“.')
   if (start && end && end < start) errs3.push('Konec nové smlouvy je před jejím začátkem.')
   const errs = step === 1 ? errs1 : step === 2 ? errs2 : errs3
 
@@ -197,11 +199,17 @@ export default function ChangeTenantDialog({ contract, onClose, onDone }) {
                 <input type="number" min={0} className="btn" style={inp} value={cauce} onChange={e => setCauce(e.target.value)} placeholder="0" />
               </div>
               <div>
-                <label className="dlg-lbl">Konec smlouvy</label>
-                <input type="date" className="btn" style={{ ...inp, cursor: 'pointer' }} value={endIso} onChange={e => setEndIso(e.target.value)} />
+                <label className="dlg-lbl">Konec smlouvy{openEnd ? '' : ' *'}</label>
+                {openEnd ? <div className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'default', fontWeight: 800, background: 'var(--tone-green-soft)', borderColor: 'var(--tone-green-border)', color: 'var(--tone-green-text)' }}>♾ Na dobu neurčitou</div> : (
+                  <input type="date" className="btn" style={{ ...inp, cursor: 'pointer' }} value={endIso} onChange={e => setEndIso(e.target.value)} />
+                )}
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', marginTop: 6, whiteSpace: 'nowrap' }}>
+                  <input type="checkbox" checked={openEnd} onChange={e => { setOpenEnd(e.target.checked); if (e.target.checked) setEndIso('') }} />
+                  Na dobu neurčitou
+                </label>
               </div>
             </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text3)', margin: '4px 0 10px' }}>Prázdný konec = na dobu neurčitou.</div>
+            <div style={{ height: 10 }} />
             {(ev.deposit > 0 || ev.depositWater > 0) && check(keepDeposits, setKeepDeposits,
               `Převzít zálohy (${fmt(ev.deposit)} Kč${ev.depositWater > 0 ? ` + voda ${fmt(ev.depositWater)} Kč` : ''})`,
               'V měsíci předávky je platí oba nájemci v plné výši.')}

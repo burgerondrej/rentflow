@@ -292,7 +292,7 @@ export function Docs() {
   const formatContractLabel = (c) => {
     const asset = assets.find(a => a.id === c.assetId)
     const unit = asset ? asset.unit : 'Neznámý předmět'
-    const period = (c.start && c.end) ? `${c.start} – ${c.end}` : c.start || ''
+    const period = (c.start && c.end) ? `${c.start} – ${c.end}` : c.start ? `${c.start} – na dobu neurčitou` : ''
     return `${unit}${period ? ' · ' + period : ''}`
   }
 

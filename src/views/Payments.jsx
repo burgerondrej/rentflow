@@ -2086,7 +2086,7 @@ export default function Payments() {
                   </div>
                   <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 3 }}>Platnost do</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{c.end || 'Neurčito'}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{c.end || 'Na dobu neurčitou'}</div>
                   </div>
                 </div>
 

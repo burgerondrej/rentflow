@@ -31,7 +31,7 @@ export default function ContractForm({ onClose }) {
   const [formData, setFormData] = useState({
     tenantId: '', assetId: '',
     rent: '', deposit: '', cauce: '', parking: '', depositWater: '', flatFee: '', flatFeeEnabled: false,
-    start: '', end: '', tenancySince: '',
+    start: '', end: '', openEnd: false, tenancySince: '',
     dueDay: '15. den v měsíci',
     dueDayCustom: '',
     terminationMonths: '',
@@ -186,7 +186,7 @@ export default function ContractForm({ onClose }) {
       flatFee: contractType === 'commercial' && formData.flatFeeEnabled ? (Number(formData.flatFee) || 0) : 0,
       parking: contractType === 'residential' && formData.includedParkingEnabled ? (Number(formData.includedParkingRent) || 0) : 0,
       start: isParkingIncluded ? '' : isoToCz(formData.start),
-      end: isParkingIncluded ? '' : isoToCz(formData.end),
+      end: isParkingIncluded || formData.openEnd ? '' : isoToCz(formData.end),
       // Bez vyplnění se dotáhne začátek této smlouvy
       tenancySince: isParkingIncluded ? null : isoToCz(formData.tenancySince || formData.start),
       status: 'active',
@@ -251,7 +251,7 @@ export default function ContractForm({ onClose }) {
         {availableAssets.length === 0 && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>Žádné volné předměty nájmu tohoto typu.</div>}
         {overlapContract && (
           <div style={{ fontSize: 11, color: 'var(--tone-amber-text)', background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 6, padding: '6px 8px', marginTop: 6 }}>
-            ⚠️ Překryv s jinou smlouvou na tomto předmětu: {overlapTenant?.name || 'neznámý nájemce'} ({overlapContract.start || '?'} – {overlapContract.end || 'neurčito'}). Zkontrolujte data začátku a konce.
+            ⚠️ Překryv s jinou smlouvou na tomto předmětu: {overlapTenant?.name || 'neznámý nájemce'} ({overlapContract.start || '?'} – {overlapContract.end || 'na dobu neurčitou'}). Zkontrolujte data začátku a konce.
           </div>
         )}
       </div>
@@ -334,14 +334,21 @@ export default function ContractForm({ onClose }) {
             value={formData.start} onChange={e => set('start', e.target.value)} required />
         </div>
         <div>
-          {lbl('Platnost do')}
-          <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
-            value={formData.end} onChange={e => set('end', e.target.value)} />
+          {lbl('Platnost do', !formData.openEnd)}
+          {/* Na dobu neurčitou = smlouva bez konce; jinak je datum konce povinné (aby se konec omylem nevynechal) */}
+          {formData.openEnd ? <div className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'default', fontWeight: 800, background: 'var(--tone-green-soft)', borderColor: 'var(--tone-green-border)', color: 'var(--tone-green-text)' }}>♾ Na dobu neurčitou</div> : (
+            <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+              value={formData.end} onChange={e => set('end', e.target.value)} required />
+          )}
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', marginTop: 6, whiteSpace: 'nowrap' }}>
+            <input type="checkbox" checked={!!formData.openEnd} onChange={e => { set('openEnd', e.target.checked); if (e.target.checked) set('end', '') }} />
+            Na dobu neurčitou
+          </label>
         </div>
       </div>
-      {(formData.start || formData.end) && (
+      {(formData.start || formData.end || formData.openEnd) && (
         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
-          {formData.start && `Od: ${isoToCz(formData.start)}`}{formData.start && formData.end && ' · '}{formData.end && `Do: ${isoToCz(formData.end)}`}
+          {formData.start && `Od: ${isoToCz(formData.start)}`}{formData.start && (formData.end || formData.openEnd) && ' · '}{formData.openEnd ? 'na dobu neurčitou' : formData.end && `Do: ${isoToCz(formData.end)}`}
         </div>
       )}
       <div style={{ marginTop: 12 }}>
