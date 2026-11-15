@@ -17,7 +17,7 @@ export const STATUS = {
   ended:      { color: '#6B7280', label: 'Ukončeno' },
   // předměty nájmu
   free:       { color: '#16A34A', label: 'Volné' },
-  occupied:   { color: '#475569', label: 'Obsazeno' },
+  occupied:   { color: '#475569', label: 'Pronajato' },
   // revize
   revOk:      { color: '#16A34A', label: '🔧 V pořádku' },
   revSoon:    { color: '#D97706', label: '🔧 Blíží se' },

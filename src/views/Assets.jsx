@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import AssetForm from '../AssetForm.jsx'
-import { getCurrentAssetContract, currentAssetContracts, isContractOccupying, parseDate, selectionMatches, firmOf, firmColors, assetTypeStyle, getEffectiveValuesToday } from '../utils.js'
+import { getCurrentAssetContract, currentAssetContracts, isContractOccupying, parseDate, selectionMatches, firmOf, firmColors, assetTypeStyle, getEffectiveValuesToday, contractShowsVat } from '../utils.js'
 import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
 import { partiesLabel } from '../UI.jsx'
@@ -59,7 +59,7 @@ function useDragOrder(initialItems) {
 }
 
 export default function Assets({ type, activeSubject, onOpen }) {
-  const { assets = [], contracts = [], tenants = [] , residentialSubjects = [], firms = [], getFirm, theme } = useApp()
+  const { assets = [], contracts = [], tenants = [] , residentialSubjects = [], firms = [], billingGroups = [], getFirm, theme } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   useNewShortcut(() => setShowForm(true)) // Ctrl+N
@@ -156,8 +156,13 @@ export default function Assets({ type, activeSubject, onOpen }) {
             // Víc smluv: nejbližší konec + součet nájmu (předmět patří jedné firmě)
             const ends = curList.map(c => parseDate(c.end)).filter(Boolean).sort((a, b) => a - b)
             const nearest = ends.length ? curList.find(c => parseDate(c.end)?.getTime() === ends[0].getTime()).end : null
-            const sum = curList.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném')
-              .reduce((t, c) => { const ev = getEffectiveValuesToday(c); return t + ev.rent + ev.parking + ev.flatFee }, 0)
+            const paying = curList.filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném')
+            const net = (c) => { const ev = getEffectiveValuesToday(c); return ev.rent + ev.parking + ev.flatFee }
+            const sum = paying.reduce((t, c) => t + net(c), 0)
+            // s DPH: každá smlouva podle svého pronajímatele (contractShowsVat)
+            const anyVat = paying.some(c => contractShowsVat(c, assets, billingGroups) && net(c) > 0)
+            const allVat = paying.every(c => contractShowsVat(c, assets, billingGroups) || !net(c))
+            const gross = paying.reduce((t, c) => t + net(c) * (contractShowsVat(c, assets, billingGroups) ? 1.21 : 1), 0)
             const sub = (t) => <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text2)', marginTop: 1 }}>{t}</div>
             return (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${cardBorder}` }}>
@@ -167,8 +172,9 @@ export default function Assets({ type, activeSubject, onOpen }) {
                   {nearest && sub('nejbližší')}
                 </div>
                 <div style={{ padding: '9px 12px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 3 }}>💰 {conf.priceLabel} celkem</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 3 }}>💰 {conf.priceLabel} celkem{anyVat && allVat ? ' bez DPH' : ''}</div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', whiteSpace: 'nowrap' }}>{sum.toLocaleString('cs-CZ')} Kč</div>
+                  {anyVat && <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--price-brutto)', whiteSpace: 'nowrap' }}>s DPH {gross.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>}
                   {sub(`${curList.length} ${curList.length <= 4 ? "smlouvy" : "smluv"}`)}
                 </div>
               </div>
@@ -181,6 +187,8 @@ export default function Assets({ type, activeSubject, onOpen }) {
             const totalDeposit = isCommercial ? ev.deposit + ev.depositWater : ev.deposit
             const showDeposit = (isResidential || isCommercial) && totalDeposit > 0
             const included = activeContract.paymentFrequency === 'Zahrnuto v nájemném'
+            const vat = !included && contractShowsVat(activeContract, assets, billingGroups)
+            const net = ev.rent + ev.parking + ev.flatFee
             const cell = (label, emoji, value, align, last) => (
               <div style={{ padding: '9px 12px', textAlign: align, borderRight: last ? 'none' : `1.5px solid ${cardBorder}` }}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 3 }}>{emoji} {label}</div>
@@ -190,9 +198,11 @@ export default function Assets({ type, activeSubject, onOpen }) {
             return (
               <div style={{ display: 'grid', gridTemplateColumns: showDeposit ? '1fr 1fr 1fr' : '1fr 1fr', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${cardBorder}` }}>
                 {cell('Platnost do', '🗓️', <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{activeContract.end || 'Neurčito'}</div>, 'left', false)}
-                {cell(conf.priceLabel + (isCommercial ? ' bez DPH' : ''), '💰',
-                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', whiteSpace: 'nowrap' }}>{included ? 'zahrnuto' : `${(ev.rent + ev.parking + ev.flatFee).toLocaleString('cs-CZ')} Kč`}</div>, 'center', !showDeposit)}
-                {showDeposit && cell(isCommercial ? 'Zálohy bez DPH' : 'Zálohy energií', '⚡',
+                {cell(conf.priceLabel + (vat ? ' bez DPH' : ''), '💰', <>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', whiteSpace: 'nowrap' }}>{included ? 'zahrnuto' : `${net.toLocaleString('cs-CZ')} Kč`}</div>
+                  {vat && net > 0 && <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--price-brutto)', whiteSpace: 'nowrap' }}>s DPH {(net * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč</div>}
+                </>, 'center', !showDeposit)}
+                {showDeposit && cell(isCommercial && vat ? 'Zálohy bez DPH' : 'Zálohy energií', '⚡',
                   <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap' }}>{totalDeposit.toLocaleString('cs-CZ')} Kč</div>, 'right', true)}
               </div>
             )
@@ -231,7 +241,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
               {shortName}
             </div>
             <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '3px 10px', borderRadius: 8, fontWeight: 600 }}>
-              {activeCount} obsazeno / {items.length} celkem
+              {activeCount} pronajato / {items.length} celkem
             </span>
             <button
               onClick={() => toggleSection(sectionName)}
@@ -292,7 +302,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
               <div style={{ fontSize: 11, fontWeight: 600, color: sectionFirm ? firmColors(sectionFirm.color, theme).sub : 'var(--text3)' }}>{firmName}</div>
             </div>
             <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '3px 10px', borderRadius: 8, fontWeight: 600 }}>
-              {activeCount} obsazeno / {items.length} celkem
+              {activeCount} pronajato / {items.length} celkem
             </span>
             <button
               onClick={() => toggleSection(key)}
@@ -323,7 +333,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
           <div className="page-title">{conf.title}</div>
           <div className="page-sub">{(() => {
             const occ = filtered.filter(a => a.status === 'occupied' || contracts.some(c => c.assetId === a.id && isContractOccupying(c))).length
-            return `${filtered.length} položek · ${occ} obsazeno · ${filtered.length - occ} volných`
+            return `${filtered.length} položek · ${occ} pronajato · ${filtered.length - occ} volných`
           })()}</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -360,7 +370,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
                   {firm && <FirmBadge firm={firm} size={28} />}
                   <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>{firmName}</div>
                   <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '3px 10px', borderRadius: 8, fontWeight: 600 }}>
-                    {activeCount} obsazeno / {items.length} celkem
+                    {activeCount} pronajato / {items.length} celkem
                   </span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>

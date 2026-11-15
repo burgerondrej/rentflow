@@ -97,6 +97,28 @@ export function contractSubject(c, assets) {
 }
 
 /**
+ * Je pronajímatel smlouvy plátce DPH? Ruční volba na smlouvě má přednost (vatExempt 2 = s DPH, 1 = bez DPH),
+ * jinak podle firmy pronajímatele (contractSubject; billingGroups = [{ val: firma, isVatPayer }], neznámá firma = plátce).
+ * Typ předmětu (byty bez DPH) hlídá volající – nebo contractShowsVat.
+ */
+export function contractVatPayer(c, assets, billingGroups) {
+  if (c?.vatExempt === 2) return true
+  if (c?.vatExempt === 1) return false
+  const firm = firmOf(contractSubject(c, assets))
+  return (billingGroups || []).find(g => g.val === firm)?.isVatPayer ?? true
+}
+
+/** Ukazovat u smlouvy cenu s DPH? Byty nikdy, ostatní typy podle contractVatPayer. */
+export function contractShowsVat(c, assets, billingGroups) {
+  const asset = (assets || []).find(a => a.id === c?.assetId)
+  if (!asset || asset.type === 'residential') return false
+  return contractVatPayer(c, assets, billingGroups)
+}
+
+/** Typy, u kterých se místo „V nájmu od“ ukazuje „Smlouva platná od“ (začátek smlouvy). */
+export const CONTRACT_ONLY_TYPES = ['land', 'vehicle']
+
+/**
  * Měsíční nájem nájemce rozdělený STRIKTNĚ po firmách (pronajímatelích).
  * Vrací [{ name, short, color, isVatPayer, dph, noDph }] v pořadí firem; dph = částka bez DPH u plátce.
  */

@@ -273,3 +273,21 @@ test('blokace navýšení: nepočítá snížení, dodatek bez nájmu ani budouc
   assert.equal(u.rentIncreaseLock({ ...old, amendments: [{ effectiveFrom: '1. 1. 2027', rent: 11000 }] }), null)
   assert.equal(u.rentIncreaseLock({ ...old, amendments: [], valorizationDate: '1. 1. 2027' }), null)
 })
+
+test('DPH smlouvy: ruční volba, firma pronajímatele (u aut sekce předmětu), byty bez DPH', () => {
+  const groups = [{ val: 'METROPOLE CB', isVatPayer: true }, { val: 'Bürger Pavel', isVatPayer: false }]
+  const assets = [
+    { id: 'car', type: 'vehicle', subject: 'METROPOLE CB – Auta' },
+    { id: 'off', type: 'commercial', subject: 'Bürger Pavel – Komerční prostory' },
+    { id: 'flat', type: 'residential', subject: 'METROPOLE CB – Byty' },
+  ]
+  // auto: fakturační subjekt na smlouvě se ignoruje, rozhoduje sekce předmětu
+  assert.equal(u.contractVatPayer({ assetId: 'car', billingSubject: 'Bürger Pavel – Komerční prostory' }, assets, groups), true)
+  assert.equal(u.contractVatPayer({ assetId: 'off' }, assets, groups), false)
+  assert.equal(u.contractVatPayer({ assetId: 'off', billingSubject: 'METROPOLE CB – Komerční prostory' }, assets, groups), true)
+  assert.equal(u.contractVatPayer({ assetId: 'off', vatExempt: 2 }, assets, groups), true)
+  assert.equal(u.contractVatPayer({ assetId: 'car', vatExempt: 1 }, assets, groups), false)
+  assert.equal(u.contractShowsVat({ assetId: 'car' }, assets, groups), true)
+  assert.equal(u.contractShowsVat({ assetId: 'flat' }, assets, groups), false)
+  assert.equal(u.contractShowsVat({ assetId: 'flat', vatExempt: 2 }, assets, groups), false)
+})

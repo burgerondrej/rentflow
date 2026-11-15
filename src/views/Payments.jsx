@@ -1314,7 +1314,7 @@ export default function Payments() {
                         const groupPayment = gStat.payment
                         const isPaid = !!groupPayment
                         const isPartial = gStat.status === 'partial'
-                        const effectiveSub = members[0].billingSubject || getAssetForContract(members[0])?.subject || ''
+                        const effectiveSub = getContractSubject(members[0])
                         const showDph = getAssetForContract(members[0])?.type !== 'residential' && (billingGroups.find(g => firmOf(effectiveSub) === g.val)?.isVatPayer ?? true)
 
                         const handleGroupToggle = (e) => {
@@ -1463,7 +1463,7 @@ export default function Payments() {
                       const rowBg  = rst.bg
                       const rowBgH = rst.bgH
                       const rentTotal = getMonthRent(c, selectedYear, selectedMonth)
-                      const effectiveSub = c.billingSubject || asset?.subject || ''
+                      const effectiveSub = getContractSubject(c)
                       const showDph = asset?.type !== 'residential' && (
                         (c.vatExempt === 2) ? true : (c.vatExempt === 1) ? false : (billingGroups.find(g => firmOf(effectiveSub) === g.val)?.isVatPayer ?? true)
                       )

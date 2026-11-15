@@ -7,7 +7,7 @@ import { StatusPill, contractStatus } from '../StatusUI.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
 import { useNewShortcut, peekContractsFilter, clearContractsFilter } from '../shortcuts.js'
 import { cauceInfo, fmtKc, CauceSettleDialog } from '../CauceUI.jsx'
-import { contractSubject, OWN_SUBJECT_TYPES } from '../utils.js'
+import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES } from '../utils.js'
 
 export default function Contracts({ activeSubject, onOpen }) {
   const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [] } = useApp()
@@ -209,7 +209,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           </div>
 
           {(() => {
-            const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(c.assetSubject) === g.val)?.isVatPayer ?? true)
+            const isDphSubject = contractVatPayer(c, assets, billingGroups)
             const showDph = (c.assetType === 'commercial' || c.assetType === 'ads' || c.assetType === 'parking' || c.assetType === 'land' || c.assetType === 'vehicle') && isDphSubject
             return (
               <div style={{ display: 'grid', gridTemplateColumns: c.totalDeposit > 0 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 0, background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${innerBorderColor}` }}>

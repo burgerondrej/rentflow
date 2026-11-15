@@ -78,8 +78,8 @@ export default function ContractForm({ onClose }) {
     const n = currentAssetContracts(contracts, a.id).length
     if (n > 1) return ` (${n} ${n <= 4 ? 'smlouvy' : 'smluv'})`
     const cur = getCurrentAssetContract(contracts, a.id)
-    if (!cur) return a.status === 'occupied' ? ' (obsazeno)' : ''
-    return isEndingArchived(cur) ? ` (obsazeno do ${cur.end})` : ' (obsazeno)'
+    if (!cur) return a.status === 'occupied' ? ' (pronajato)' : ''
+    return isEndingArchived(cur) ? ` (pronajato do ${cur.end})` : ' (pronajato)'
   }
 
   const renderAssetOptions = () => {

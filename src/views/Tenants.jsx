@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../AppContext.jsx'
 import TenantForm from '../TenantForm.jsx'
-import { firmOf, tenantRentsByFirm, isContractOccupying } from '../utils.js'
+import { firmOf, tenantRentsByFirm, isContractOccupying, contractSubject, contractVatPayer } from '../utils.js'
 import { FirmRentSummary } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
 import { useNewShortcut } from '../shortcuts.js'
@@ -221,7 +221,7 @@ export default function Tenants({ onOpen }) {
                   const totalGroupRent = item.contracts.reduce((s, c) => s + Number(c.rent || 0), 0)
                   const firstC = item.contracts[0]
                   const firstAsset = assets.find(a => a.id === firstC?.assetId)
-                  const effSub = firstC?.billingSubject || firstAsset?.subject || ''
+                  const effSub = firstC ? contractSubject(firstC, assets) : (firstAsset?.subject || '')
                   const groupDph = firstC?.vatExempt === 2 ? true : firstC?.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(effSub) === g.val)?.isVatPayer ?? true)
                   const gType = firstAsset?.type || 'parking'
                   const gIcon = gType === 'ads' ? '📢' : gType === 'commercial' ? '🏢' : '🅿️'
@@ -262,10 +262,7 @@ export default function Tenants({ onOpen }) {
                 const c = item.contract
                 const asset = assets.find(a => a.id === c.assetId)
                 const icon = CONTRACT_TYPE_ICON[asset?.type] || '📄'
-                const effectiveSubject = c.billingSubject || asset?.subject || ''
-                const isDphSubject = c.vatExempt === 2 ? true
-                  : c.vatExempt === 1 ? false
-                  : (billingGroups.find(g => firmOf(effectiveSubject) === g.val)?.isVatPayer ?? true)
+                const isDphSubject = contractVatPayer(c, assets, billingGroups)
                 const showDph = (asset?.type === 'commercial' || asset?.type === 'ads' || asset?.type === 'parking' || asset?.type === 'land' || asset?.type === 'vehicle') && isDphSubject
                 const rent = Number(c.rent || 0) + (asset?.type === 'residential' && c.parking > 0 ? Number(c.parking || 0) : 0)
                 const deposit = Number(c.deposit || 0)

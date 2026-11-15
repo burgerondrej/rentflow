@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, ASSET_TYPES, assetTypeOfSection, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt } from './utils.js'
+import { getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, ASSET_TYPES, assetTypeOfSection, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt, contractVatPayer, contractShowsVat, CONTRACT_ONLY_TYPES } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -1145,7 +1145,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                       const totalRent = item.contracts.reduce((s, c) => s + effectiveToday(c).rent, 0)
                       const firstC = item.contracts[0]
                       const firstAsset = assets.find(a => a.id === firstC?.assetId)
-                      const effSub = firstC?.billingSubject || firstAsset?.subject || ''
+                      const effSub = firstC ? contractSubject(firstC, assets) : (firstAsset?.subject || '')
                       const groupDph = firstC?.vatExempt === 2 ? true : firstC?.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(effSub) === g.val)?.isVatPayer ?? true)
                       const groupAssetType = firstAsset?.type || 'parking'
                       const groupIcon = groupAssetType === 'ads' ? '📢' : groupAssetType === 'commercial' ? '🏢' : '🅿️'
@@ -1194,8 +1194,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                     const col = typeColor[aType] || 'var(--text)'
                     const bg  = typeBg[aType]  || 'var(--bg2)'
                     const bdr = typeBdr[aType] || 'var(--border)'
-                  const effectiveSub = c.billingSubject || asset?.subject || ''
-                  const isDphSubject = c.vatExempt === 2 ? true : c.vatExempt === 1 ? false : (billingGroups.find(g => firmOf(effectiveSub) === g.val)?.isVatPayer ?? true)
+                  const isDphSubject = contractVatPayer(c, assets, billingGroups)
                   const showDph = (aType === 'commercial' || aType === 'ads' || aType === 'parking' || aType === 'land' || aType === 'vehicle' || aType === 'ostatni') && isDphSubject
                   const _eff = effectiveToday(c)
                   const rent = _eff.rent + (aType === 'residential' ? _eff.parking : 0)
@@ -1219,12 +1218,13 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                       </div>
                       {/* Finanční řádky */}
                       <div style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {/* V nájmu od */}
+                        {/* V nájmu od (auta a pozemky: Smlouva platná od = začátek smlouvy) */}
                         {(() => {
-                          const since = tenancySince(c, contracts)
+                          const contractOnly = CONTRACT_ONLY_TYPES.includes(aType)
+                          const since = contractOnly ? c.start : tenancySince(c, contracts)
                           return since && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>V nájmu od</span>
+                              <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>{contractOnly ? 'Smlouva platná od' : 'V nájmu od'}</span>
                               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{since}</span>
                             </div>
                           )
@@ -1405,6 +1405,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
     const multiCur = curList.length > 1
     const partyWord = a.type === 'ostatni' ? 'Smluvní strana' : (a.type === 'ads' || a.type === 'parking') ? 'Klient' : 'Nájemce'
     const curRent = (c) => { if (c.paymentFrequency === 'Zahrnuto v nájemném') return 0; const ev = getEffectiveValuesToday(c); return ev.rent + ev.parking + ev.flatFee }
+    // Cena s DPH (jen smlouvy, kde pronajímatel účtuje DPH – contractShowsVat)
+    const curVat = (c) => contractShowsVat(c, assets, billingGroups)
+    const fmtVat = (n) => `s DPH ${(n * 1.21).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč`
 
     const handleEditClick = () => {
       setFormData({
@@ -1637,10 +1640,11 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           const acSt = ac && !acIncluded ? (ac.groupLabel
             ? groupMonthStatus(ac.groupLabel, nowD.getFullYear(), nowD.getMonth(), { payments, contracts, assets }).status
             : contractMonthStatus(ac, nowD.getFullYear(), nowD.getMonth(), { payments, contracts, assets }).status) : null
-          const kv = (label, value, color, onClick) => (
+          const kv = (label, value, color, onClick, sub) => (
             <div onClick={onClick} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', cursor: onClick ? 'pointer' : 'default', minWidth: 0 }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>{label}</div>
               <div style={{ fontSize: 14.5, fontWeight: 800, color: color || 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
+              {sub && <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--price-brutto)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 1 }}>{sub}</div>}
             </div>
           )
           return (
@@ -1651,7 +1655,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <div style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ts.label}{aFirm ? ` · ${aFirm.name}` : ''}</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.unit}</div>
                 </div>
-                <StatusPill kind={isFreeNow ? 'free' : 'occupied'} text={isFreeNow ? 'Volné k pronájmu' : 'Obsazeno'} style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }} />
+                <StatusPill kind={isFreeNow ? 'free' : 'occupied'} text={isFreeNow ? 'Volné k pronájmu' : 'Pronajato'} style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }} />
                 {!isReadOnly && (
                   <button onClick={handleEditClick} style={{ background: '#fff', color: ts.strong, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
                 )}
@@ -1662,7 +1666,14 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
                     {kv(partyWord, partiesLabel(curList.length, partyWord))}
-                    {kv('Nájem celkem', `${curList.reduce((t, c) => t + curRent(c), 0).toLocaleString('cs-CZ')} Kč`)}
+                    {(() => {
+                      const net = curList.reduce((t, c) => t + curRent(c), 0)
+                      const allVat = curList.every(c => curVat(c) || !curRent(c))
+                      const anyVat = curList.some(c => curVat(c) && curRent(c))
+                      const gross = curList.reduce((t, c) => t + curRent(c) * (curVat(c) ? 1.21 : 1), 0)
+                      return kv(anyVat && allVat ? 'Nájem celkem bez DPH' : 'Nájem celkem', `${net.toLocaleString('cs-CZ')} Kč`, null, undefined,
+                        anyVat ? `s DPH ${gross.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč` : null)
+                    })()}
                     {kv('Smlouva do', nearest)}
                     {kv('Pronajímatel', aFirm ? aFirm.name : a.subject)}
                   </div>
@@ -1671,7 +1682,11 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               {a.type !== 'ostatni' && !multiCur && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
                   {kv('Nájemce', currentTenant ? currentTenant.name : '—', null, currentTenant ? () => onOpen('tenant', currentTenant.id) : undefined)}
-                  {kv(acFreq, !ac ? '—' : acIncluded ? 'zahrnuto' : `${(acEv.rent + acEv.parking + acEv.flatFee).toLocaleString('cs-CZ')} Kč`)}
+                  {(() => {
+                    const vat = ac && !acIncluded && curVat(ac)
+                    const net = ac && !acIncluded ? acEv.rent + acEv.parking + acEv.flatFee : 0
+                    return kv(vat ? `${acFreq} bez DPH` : acFreq, !ac ? '—' : acIncluded ? 'zahrnuto' : `${net.toLocaleString('cs-CZ')} Kč`, null, undefined, vat && net > 0 ? fmtVat(net) : null)
+                  })()}
                   {kv('Smlouva do', !ac ? '—' : ac.end || 'neurčito')}
                   {kv('Tento měsíc', !acSt ? '—' : acSt === 'paid' ? '✓ Uhrazeno' : acSt === 'partial' ? '◐ Částečně' : '✕ Neuhrazeno',
                     !acSt ? null : acSt === 'paid' ? '#16A34A' : acSt === 'partial' ? '#D97706' : '#DC2626')}
@@ -1764,7 +1779,10 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr) auto auto', gap: 12, alignItems: 'center', padding: '10px 16px', cursor: 'pointer', borderTop: i ? '1px solid var(--border)' : 'none' }}>
                 <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t?.name || 'Neznámý'}</span>
                 <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{c.end ? `do ${c.end}` : 'neurčito'}</span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'right' }}>{c.paymentFrequency === 'Zahrnuto v nájemném' ? 'zahrnuto' : `${curRent(c).toLocaleString('cs-CZ')} Kč`}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  {c.paymentFrequency === 'Zahrnuto v nájemném' ? 'zahrnuto' : `${curRent(c).toLocaleString('cs-CZ')} Kč`}
+                  {curVat(c) && curRent(c) > 0 && <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--price-brutto)' }}>{fmtVat(curRent(c))}</div>}
+                </span>
                 <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent)' }}>›</span>
               </div>
             )
@@ -1787,6 +1805,12 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 <span style={{ width: 40, height: 40, borderRadius: 11, background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{ini}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentTenant.name}</div>
+                  {CONTRACT_ONLY_TYPES.includes(a.type) ? (<>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text2)' }}>Smlouva platná od {activeContract.start || '?'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                      do {activeContract.end || 'neurčito'}{activeContract.dueDay === DUE_PREPAID ? ' · splatnost předem' : ''}
+                    </div>
+                  </>) : (<>
                   {(() => {
                     const since = tenancySince(activeContract, contracts)
                     return since && <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text2)' }}>V nájmu od {since}</div>
@@ -1794,6 +1818,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <div style={{ fontSize: 12, color: 'var(--text3)' }}>
                     smlouva {activeContract.start || '?'} – {activeContract.end || 'neurčito'}{activeContract.dueDay === DUE_PREPAID ? ' · splatnost předem' : ''}
                   </div>
+                  </>)}
                 </div>
                 <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>Otevřít smlouvu ›</span>
               </div>
@@ -1879,17 +1904,11 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
     
     const t = tenants.find(x => x.id === c.tenantId)
     const a = assets.find(x => x.id === c.assetId)
-    const effectiveSubject = c.billingSubject || a?.subject || ''
-    const isDphSubject = c.vatExempt === 2 ? true
-      : c.vatExempt === 1 ? false
-      : (billingGroups.find(g => firmOf(effectiveSubject) === g.val)?.isVatPayer ?? true)
+    const isDphSubject = contractVatPayer(c, assets, billingGroups)
     const isMetropoleParkingAsset = (parkingBillingOptions[0]?.label ? a?.subject === parkingBillingOptions[0].label : false)
     const isMetropoleAdsAsset = (adsBillingOptions[0]?.label ? a?.subject === adsBillingOptions[0].label : false)
     // isDphSubject pro edit formulář (reaguje na živý výběr billingSubject)
-    const formEffSub = formData.billingSubject || a?.subject || ''
-    const formIsDphSubject = (formData.vatExempt || 0) === 2 ? true
-      : (formData.vatExempt || 0) === 1 ? false
-      : (billingGroups.find(g => firmOf(formEffSub) === g.val)?.isVatPayer ?? true)
+    const formIsDphSubject = contractVatPayer({ ...c, billingSubject: formData.billingSubject, vatExempt: formData.vatExempt || 0 }, assets, billingGroups)
 
     const czToIso = (cz) => {
       if (!cz) return ''
@@ -2684,7 +2703,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8 }}>
           {[
-            ...(tenancySince(c, contracts) ? [{ label: 'V nájmu od', value: tenancySince(c, contracts), icon: '🕰' }] : []),
+            ...(!CONTRACT_ONLY_TYPES.includes(a?.type) && tenancySince(c, contracts) ? [{ label: 'V nájmu od', value: tenancySince(c, contracts), icon: '🕰' }] : []),
             { label: 'Platnost od', value: c.start || '—', icon: '▶' },
             { label: 'Platnost do', value: c.end || 'Neurčito', icon: '⏹' },
             ...(c.dueDay && c.paymentFrequency !== 'Zahrnuto v nájemném' ? [{ label: 'Splatnost', value: c.dueDay, icon: '📅' }] : []),
