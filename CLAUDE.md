@@ -148,6 +148,7 @@ Budovy (`objects`, sloupec `firm`) patří firmám – Revize a Provozní nákla
 - Bublina dluhu v detailu smlouvy (contractDebt, nad blokací navýšení): položky z overdueItems (skupina = celá skupina), součet, dny po splatnosti, „naposledy uhrazeno v <měsíci>“ = poslední celý uhrazený měsíc od SALDO_FROM (víceměsíční = nájem okna), jinak „zatím nic neuhrazeno“. Ne u „Zahrnuto v nájemném“. Klik = záložka Platby.
 - Hledání v Platbách → Přehled: nehledá podle group_label (skupiny „METROPOLE - …“ by chytly vše); nalezená smlouva ze skupiny přivede celou skupinu. Součty VŽDY za každou firmu zvlášť (striktní oddělení), pořadí firem podle Nastavení, uvnitř applyContractOrder.
 - Smlouvy: záložky Platné (aktivní + ukončené s budoucím koncem) / Ukončené.
+- Na dobu neurčitou = smlouva bez data konce (end ''). Ve formulářích (nová smlouva, úprava, navazující smlouvy, změna nájemce) zaškrtávátko „Na dobu neurčitou“ (formData.openEnd), jinak je konec povinný. Zobrazovat VÝSLOVNĚ „Na dobu neurčitou“ / „na dobu neurčitou“ (detail smlouvy „♾ Na dobu neurčitou“), NIKDY „Neurčito“ ani prázdno.
 - Po splatnosti: dueDateFor(c, y, m) z pole due_day („15. den v měsíci“ měsíčně, „30. 4.“ ročně; „Dle vystavené faktury“ = neurčuje se); overdueDays() zobrazit v Platbách, na kartách firem a v detailu nájemce.
 - Platba předem: due_day „15. den předchozího měsíce na měsíc následující“ (DUE_PREPAID; byty a ubytovací jednotky, vybraná parkovací stání) → splatnost 15. den PŘEDCHOZÍHO měsíce (říjen do 15. 9.). Platby se dál zapisují za měsíc, kterého se týkají (v Platbách listopad = listopadový nájem). Saldo i Po splatnosti proto počítají až do příštího měsíce.
 - Seznam a počty „po splatnosti“ (karta firmy na Dashboardu, záložka Po splatnosti, Report PDF) VÝHRADNĚ přes overdueItems(ctx, match) – všechny měsíce od 1. 1. 2026, víceměsíční smlouva = jedna položka za okno. Plnění (kolečko) karty firmy přes contractMonthStatus / groupMonthStatus po položkách (přeplatek nesmí schovat dluh).
@@ -217,6 +218,7 @@ Pravidla:
 - v1.4.9: více souběžných smluv na jednom předmětu (různí nájemci) – navazující smlouva jen po konci předchozí, karta a detail předmětu se seznamem smluv a součtem, štítek „(N smlouvy)“ ve formuláři smlouvy.
 - v1.5.0: nové typy předmětů Pozemky a další plochy a Auta (pronajímatel = sekce předmětu, platby po firmách), přesun předmětu do jiné sekce / typu v úpravě předmětu. Ostatní se vyprázdní ručním přesunem (Mercedes → MCB – Auta, Transporter → BP – Auta, Pozemek a Plot U Staré trati → BP – Pozemky).
 - v1.5.1: typ předmětu Servisní smlouvy, sekce sidebaru Portfolio, „Pronajato“ místo „Obsazeno“, „Smlouva platná od“ u aut / pozemků / servisu, cena s DPH na kartě a v detailu předmětu + jednotné pravidlo DPH, „Volné od“ u volného předmětu; grafika: posun obrazovek ve směru, tmavě zelená horní lišta, posuvné pilulky (sidebar, přepínače), najetí karet se září v barvě firmy, výraznější hlavičky, dojíždějící čísla, pulz Uhrazeno, toast s odpočtem, prolnutí tmavého režimu, karta → detail, posun měsíců a protočení názvu v Platbách, záložky detailu s posunem, potvrzení zálohy, odlesk na kartách firem, rozplynutí úvodní obrazovky, vlnka tlačítek.
+- v1.5.2: zaškrtávátko „Na dobu neurčitou“ ve formulářích smluv (jinak povinný konec), všude zobrazení „Na dobu neurčitou“.
 - Nápady na později: uživatelský manuál RF (vč. splatnosti předem a Po splatnosti); Kontrola dat „platná smlouva bez nahraného dokumentu Smlouva“ (až bude hotové nahrávání dokumentů); „Co dnes řešit“ na Dashboardu, předávací protokol PDF, evidence klíčů a čipů. NE: termíny u aut (STK, pojistka), roční výnos po firmách, štítky typů předmětů na kartách firem, hromadná valorizace, import z banky, upomínky PDF, připomínka valorizace, hromadné „Uhrazeno“, začátky smluv v Kalendáři.
 - localStorage pro currentUser.
 - Odložené: sdružování parkovacích stání (group_label) – částečně implementováno.
@@ -224,4 +226,4 @@ Pravidla:
 ## 11. Údržba tohoto souboru
 
 Na konci každé větší session navrhni úpravu CLAUDE.md (nová pravidla, poučení, verze). Zapisuj jen po odsouhlasení.
-Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 15. 11. 2026: v1.5.1).
+Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 15. 11. 2026: v1.5.2).
