@@ -19,6 +19,7 @@ import SettingsPanel from './SettingsPanel.jsx'
 import UpdateDialog from './UpdateDialog.jsx'
 import ActivationScreen from './ActivationScreen.jsx'
 import { FirmPickerButton, FirmBadge } from './FirmUI.jsx'
+import { prefersReducedMotion } from './UI.jsx'
 import DialogShell from './DialogShell.jsx'
 import { isOverlayOpen, isTyping } from './shortcuts.js'
 import { contractSubject, selectionMatches, parseDate, isContractOccupying, hasSuccessor, getMonthRent, getMonthDeposits, groupMembersInMonth, isContractBillable, isContractInMonth, PERIOD_LEN } from './utils.js'
@@ -51,6 +52,15 @@ function AppInner() {
   const [view, setView] = useState('dashboard') 
   const contentRef = useRef(null)
 
+  // Plynulý přechod při přepnutí obrazovky (obsah se prolne a mírně vyjede) + stín horní lišty při skrolování
+  const firstViewRef = useRef(true)
+  useEffect(() => {
+    if (firstViewRef.current) { firstViewRef.current = false; return }
+    const el = contentRef.current
+    if (!el || !el.animate || prefersReducedMotion()) return
+    el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' })
+  }, [view])
+  const [scrolled, setScrolled] = useState(false)
   const handleNav = (newView) => {
     setView(newView)
     setTimeout(() => {
@@ -463,7 +473,7 @@ function AppInner() {
       )}
       <Sidebar active={view} onNav={handleNav} width={sbWidth} onResizeStart={handleResizeStart} urgentContracts={urgentContracts} unreadCount={unreadCount} />
       <div className="main">
-        <div className="topbar" style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid var(--border)', position: 'relative', zIndex: 50 }}>
+        <div className={`topbar${scrolled ? ' scrolled' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid var(--border)', position: 'relative', zIndex: 50 }}>
           <div style={{ display: 'flex', gap: 12, flex: 1, maxWidth: 600 }}>
             
             {/* FULLTEXTOVÉ VYHLEDÁVÁNÍ – paleta: štítek typu a firmy, ovládání ↑↓ Enter Esc */}
@@ -598,7 +608,7 @@ function AppInner() {
             >⚙️</button>
           </div>
         </div>
-        <div className="content" ref={contentRef}>
+        <div className="content" ref={contentRef} onScroll={e => setScrolled(e.currentTarget.scrollTop > 4)}>
           {isReadOnly && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--tone-amber-soft)', border: '1px solid var(--tone-amber-border)', borderRadius: 10, padding: '10px 18px', marginBottom: 20, color: 'var(--tone-amber-text)', fontSize: 13, fontWeight: 600 }}>
               <span style={{ fontSize: 16 }}>👁️</span>

@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import ConfirmDialog from './ConfirmDialog.jsx'
+import { flushSync } from 'react-dom'
+import { notePaid } from './StatusUI.jsx'
+import { prefersReducedMotion } from './UI.jsx'
 import { parseDate, toCzDate, getEffectiveValuesToday, firmOf, contractSubject, isContractOccupying, hasSuccessor, tenancySince } from './utils.js'
 
 const AppContext = createContext()
@@ -52,7 +55,13 @@ export function AppProvider({ children }) {
   const setTheme = (valOrFn) => {
     const next = typeof valOrFn === 'function' ? valOrFn(theme) : valOrFn
     localStorage.setItem('rentflow_theme', next)
-    setThemeState(next)
+    // Plynulé prolnutí světlého a tmavého režimu (View Transitions); bez podpory / s vypnutými animacemi přepne hned
+    const apply = () => {
+      document.documentElement.setAttribute('data-theme', next === 'dark' ? 'dark' : '')
+      flushSync(() => setThemeState(next))
+    }
+    if (document.startViewTransition && !prefersReducedMotion() && next !== theme) document.startViewTransition(apply)
+    else setThemeState(next)
   }
 
   // ─── TOAST NOTIFIKACE ───
@@ -60,7 +69,7 @@ export function AppProvider({ children }) {
   const toastTimerRef = useRef(null)
   const showToast = useCallback((message, type = 'error') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    setToast({ message, type })
+    setToast({ message, type, id: Date.now() })
     toastTimerRef.current = setTimeout(() => setToast(null), 4500)
   }, [])
 
@@ -563,6 +572,7 @@ export function AppProvider({ children }) {
     try {
       const result = await invoke('add_payment', { payment: p, user: currentUser })
       if (result) {
+        notePaid(p.contractId)
         setPayments(prev => [...prev, result])
         return result.id
       }
@@ -1093,15 +1103,16 @@ export function AppProvider({ children }) {
           const s = TOAST_STYLES[toast.type] || TOAST_STYLES.error
           return (
             <div
+              key={toast.id}
               role="alert"
               onClick={() => setToast(null)}
               style={{
-                position: 'fixed', bottom: 24, right: 24, zIndex: 99999,
+                position: 'fixed', bottom: 24, right: 24, zIndex: 99999, overflow: 'hidden',
                 background: s.bg, border: `1px solid ${s.border}`, color: s.color,
                 borderRadius: 12, padding: '12px 16px 12px 14px',
                 fontSize: 13, fontWeight: 600, maxWidth: 380, minWidth: 220,
                 boxShadow: '0 8px 24px rgba(0,0,0,0.13)',
-                animation: 'slideIn 0.2s ease',
+                animation: 'rfToastIn 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.15)',
                 cursor: 'pointer', userSelect: 'none',
                 display: 'flex', alignItems: 'flex-start', gap: 10,
               }}
@@ -1109,6 +1120,8 @@ export function AppProvider({ children }) {
               <span style={{ flexShrink: 0, fontSize: 15 }}>{s.icon}</span>
               <span style={{ flex: 1, lineHeight: 1.45 }}>{toast.message}</span>
               <span style={{ flexShrink: 0, fontSize: 16, opacity: 0.5, marginLeft: 4 }}>×</span>
+              {/* Odpočet do zmizení (4,5 s jako časovač showToast) */}
+              <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: s.color, opacity: 0.35, transformOrigin: 'left', animation: 'rfToastBar 4.5s linear forwards' }} />
             </div>
           )
         })()}

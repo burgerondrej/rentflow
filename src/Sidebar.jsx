@@ -1,8 +1,23 @@
-import React from 'react'
+import React, { useState, useLayoutEffect, useRef } from 'react'
 
 import { requestContractsFilter } from './shortcuts.js'
 
 export default function Sidebar({ active, onNav, width, onResizeStart, urgentContracts, unreadCount }) {
+  // Posuvná pilulka pod aktivní položkou (měří se pozice aktivní položky v seznamu)
+  const listRef = useRef(null)
+  const [pill, setPill] = useState(null)
+  useLayoutEffect(() => {
+    const box = listRef.current
+    if (!box) return
+    const measure = () => {
+      const el = box.querySelector('[data-nav-active="1"]')
+      setPill(el ? { top: el.offsetTop, left: el.offsetLeft, width: el.offsetWidth, height: el.offsetHeight } : null)
+    }
+    measure()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    if (ro) ro.observe(box)
+    return () => { if (ro) ro.disconnect() }
+  }, [active, width])
   const NAV_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5" opacity=".9"/><rect x="9" y="1" width="6" height="6" rx="1.5" opacity=".9"/><rect x="1" y="9" width="6" height="6" rx="1.5" opacity=".9"/><rect x="9" y="9" width="6" height="6" rx="1.5" opacity=".3"/></svg> },
     
@@ -44,12 +59,13 @@ export default function Sidebar({ active, onNav, width, onResizeStart, urgentCon
         Rent<span style={{ color: '#4ade80' }}>Flow</span>
       </div>
       
-      <div style={{ flex: 1, position: 'relative', overflowY: 'auto' }}>
+      <div ref={listRef} style={{ flex: 1, position: 'relative', overflowY: 'auto' }}>
+        {pill && <div className="sb-pill" aria-hidden="true" style={pill} />}
         {NAV_ITEMS.map((item, i) => {
           if (item.section) return <div key={i} style={{ fontSize: 10, fontWeight: 700, color: 'rgba(160,255,210,0.90)', letterSpacing: '.8px', padding: '8px 14px 3px', textTransform: 'uppercase', marginTop: i > 0 ? 4 : 0 }}>{item.section}</div>
           const isActive = active === item.id
           return (
-            <div key={item.id} onClick={() => onNav(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 9, cursor: 'pointer', fontSize: 13.5, color: '#ffffff', background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent', fontWeight: isActive ? 700 : 500, marginBottom: 1, border: isActive ? '1px solid rgba(180,255,220,0.22)' : '1px solid transparent', opacity: isActive ? 1 : 0.88, textShadow: isActive ? '0 0 12px rgba(158,255,212,0.4)' : 'none' }}>
+            <div key={item.id} onClick={() => onNav(item.id)} className="sb-item" data-nav-active={isActive ? '1' : undefined} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 9, cursor: 'pointer', fontSize: 13.5, color: '#ffffff', background: isActive && !pill ? 'rgba(255,255,255,0.15)' : 'transparent', fontWeight: isActive ? 700 : 500, marginBottom: 1, border: isActive && !pill ? '1px solid rgba(180,255,220,0.22)' : '1px solid transparent', opacity: isActive ? 1 : 0.88, textShadow: isActive ? '0 0 12px rgba(158,255,212,0.4)' : 'none' }}>
               <span style={{ flexShrink: 0, width: 17, height: 17 }}>{item.icon}</span>
               <span style={{ flex: 1 }}>{item.label}</span>
               {item.badge && item.badge !== '0' && <span onClick={item.badgeType === 'red' ? (e) => { e.stopPropagation(); requestContractsFilter('30'); onNav(item.id) } : undefined}

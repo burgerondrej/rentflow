@@ -181,6 +181,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           border: `1.5px solid ${isArchived ? 'var(--border)' : cardBorderColor}`,
           // Barevný proužek firmy (pronajímatele) – JIHOTANK vs. JIHOTANK CB na první pohled
           borderLeft: `5px solid ${getFirm && getFirm(c.assetSubject) ? firmColors(getFirm(c.assetSubject).color, theme).mid : 'var(--border)'}`,
+          '--glow': getFirm && getFirm(c.assetSubject) ? firmColors(getFirm(c.assetSubject).color, theme).mid : accentColor,
         }} 
         onClick={() => onOpen(c.id)}
       >

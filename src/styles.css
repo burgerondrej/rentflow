@@ -100,6 +100,18 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .page-header[data-type="vehicle"]::before     { background: var(--asset-vehicle-bg);     border-color: var(--asset-vehicle-border); }
 .page-header[data-type="service"]::before     { background: var(--asset-service-bg);     border-color: var(--asset-service-border); }
 .page-header[data-type="ostatni"]::before     { background: var(--asset-ostatni-bg);     border-color: var(--asset-ostatni-border); }
+/* v1.5.1: výraznější hlavička – barevný přechod v barvě typu, pruh vlevo, větší ikona */
+.page-header[data-icon]::before { width: 52px; height: 52px; font-size: 25px; box-shadow: 0 4px 12px -5px rgba(0,0,0,0.2); }
+.page-header[data-icon]:not([data-type]) { background: linear-gradient(115deg, var(--bg2) 0%, var(--bg) 62%); }
+.page-header[data-type] { background: linear-gradient(115deg, var(--ph-tint) 0%, var(--bg) 62%); border-color: var(--ph-border); box-shadow: inset 4px 0 0 var(--ph-strong), 0 2px 10px rgba(0,0,0,0.04); }
+.page-header[data-type="residential"] { --ph-tint: var(--asset-residential-header); --ph-border: var(--asset-residential-border); --ph-strong: var(--asset-residential-strong); }
+.page-header[data-type="commercial"] { --ph-tint: var(--asset-commercial-header); --ph-border: var(--asset-commercial-border); --ph-strong: var(--asset-commercial-strong); }
+.page-header[data-type="ads"] { --ph-tint: var(--asset-ads-header); --ph-border: var(--asset-ads-border); --ph-strong: var(--asset-ads-strong); }
+.page-header[data-type="parking"] { --ph-tint: var(--asset-parking-header); --ph-border: var(--asset-parking-border); --ph-strong: var(--asset-parking-strong); }
+.page-header[data-type="land"] { --ph-tint: var(--asset-land-header); --ph-border: var(--asset-land-border); --ph-strong: var(--asset-land-strong); }
+.page-header[data-type="vehicle"] { --ph-tint: var(--asset-vehicle-header); --ph-border: var(--asset-vehicle-border); --ph-strong: var(--asset-vehicle-strong); }
+.page-header[data-type="service"] { --ph-tint: var(--asset-service-header); --ph-border: var(--asset-service-border); --ph-strong: var(--asset-service-strong); }
+.page-header[data-type="ostatni"] { --ph-tint: var(--asset-ostatni-header); --ph-border: var(--asset-ostatni-border); --ph-strong: var(--asset-ostatni-strong); }
 .page-title { font-size: 22px; font-weight: 800; letter-spacing: -.5px; color: var(--text); }
 .page-sub { font-size: 13px; font-weight: 500; color: var(--text2); margin-top: 3px; }
 
@@ -126,6 +138,12 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 .seg-item:hover { color: var(--text); background: var(--bg2); }
 .seg-item.on { background: var(--bg); color: var(--text); border-color: var(--border); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
 .seg-sm .seg-item { font-size: 12px; padding: 4px 11px; }
+/* Posuvný podklad vybrané volby (Segmented měří pozici, .seg-item.on pak bez vlastního pozadí) */
+.seg { position: relative; }
+.seg-item { position: relative; z-index: 1; }
+.seg-thumb { position: absolute; z-index: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; box-shadow: 0 1px 4px rgba(0,0,0,0.12); pointer-events: none;
+  transition: left .26s cubic-bezier(.3,.7,.3,1), top .26s cubic-bezier(.3,.7,.3,1), width .26s cubic-bezier(.3,.7,.3,1), height .26s cubic-bezier(.3,.7,.3,1); }
+.seg.has-thumb .seg-item.on, .seg.has-thumb .seg-item.on:hover { background: transparent; border-color: transparent; box-shadow: none; }
 /* Časová osa nájemce – čtverečky stavu platby */
 .tl-cell { transition: transform 0.1s, box-shadow 0.1s; }
 .tl-cell:hover { transform: scale(1.12); box-shadow: 0 2px 8px rgba(0,0,0,0.25) !important; }
@@ -366,18 +384,63 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
    EXTRA VISUAL POLISH v0.16
 ═══════════════════════════════════════════════════════════ */
 
-/* Smooth card hover for contract cards */
+/* Karty: postupné najetí při zobrazení + zvednutí se září v barvě firmy / typu (--glow v inline stylu karty) */
 .card-interactive {
-  transition: transform 0.16s ease, box-shadow 0.16s ease !important;
+  transition: transform 0.2s cubic-bezier(.2,.7,.3,1), box-shadow 0.2s ease !important;
+  animation: rfCardIn 0.34s cubic-bezier(.2,.7,.3,1) backwards;
 }
 .card-interactive:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important;
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px -10px color-mix(in srgb, var(--glow, #0f172a) 55%, transparent), 0 3px 10px rgba(0,0,0,0.06) !important;
+}
+.card-interactive:nth-child(2) { animation-delay: 25ms; }
+.card-interactive:nth-child(3) { animation-delay: 50ms; }
+.card-interactive:nth-child(4) { animation-delay: 75ms; }
+.card-interactive:nth-child(5) { animation-delay: 100ms; }
+.card-interactive:nth-child(6) { animation-delay: 125ms; }
+.card-interactive:nth-child(7) { animation-delay: 150ms; }
+.card-interactive:nth-child(8) { animation-delay: 175ms; }
+.card-interactive:nth-child(9) { animation-delay: 200ms; }
+.card-interactive:nth-child(10) { animation-delay: 225ms; }
+.card-interactive:nth-child(11) { animation-delay: 250ms; }
+.card-interactive:nth-child(n+12) { animation-delay: 275ms; }
+/* translate (ne transform) – nekoliduje se zvednutím při najetí myší */
+@keyframes rfCardIn { from { opacity: 0; translate: 0 10px; } }
+
+/* Přechod mezi obrazovkami dělá App.jsx (Web Animations při změně view) */
+
+/* Kolečko plnění na kartách firem se dokreslí */
+.rf-ring { animation: rfRingIn 0.9s cubic-bezier(.2,.7,.3,1) backwards; }
+@keyframes rfRingIn { from { stroke-dasharray: 0 400; } }
+
+/* Pulz štítku „Uhrazeno“ po zápisu platby (paidPulseStyle) */
+@keyframes rfPaidPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(22,163,74,0.6); transform: scale(1); }
+  30%  { transform: scale(1.12); }
+  100% { box-shadow: 0 0 0 12px rgba(22,163,74,0); transform: scale(1); }
 }
 
-/* Subtle page fade-in on view switch */
-.content > * {
-  animation: fadeIn 0.18s ease forwards;
+/* Toast: vyjetí s mírným pérováním + lišta odpočtu */
+@keyframes rfToastIn { from { opacity: 0; transform: translateX(28px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes rfToastBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Horní lišta se při skrolování obsahu „zvedne“ */
+.topbar { transition: box-shadow .2s ease; }
+.topbar.scrolled { box-shadow: 0 8px 20px -12px rgba(0,0,0,0.3); }
+[data-theme='dark'] .topbar.scrolled { box-shadow: 0 8px 20px -10px rgba(0,0,0,0.7); }
+
+/* Sidebar: posuvná pilulka aktivní položky + jemné zvýraznění při najetí */
+.sb-pill { position: absolute; border-radius: 9px; background: rgba(255,255,255,0.15); border: 1px solid rgba(180,255,220,0.22); pointer-events: none;
+  box-shadow: 0 4px 14px -6px rgba(0,0,0,0.35); transition: top .28s cubic-bezier(.3,.7,.3,1), height .28s cubic-bezier(.3,.7,.3,1), left .28s, width .28s; }
+.sb-item { transition: background .15s ease; }
+.sb-item:not([data-nav-active]):hover { background: rgba(255,255,255,0.07) !important; }
+
+/* Prolnutí světlého / tmavého režimu (View Transitions v AppContext.setTheme) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.35s; }
+
+/* Windows s vypnutými animacemi: efekty vypnout */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
 }
 
 /* Focus ring na inputech - zelená akcent barva */

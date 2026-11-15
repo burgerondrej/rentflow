@@ -115,6 +115,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
           border: `1.5px solid ${cardBorder}`, boxShadow: '0 3px 12px rgba(0,0,0,0.08)',
           borderLeft: `5px solid ${getFirm && getFirm(asset.subject) ? firmColors(getFirm(asset.subject).color, theme).mid : cardBorder}`,
           background: cardBg, transition: 'opacity 0.15s',
+          '--glow': getFirm && getFirm(asset.subject) ? firmColors(getFirm(asset.subject).color, theme).mid : cardBorder,
           opacity: isDragging ? 0.5 : 1,
           userSelect: 'none',
         }}

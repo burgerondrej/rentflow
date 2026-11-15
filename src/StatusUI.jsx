@@ -24,6 +24,19 @@ export const STATUS = {
   revExpired: { color: '#DC2626', label: '🔧 Propadlá' },
 }
 
+// Krátký pulz štítku „Uhrazeno“ po zápisu platby. Klíč = id smlouvy nebo „group:<název>“ (jako contractId platby).
+// Řádky Plateb se při překreslení znovu připojují – záporné zpoždění animace drží jednu souvislou animaci.
+const PAID_PULSE_MS = 900
+const justPaid = new Map()
+export function notePaid(key) { if (key) justPaid.set(key, Date.now()) }
+export function paidPulseStyle(key) {
+  const t = key && justPaid.get(key)
+  if (!t) return undefined
+  const el = Date.now() - t
+  if (el >= PAID_PULSE_MS) { justPaid.delete(key); return undefined }
+  return { animation: `rfPaidPulse ${PAID_PULSE_MS}ms ease-out -${el}ms` }
+}
+
 /** Plný barevný štítek stavu. kind = klíč ze STATUS, text = vlastní text (volitelně). */
 export function StatusPill({ kind, text, size = 'md', title, style }) {
   const st = STATUS[kind] || STATUS.ended

@@ -1,4 +1,27 @@
-import React from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
+
+/** Uživatel má ve Windows vypnuté animace → efekty vynechat. */
+export const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/** Číslo, které při zobrazení / změně plynule „dojede“ na hodnotu (Dashboard). Vrací formátovaný text. */
+export function CountUp({ value, format = (n) => Math.round(n).toLocaleString('cs-CZ'), duration = 700 }) {
+  const [shown, setShown] = useState(() => prefersReducedMotion() ? value : 0)
+  const fromRef = useRef(shown)
+  useEffect(() => {
+    if (prefersReducedMotion()) { setShown(value); fromRef.current = value; return }
+    const from = fromRef.current, start = performance.now()
+    let raf
+    const step = (now) => {
+      const k = Math.min(1, (now - start) / duration), e = 1 - Math.pow(1 - k, 3)
+      const v = from + (value - from) * e
+      fromRef.current = v; setShown(v)
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [value, duration])
+  return format(shown)
+}
 
 // ─────────────────────────────────────────
 // SDÍLENÉ PRVKY VZHLEDU (v1.3.1) – jednotná hlavička sekce, segmentový přepínač a prázdný stav.
@@ -30,8 +53,24 @@ export function SectionCard({ icon, tone, title, meta, actions, children, bodySt
 
 /** Segmentový přepínač: items = [{ id, label, count? }] */
 export function Segmented({ items, value, onChange, size = 'md', style }) {
+  // Posuvný podklad pod vybranou volbou (měří se pozice aktivního tlačítka)
+  const boxRef = useRef(null)
+  const [thumb, setThumb] = useState(null)
+  useLayoutEffect(() => {
+    const box = boxRef.current
+    if (!box) return
+    const measure = () => {
+      const el = box.querySelector('.seg-item.on')
+      setThumb(el ? { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight } : null)
+    }
+    measure()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    if (ro) ro.observe(box)
+    return () => { if (ro) ro.disconnect() }
+  }, [value, items.length])
   return (
-    <div className={`seg seg-${size}`} style={style} role="tablist">
+    <div ref={boxRef} className={`seg seg-${size}${thumb ? ' has-thumb' : ''}`} style={style} role="tablist">
+      {thumb && <span className="seg-thumb" style={thumb} aria-hidden="true" />}
       {items.map(it => (
         <button key={it.id} type="button" role="tab" aria-selected={value === it.id}
           className={`seg-item${value === it.id ? ' on' : ''}`} onClick={() => onChange(it.id)}>

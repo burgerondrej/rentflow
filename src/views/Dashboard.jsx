@@ -5,6 +5,7 @@ import { setPaymentsFilterOnOpen } from '../shortcuts.js'
 import DataCheck, { computeDataChecks, dataCheckAlerts } from '../DataCheck.jsx'
 import { parseDate, PERIOD_LEN, getMonthRent, isContractBillable, isContractInMonth, isContractOccupying, contractSubject, firmColors, firmOf, firmSelection, overdueItems, contractMonthStatus, groupMonthStatus, hasSuccessor, ASSET_TYPES, assetTypeStyle, getCurrentAssetContract } from '../utils.js'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
+import { CountUp } from '../UI.jsx'
 import { buildCalendarEvents, CALENDAR_TYPE_ICON } from './Calendar.jsx'
 
 const MONTHS_LC = ['leden', 'únor', 'březen', 'duben', 'květen', 'červen', 'červenec', 'srpen', 'září', 'říjen', 'listopad', 'prosinec']
@@ -222,6 +223,7 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
             const done = pct >= 0.999
             return (
               <div key={f.name} onClick={() => openFirmPayments(f)} className="card-interactive" style={{
+                '--glow': c.mid,
                 cursor: 'pointer', background: 'var(--bg)', border: '1px solid var(--border)', borderTop: `5px solid ${c.mid}`,
                 borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
               }}>
@@ -233,13 +235,13 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <svg width="52" height="52" viewBox="0 0 52 52" style={{ flexShrink: 0 }}>
                     <circle cx="26" cy="26" r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
-                    <circle cx="26" cy="26" r={r} fill="none" stroke={done ? '#16A34A' : c.mid} strokeWidth="6" strokeLinecap="round"
+                    <circle className="rf-ring" cx="26" cy="26" r={r} fill="none" stroke={done ? '#16A34A' : c.mid} strokeWidth="6" strokeLinecap="round"
                       strokeDasharray={`${(circ * pct).toFixed(1)} ${circ.toFixed(1)}`} transform="rotate(-90 26 26)" />
-                    <text x="26" y="30" textAnchor="middle" fontSize="12" fontWeight="800" fill="var(--text)">{Math.round(pct * 100)}%</text>
+                    <text x="26" y="30" textAnchor="middle" fontSize="12" fontWeight="800" fill="var(--text)"><CountUp value={Math.round(pct * 100)} />%</text>
                   </svg>
                   <div style={{ lineHeight: 1.35 }}>
                     <div style={{ fontSize: 11, color: 'var(--text3)' }}>Neuhrazeno tento měsíc</div>
-                    <div style={{ fontSize: 17, fontWeight: 900, color: unpaid > 0.5 ? '#DC2626' : '#16A34A' }}>{Math.round(unpaid).toLocaleString('cs-CZ')} Kč</div>
+                    <div style={{ fontSize: 17, fontWeight: 900, color: unpaid > 0.5 ? '#DC2626' : '#16A34A' }}><CountUp value={Math.round(unpaid)} /> Kč</div>
                   </div>
                 </div>
                 <div style={{ height: 10 }} />

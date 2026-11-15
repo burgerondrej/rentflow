@@ -8,7 +8,7 @@ import { Segmented, EmptyState, PayAmountHint } from '../UI.jsx'
 import { isTyping, isOverlayOpen, peekPaymentsFilter, clearPaymentsFilter } from '../shortcuts.js'
 import { OWN_SUBJECT_TYPES, assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, isGroupPayment } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, overdueItems, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
-import { StatusPill as UiStatusPill, STATUS } from '../StatusUI.jsx'
+import { StatusPill as UiStatusPill, STATUS, paidPulseStyle } from '../StatusUI.jsx'
 import { buildOverdueReportHtml } from '../reports.js'
 import { DebtNoteLine, DebtNoteDialog, findDebtNote } from '../DebtNoteUI.jsx'
 
@@ -591,11 +591,12 @@ export default function Payments() {
     part: { kind: 'partial', color: STATUS.partial.color, bg: 'rgba(217,119,6,0.09)',  bgH: 'rgba(217,119,6,0.17)' },
     bad:  { kind: 'unpaid',  color: STATUS.unpaid.color,  bg: 'rgba(220,38,38,0.07)',  bgH: 'rgba(220,38,38,0.14)' },
   }
-  const StatusPill = ({ st }) => <UiStatusPill kind={st.kind} />
+  // pulseKey = contractId platby (id smlouvy / „group:<název>“) – krátký pulz po zápisu platby
+  const StatusPill = ({ st, pulseKey }) => <UiStatusPill kind={st.kind} style={st.kind === 'paid' ? paidPulseStyle(pulseKey) : undefined} />
   // Štítek stavu + případně "po splatnosti X dní" (jen pokud jde splatnost určit)
-  const StatusCell = ({ st, od }) => (
+  const StatusCell = ({ st, od, pulseKey }) => (
     <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-      <StatusPill st={st} />
+      <StatusPill st={st} pulseKey={pulseKey} />
       {od > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: '#DC2626', whiteSpace: 'nowrap' }}>⚠ po splatnosti {od} {od === 1 ? 'den' : od < 5 ? 'dny' : 'dní'}</span>}
     </span>
   )
@@ -1400,7 +1401,7 @@ export default function Payments() {
                             </td>
                             <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
-                              <StatusCell st={gst} od={isPaid && !isPartial ? 0 : overdueDays(members[0], selectedYear, selectedMonth)} />
+                              <StatusCell st={gst} pulseKey={`group:${label}`} od={isPaid && !isPartial ? 0 : overdueDays(members[0], selectedYear, selectedMonth)} />
                               {isPaid ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                                   {!isReadOnly && (
@@ -1559,7 +1560,7 @@ export default function Payments() {
                           </td>
                           <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
-                            <StatusCell st={rst} od={rowAllPaid ? 0 : overdueDays(c, selectedYear, selectedMonth)} />
+                            <StatusCell st={rst} pulseKey={c.id} od={rowAllPaid ? 0 : overdueDays(c, selectedYear, selectedMonth)} />
                             {isPaid ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                                 {!isReadOnly && (
