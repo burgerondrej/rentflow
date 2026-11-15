@@ -63,7 +63,7 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
     const tenant = tenants.find(t => t.id === c.tenantId)
     const asset  = assets.find(a => a.id === c.assetId)
     return (
-      <div key={c.id} onClick={() => onOpen && onOpen(c.id)} className="card-interactive"
+      <div key={c.id} onClick={() => onOpen && onOpen(c.id)} className="card-interactive" data-morph={`contract:${c.id}`}
         style={{ padding: '10px 12px', background: 'var(--dash-item-bg)', border: '1px solid var(--dash-item-border)',
           borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -216,7 +216,7 @@ export default function Dashboard({ onNav, onOpen, onOpenDetail }) {
             const r = 19, circ = 2 * Math.PI * r
             const done = pct >= 0.999
             return (
-              <div key={f.name} onClick={() => openFirmPayments(f)} className="card-interactive" style={{
+              <div key={f.name} onClick={() => openFirmPayments(f)} className="card-interactive rf-spot" style={{
                 '--glow': c.mid,
                 cursor: 'pointer', background: 'var(--bg)', border: '1px solid var(--border)', borderTop: `5px solid ${c.mid}`,
                 borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)',

@@ -75,7 +75,8 @@ function AppInner() {
       root.classList.add('rf-nav-vt')
       vtNavRef.current = true
       const t = document.startViewTransition(() => { flushSync(() => setView(newView)); resetScroll() })
-      t.finished.finally(() => { root.classList.remove('rf-nav-vt'); vtNavRef.current = false })
+      t.ready.catch(() => {}) // přechod přerušen (např. skryté okno) – změna proběhne i tak
+      t.finished.catch(() => {}).finally(() => { root.classList.remove('rf-nav-vt'); vtNavRef.current = false })
       return
     }
     setView(newView)
@@ -120,6 +121,37 @@ function AppInner() {
   }, [refreshSync])
   // Záloha + kopie na Disk (Ctrl+S i klik na štítek Disku)
   const runBackupRef = useRef(null)
+  const [backupFlash, setBackupFlash] = useState(0)
+  // Vlnka při kliknutí na tlačítko (od místa kliknutí) + světelný odlesk na kartách .rf-spot (sleduje kurzor)
+  useEffect(() => {
+    const onDown = (e) => {
+      if (e.button !== 0 || prefersReducedMotion()) return
+      const b = e.target.closest && e.target.closest('button.btn, button.tb-zoom-btn')
+      if (!b || b.disabled) return
+      const r = b.getBoundingClientRect()
+      if (!r.width || !r.height) return
+      const w = b.offsetWidth, h = b.offsetHeight, d = Math.max(w, h) * 2.2
+      const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height
+      const s = document.createElement('span')
+      s.className = 'rf-ripple'
+      Object.assign(s.style, { width: `${d}px`, height: `${d}px`, left: `${fx * w - d / 2}px`, top: `${fy * h - d / 2}px` })
+      const prevPos = b.style.position, prevOv = b.style.overflow
+      if (getComputedStyle(b).position === 'static') b.style.position = 'relative'
+      b.style.overflow = 'hidden'
+      b.appendChild(s)
+      setTimeout(() => { s.remove(); b.style.overflow = prevOv; b.style.position = prevPos }, 620)
+    }
+    const onMove = (e) => {
+      const c = e.target.closest && e.target.closest('.rf-spot')
+      if (!c) return
+      const r = c.getBoundingClientRect()
+      c.style.setProperty('--mx', `${((e.clientX - r.left) / r.width) * 100}%`)
+      c.style.setProperty('--my', `${((e.clientY - r.top) / r.height) * 100}%`)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('pointermove', onMove, { passive: true })
+    return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('pointermove', onMove) }
+  }, [])
 
   // Auto-update
   const [updateInfo, setUpdateInfo] = useState(null)
@@ -207,6 +239,7 @@ function AppInner() {
   runBackupRef.current = () => {
     if (!createBackup) return
     createBackup().then(() => {
+      setBackupFlash(k => k + 1) // štítek zálohy zeleně probleskne, logo se zaleskne
       setUnsavedSinceBackup(false)
       refreshSync()
       getBackupInfo && getBackupInfo().then(info => {
@@ -232,11 +265,40 @@ function AppInner() {
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp)
   }, [sbWidth, uiZoom])
 
+  // Karta → detail (a zpět): View Transitions se sdíleným prvkem „rf-morph“.
+  // Karta v seznamu má data-morph="typ:id", okno detailu třídu .rf-detail-card. Jen první detail (prázdný zásobník) a viditelná karta.
+  const morphSource = (e) => {
+    if (!e || !document.startViewTransition || prefersReducedMotion()) return null
+    const el = [...document.querySelectorAll('[data-morph]')].find(x => x.dataset.morph === `${e.type}:${e.id}`)
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight ? el : null
+  }
+  const runMorph = (from, update, findTo, opening) => {
+    const root = document.documentElement
+    from.style.viewTransitionName = 'rf-morph'
+    root.classList.add('rf-morph-vt')
+    let to = null
+    const t = document.startViewTransition(() => {
+      from.style.viewTransitionName = ''
+      flushSync(update)
+      to = findTo()
+      if (to) { to.style.viewTransitionName = 'rf-morph'; if (opening) to.style.animation = 'none' }
+    })
+    t.ready.catch(() => {})
+    t.finished.catch(() => {}).finally(() => { root.classList.remove('rf-morph-vt'); if (to) to.style.viewTransitionName = '' })
+  }
+  // Detail se zavře „zpět do karty“ (DetailPanel pak vynechá vlastní animaci zavření)
+  const morphCloseReady = () => detailStackRef.current.length === 1 && !!document.querySelector('.rf-detail-card') && !!morphSource(detailStackRef.current[0])
+
   const openDetail = useCallback((type, id, opts) => {
     const s = detailStackRef.current
     const top = s[s.length - 1]
     if (top && top.type === type && top.id === id) return
-    setStack([...s, { type, id, tab: opts?.tab || null, onReturn: s.length === 0 ? opts?.onReturn : undefined }])
+    const push = () => setStack([...s, { type, id, tab: opts?.tab || null, onReturn: s.length === 0 ? opts?.onReturn : undefined }])
+    const src = s.length === 0 ? morphSource({ type, id }) : null
+    if (src) runMorph(src, push, () => document.querySelector('.rf-detail-card'), true)
+    else push()
     setRecentDetails(prev => {
       const next = [{ type, id }, ...prev.filter(r => !(r.type === type && r.id === id))].slice(0, 8)
       try { localStorage.setItem('rf_recent_details', JSON.stringify(next)) } catch { /* ignore */ }
@@ -252,12 +314,18 @@ function AppInner() {
     const s = detailStackRef.current
     if (!s.length) return
     const next = s.slice(0, -1).filter(detailExists) // přeskočit smazané položky
-    setStack(next)
+    const card = s.length === 1 ? document.querySelector('.rf-detail-card') : null
+    const dst = card ? morphSource(s[0]) : null
+    if (card && dst) runMorph(card, () => setStack(next), () => dst, false)
+    else setStack(next)
     if (!next.length && s[0].onReturn) s[0].onReturn()
   }, [])
   const closeAllDetails = useCallback(() => {
     const s = detailStackRef.current
-    setStack([])
+    const card = s.length === 1 ? document.querySelector('.rf-detail-card') : null
+    const dst = card ? morphSource(s[0]) : null
+    if (card && dst) runMorph(card, () => setStack([]), () => dst, false)
+    else setStack([])
     if (s[0]?.onReturn) s[0].onReturn()
   }, [])
   // Popisek předchozího detailu pro tlačítko „← Zpět“ (jen když je detail otevřený z jiného detailu)
@@ -485,7 +553,7 @@ function AppInner() {
           onClose={() => setUpdateInfo(null)}
         />
       )}
-      <Sidebar active={view} onNav={handleNav} width={sbWidth} onResizeStart={handleResizeStart} urgentContracts={urgentContracts} unreadCount={unreadCount} />
+      <Sidebar active={view} shine={backupFlash} onNav={handleNav} width={sbWidth} onResizeStart={handleResizeStart} urgentContracts={urgentContracts} unreadCount={unreadCount} />
       <div className="main">
         <div className={`topbar${scrolled ? ' scrolled' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid var(--border)', position: 'relative', zIndex: 50 }}>
           <div style={{ display: 'flex', gap: 12, flex: 1, maxWidth: 600 }}>
@@ -602,7 +670,7 @@ function AppInner() {
               }
               return (
                 <>
-                  <button type="button" className={`btn btn-sm btn-tone-${tone === 'gray' ? 'gray' : tone} tb-backup`} title={title}
+                  <button type="button" key={`bk${backupFlash}`} className={`btn btn-sm btn-tone-${tone === 'gray' ? 'gray' : tone} tb-backup${backupFlash ? ' rf-flash' : ''}`} title={title}
                     onClick={() => !readOnlyRef.current && runBackupRef.current && runBackupRef.current()}
                     style={{ fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap', borderRadius: 9 }}>{text}</button>
                   <div className="tb-div" style={{ width: 1, height: 16, background: 'var(--border)' }} />
@@ -639,7 +707,7 @@ function AppInner() {
         </div>
       </div>
       {detail && <DetailPanel key={`${detailStack.length}|${detail.type}|${detail.id}`} type={detail.type} id={detail.id} initialTab={detail.tab}
-        backLabel={detailBackLabel()} onTabChange={setDetailTab} onClose={closeDetail} onCloseAll={closeAllDetails} onOpen={openDetail} />}
+        backLabel={detailBackLabel()} onTabChange={setDetailTab} onClose={closeDetail} onCloseAll={closeAllDetails} onOpen={openDetail} morphCloseReady={morphCloseReady} />}
       {showSettings && <SettingsPanel initialCheck={settingsCheck} onClose={() => { setShowSettings(false); setSettingsCheck(false) }} onOpen={(type, id) => { setShowSettings(false); openDetail(type, id, { onReturn: () => { setSettingsCheck(true); setShowSettings(true) } }) }} onBackupDone={() => {
         setUnsavedSinceBackup(false)
         getBackupInfo && getBackupInfo().then(info => {

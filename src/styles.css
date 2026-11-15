@@ -474,6 +474,42 @@ html.rf-nav-vt[data-nav-dir="up"]::view-transition-new(rf-content)   { animation
 .topbar .tb-user option { color: #111; }
 .topbar.scrolled { box-shadow: 0 8px 22px -10px rgba(10,61,43,0.55); }
 
+/* ── Karta → detail a zpět (App.jsx runMorph, View Transitions „rf-morph“) ── */
+html.rf-morph-vt::view-transition-group(rf-morph) { animation-duration: .46s; animation-timing-function: cubic-bezier(.2,.8,.2,1); border-radius: 18px; overflow: clip; }
+html.rf-morph-vt::view-transition-old(rf-morph), html.rf-morph-vt::view-transition-new(rf-morph) { animation-duration: .46s; height: 100%; object-fit: cover; object-position: top center; }
+html.rf-morph-vt::view-transition-old(root), html.rf-morph-vt::view-transition-new(root) { animation-duration: .32s; }
+
+/* ── Název měsíce v Platbách se „protočí“ (odjezdová tabule) ── */
+.rf-flip { display: inline-block; animation: rfFlipNext .42s cubic-bezier(.2,.8,.2,1); transform-origin: 50% 50%; }
+.rf-flip.prev { animation-name: rfFlipPrev; }
+@keyframes rfFlipNext { from { opacity: 0; transform: perspective(300px) rotateX(-85deg) translateY(6px); } }
+@keyframes rfFlipPrev { from { opacity: 0; transform: perspective(300px) rotateX(85deg) translateY(-6px); } }
+
+/* ── Potvrzení zálohy: štítek probleskne, logo v sidebaru se zaleskne ── */
+.rf-flash { animation: rfFlash 1.1s ease-out; }
+@keyframes rfFlash {
+  0%   { box-shadow: 0 0 0 0 rgba(74,222,128,0.95), inset 0 0 0 40px rgba(74,222,128,0.55); }
+  100% { box-shadow: 0 0 0 14px rgba(74,222,128,0), inset 0 0 0 40px rgba(74,222,128,0); }
+}
+.rf-logo-shine { overflow: hidden; }
+.rf-logo-shine::after { content: ''; position: absolute; top: 0; bottom: 20px; width: 45%; left: -60%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.6), transparent); transform: skewX(-20deg); animation: rfShine 1s ease-out .1s forwards; }
+@keyframes rfShine { to { left: 130%; } }
+
+/* ── Světelný odlesk na kartách firem (App.jsx nastavuje --mx / --my podle kurzoru) ── */
+.rf-spot { position: relative; }
+.rf-spot::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .25s ease;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--glow, #12654A) 16%, transparent), transparent 70%); }
+.rf-spot:hover::after { opacity: 1; }
+
+/* ── Vlnka při kliknutí na tlačítko (App.jsx) ── */
+.rf-ripple { position: absolute; border-radius: 50%; background: currentColor; opacity: 0.28; transform: scale(0); pointer-events: none; animation: rfRipple .6s ease-out forwards; }
+@keyframes rfRipple { to { transform: scale(1); opacity: 0; } }
+
+/* ── Úvodní obrazovka se po načtení rozplyne do aplikace (AppContext splashOut) ── */
+.rf-splash-out { animation: rfSplashOut .6s cubic-bezier(.4,0,.2,1) forwards; pointer-events: none; }
+@keyframes rfSplashOut { to { opacity: 0; transform: scale(1.08); filter: blur(6px); } }
+
 /* Windows s vypnutými animacemi: efekty vypnout */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }

@@ -4,7 +4,7 @@ import { save } from '@tauri-apps/api/dialog'
 import { FirmPicker, FirmBadge, progressStat } from '../FirmUI.jsx'
 import { invoke } from '@tauri-apps/api/tauri'
 import DialogShell from '../DialogShell.jsx'
-import { Segmented, EmptyState, PayAmountHint } from '../UI.jsx'
+import { Segmented, EmptyState, PayAmountHint, CountUp, prefersReducedMotion } from '../UI.jsx'
 import { isTyping, isOverlayOpen, peekPaymentsFilter, clearPaymentsFilter } from '../shortcuts.js'
 import { OWN_SUBJECT_TYPES, assetTypeStyle, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, isGroupPayment } from '../utils.js'
 import { parseDate, getEffectiveValues, PERIOD_LEN, getMonthRent, getMonthRentParking, isContractBillable, getPeriodMonthKeys, applyContractOrder, getMonthDeposits, overdueDays, overdueItems, firmOf, firmColors, selectionMatches, isFirmSelection, selectionFirm, selectionLabel, firmSelection } from '../utils.js'
@@ -449,6 +449,20 @@ export default function Payments() {
   // Otevření z karty firmy („po splatnosti“) může předat i měsíc: { filter, year, month }
   const [selectedMonth, setSelectedMonth] = useState(() => peekPaymentsFilter()?.month ?? new Date().getMonth())
   const [selectedYear, setSelectedYear]   = useState(() => peekPaymentsFilter()?.year ?? new Date().getFullYear())
+  // Přepnutí měsíce: souhrn a přehled (.rf-month-slide) sjedou do strany podle směru, název měsíce se „protočí“
+  const monthNum = selectedYear * 12 + selectedMonth
+  const prevMonthNumRef = useRef(monthNum)
+  const monthDir = monthNum === prevMonthNumRef.current ? 0 : monthNum > prevMonthNumRef.current ? 1 : -1
+  useEffect(() => {
+    const prev = prevMonthNumRef.current
+    prevMonthNumRef.current = monthNum
+    if (prev === monthNum || prefersReducedMotion()) return
+    const d = monthNum > prev ? 1 : -1
+    document.querySelectorAll('.rf-month-slide').forEach((el, i) => el.animate && el.animate(
+      [{ opacity: 0, transform: `translateX(${d * 56}px)` }, { opacity: 1, transform: 'none' }],
+      { duration: 400, delay: i * 50, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' }))
+  }, [monthNum])
+  const fmtCount = (n) => (Math.round(n * 100) / 100).toLocaleString('cs-CZ') // částky v souhrnu (CountUp)
   const [showPicker, setShowPicker]       = useState(false)
   // Plovoucí přepínač měsíců: ukáže se, jen když horní přepínač odjede z obrazovky
   const monthSwitchRef = useRef(null)
@@ -740,7 +754,7 @@ export default function Payments() {
           <button key={t.o} type="button" onClick={top ? () => setShowPicker(v => !v) : undefined} title={top ? 'Vybrat měsíc a rok' : undefined}
             style={{ border: 'none', background: top ? 'rgba(255,255,255,0.10)' : 'transparent', color: '#fff', fontWeight: 800, fontSize: 15, minWidth: 136,
               padding: '6px 12px', borderRadius: 999, cursor: top ? 'pointer' : 'default', whiteSpace: 'nowrap' }}>
-            {MONTHS[t.m]} {t.y}{top ? <span style={{ fontSize: 10, marginLeft: 6, opacity: 0.75 }}>▾</span> : null}
+            <span key={`${t.y}-${t.m}`} className={`rf-flip${monthDir < 0 ? ' prev' : ''}`}>{MONTHS[t.m]} {t.y}</span>{top ? <span style={{ fontSize: 10, marginLeft: 6, opacity: 0.75 }}>▾</span> : null}
           </button>
         ) : (
           <button key={t.o} type="button" onClick={() => { if (t.y >= 2026) { setSelectedYear(t.y); setSelectedMonth(t.m) } }} disabled={t.y < 2026}
@@ -1137,20 +1151,20 @@ export default function Payments() {
       </div>
 
       {/* SOUHRNNÁ LIŠTA */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="rf-month-slide" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Má být zaplaceno tento měsíc</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text)' }}>{subExpected.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text3)' }}>Kč</span></div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text)' }}><CountUp value={subExpected} format={fmtCount} /> <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text3)' }}>Kč</span></div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{selectionLabel(activeSub)} · {monthLabel}</div>
         </div>
         <div style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 14, padding: '16px 20px' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--tone-green-text)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Uhrazeno</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--tone-green-text)' }}>{subReceived.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500 }}>Kč</span></div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--tone-green-text)' }}><CountUp value={subReceived} format={fmtCount} /> <span style={{ fontSize: 12, fontWeight: 500 }}>Kč</span></div>
           <div style={{ fontSize: 11, color: '#4ADE80', marginTop: 4 }}>{subPercent}% z předpisu subjektu</div>
         </div>
         <div style={{ background: subRemaining > 0 ? 'var(--tone-red-soft)' : 'var(--tone-green-soft)', border: `1px solid ${subRemaining > 0 ? 'var(--tone-red-border)' : 'var(--tone-green-border)'}`, borderRadius: 14, padding: '16px 20px' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: subRemaining > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Dosud neuhrazeno</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: subRemaining > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)' }}>{subRemaining.toLocaleString('cs-CZ')} <span style={{ fontSize: 12, fontWeight: 500 }}>Kč</span></div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: subRemaining > 0 ? 'var(--tone-red-text)' : 'var(--tone-green-text)' }}><CountUp value={subRemaining} format={fmtCount} /> <span style={{ fontSize: 12, fontWeight: 500 }}>Kč</span></div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
             {(() => {
               const seen = new Set()
@@ -1176,7 +1190,7 @@ export default function Payments() {
             <div style={{ flex: 1, height: 10, background: 'var(--bg3)', borderRadius: 5, overflow: 'hidden' }}>
               <div style={{ width: `${subPercent}%`, height: '100%', background: 'linear-gradient(90deg,#4ade80,#22c55e)', transition: 'width 0.5s' }} />
             </div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', minWidth: 40 }}>{subPercent}%</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', minWidth: 40 }}><CountUp value={subPercent} />%</div>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
             {(() => {
@@ -1219,7 +1233,7 @@ export default function Payments() {
 
       {/* ══ TAB: PŘEHLED ══ */}
       {activeTab === 'overview' && (
-        <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
+        <div className="rf-month-slide" style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
           <div style={{ flex: '1 1 65%' }}>
             {activeContracts.length > 0 && (() => {
               const nUnpaid = overviewGroups.filter(rowUnpaid).length

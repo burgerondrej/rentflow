@@ -109,6 +109,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
         onDragOver={dh.onDragOver}
         onDrop={() => dh.onDrop(filtered)}
         onClick={() => onOpen(asset.id)}
+        data-morph={`asset:${asset.id}`}
         className="card card-interactive"
         style={{
           cursor: 'grab', marginBottom: 0, padding: 0, overflow: 'hidden', borderRadius: 14,

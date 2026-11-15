@@ -184,6 +184,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           '--glow': getFirm && getFirm(c.assetSubject) ? firmColors(getFirm(c.assetSubject).color, theme).mid : accentColor,
         }} 
         onClick={() => onOpen(c.id)}
+        data-morph={`contract:${c.id}`}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', background: headerBg, borderBottom: `1.5px solid ${isArchived ? 'var(--border)' : cardBorderColor}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>

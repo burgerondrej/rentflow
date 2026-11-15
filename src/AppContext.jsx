@@ -44,6 +44,17 @@ export function AppProvider({ children }) {
   const [objectFirms, setObjectFirms] = useState([]) // [{ name, firm }] – budova → firma
   const [navSelection, setNavSelection] = useState(null) // výběr firma/sekce předaný mezi obrazovkami (Dashboard → Platby)
   const [loading, setLoading] = useState(true)
+  // Po načtení se úvodní obrazovka plynule rozplyne (zvětší + zprůhlední) a odhalí aplikaci
+  const [splashOut, setSplashOut] = useState(false)
+  const prevLoadingRef = useRef(true)
+  useEffect(() => {
+    const was = prevLoadingRef.current
+    prevLoadingRef.current = loading
+    if (!was || loading || prefersReducedMotion()) return
+    setSplashOut(true)
+    const tm = setTimeout(() => setSplashOut(false), 650)
+    return () => clearTimeout(tm)
+  }, [loading])
   const [splashStatus, setSplashStatus] = useState('Spouštím RentFlow…')
   const [currentUser, setCurrentUserState] = useState(() => localStorage.getItem('rentflow_user') || 'Ondra')
   const isReadOnly = currentUser === 'Pavel'
@@ -60,7 +71,7 @@ export function AppProvider({ children }) {
       document.documentElement.setAttribute('data-theme', next === 'dark' ? 'dark' : '')
       flushSync(() => setThemeState(next))
     }
-    if (document.startViewTransition && !prefersReducedMotion() && next !== theme) document.startViewTransition(apply)
+    if (document.startViewTransition && !prefersReducedMotion() && next !== theme) document.startViewTransition(apply).ready.catch(() => {})
     else setThemeState(next)
   }
 
@@ -1050,8 +1061,9 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={value}>
       <>
-        {loading && isTauri ? (
-          <div style={{
+        {(loading || splashOut) && isTauri ? (<>
+          {!loading && children}
+          <div className={!loading ? 'rf-splash-out' : undefined} style={{
             position: 'fixed', inset: 0,
             background: 'linear-gradient(155deg,#0A3D2B 0%,#12654A 40%,#1A8A62 72%,#0E5540 100%)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -1096,7 +1108,7 @@ export function AppProvider({ children }) {
               }
             `}</style>
           </div>
-        ) : children}
+        </>) : children}
 
         {/* TOAST NOTIFIKACE — viditelný vždy */}
         {toast && (() => {

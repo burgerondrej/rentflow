@@ -6,7 +6,7 @@ import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
 import ContractHistory from './ContractHistory.jsx'
 import DialogShell, { isDialogOpen } from './DialogShell.jsx'
-import { SectionHeader, Segmented, EmptyState, PayAmountHint, partiesLabel } from './UI.jsx'
+import { SectionHeader, Segmented, EmptyState, PayAmountHint, partiesLabel, prefersReducedMotion } from './UI.jsx'
 import TenantTimeline from './TenantTimeline.jsx'
 import AssetRentHistory from './AssetRentHistory.jsx'
 import { FirmBadge, FirmRentSummary } from './FirmUI.jsx'
@@ -33,7 +33,10 @@ const TYPE_META = {
   contract:    { headerClass: 'modal-header-contract',   icon: '📄', label: 'Detail smlouvy' },
 }
 
-export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange, backLabel }) {
+// Pořadí záložek všech detailů – směr posunu obsahu při přepnutí záložky
+const DETAIL_TAB_ORDER = ['overview', 'contracts', 'payments', 'amendments', 'docs', 'history']
+
+export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange, backLabel, morphCloseReady }) {
   const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, moveAsset, confirmAction, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
 
   const SEP = ' – '
@@ -58,6 +61,24 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
   const [contractTab, setContractTab] = useState(() => (type === 'contract' && initialTab) || 'overview') // záložka detailu smlouvy
   const [assetTab, setAssetTab] = useState(() => (type === 'asset' && initialTab) || 'overview')          // záložka detailu předmětu
   const [tenantTab, setTenantTab] = useState(() => (type === 'tenant' && initialTab) || 'overview')       // záložka detailu nájemce
+  // Přepnutí záložky: obsah pod záložkami (sourozenci .rf-tabs-head) přijede ze strany podle směru
+  const detailCardRef = useRef(null)
+  const activeDetailTab = type === 'contract' ? contractTab : type === 'asset' ? assetTab : tenantTab
+  const prevDetailTabRef = useRef(activeDetailTab)
+  useEffect(() => {
+    const prev = prevDetailTabRef.current
+    prevDetailTabRef.current = activeDetailTab
+    if (prev === activeDetailTab || prefersReducedMotion()) return
+    const head = detailCardRef.current && detailCardRef.current.querySelector('.rf-tabs-head')
+    if (!head || !head.animate) return
+    const dir = DETAIL_TAB_ORDER.indexOf(activeDetailTab) >= DETAIL_TAB_ORDER.indexOf(prev) ? 1 : -1
+    let el = head.nextElementSibling, i = 0
+    while (el) {
+      el.animate([{ opacity: 0, transform: `translateX(${dir * 48}px)` }, { opacity: 1, transform: 'none' }],
+        { duration: 380, delay: Math.min(i, 6) * 35, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' })
+      el = el.nextElementSibling; i++
+    }
+  }, [activeDetailTab])
   const firstIdRef = useRef(id)
   useEffect(() => {
     if (firstIdRef.current === id) return
@@ -103,11 +124,13 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
   }, [])
 
   const handleClose = () => {
+    if (morphCloseReady && morphCloseReady()) { onClose(); return } // zavření „zpět do karty“ řídí App
     setClosing(true)
     setTimeout(() => onClose(), 160)
   }
   // Klik mimo okno = zavřít všechny detaily (Esc / ✕ = o krok zpět)
   const handleCloseAll = () => {
+    if (morphCloseReady && morphCloseReady()) { (onCloseAll || onClose)(); return }
     setClosing(true)
     setTimeout(() => (onCloseAll || onClose)(), 160)
   }
@@ -851,7 +874,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
           )
           const tabs = [{ id: 'overview', label: 'Přehled' }, { id: 'contracts', label: 'Smlouvy' }, { id: 'payments', label: 'Platby' }, { id: 'docs', label: 'Dokumenty' }]
           return (
-            <div style={{ marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="rf-tabs-head" style={{ marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ background: 'var(--accent)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1649,7 +1672,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             </div>
           )
           return (
-            <div style={{ marginBottom: 18 }}>
+            <div className="rf-tabs-head" style={{ marginBottom: 18 }}>
               <div style={{ background: ts.strong, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span style={{ fontSize: 26, flexShrink: 0 }}>{ts.icon}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -2625,7 +2648,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               </div>
 
               {/* Záložky – kontrastní: neaktivní tmavý text na světlém, aktivní bílý text na barvě firmy */}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingBottom: 2, borderBottom: '1px solid var(--border)' }}>
+              <div className="rf-tabs-head" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingBottom: 2, borderBottom: '1px solid var(--border)' }}>
                 {tabs.map(tb => {
                   const on = contractTab === tb.id
                   return (
@@ -3409,7 +3432,8 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
       <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 201, pointerEvents: 'none' }}>
         {/* Animated modal card */}
         <div
-          className={closing ? 'modal-card-out' : 'modal-card'}
+          ref={detailCardRef}
+          className={`${closing ? 'modal-card-out' : 'modal-card'} rf-detail-card`}
           style={{
             pointerEvents: 'all',
             width: 'min(900px, calc(94vw / var(--ui-zoom, 1)))', maxHeight: 'calc(90vh / var(--ui-zoom, 1))',

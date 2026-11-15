@@ -2,7 +2,7 @@ import React, { useState, useLayoutEffect, useRef } from 'react'
 
 import { requestContractsFilter } from './shortcuts.js'
 
-export default function Sidebar({ active, onNav, width, onResizeStart, urgentContracts, unreadCount }) {
+export default function Sidebar({ active, shine = 0, onNav, width, onResizeStart, urgentContracts, unreadCount }) {
   // Posuvná pilulka pod aktivní položkou (měří se pozice aktivní položky v seznamu)
   const listRef = useRef(null)
   const [pill, setPill] = useState(null)
@@ -55,7 +55,7 @@ export default function Sidebar({ active, onNav, width, onResizeStart, urgentCon
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(155deg,#0A3D2B 0%,#12654A 40%,#1A8A62 72%,#0E5540 100%)', pointerEvents: 'none' }} />
       <div onMouseDown={onResizeStart} style={{ position: 'absolute', top: 0, right: -4, width: 8, height: '100%', cursor: 'col-resize', zIndex: 10 }} />
       
-      <div style={{ padding: '8px 12px 28px', fontSize: 22, fontWeight: 700, color: 'rgba(255,255,255,0.98)', letterSpacing: '-.4px', position: 'relative', textAlign: 'center' }}>
+      <div key={`logo${shine}`} className={shine ? 'rf-logo-shine' : undefined} style={{ padding: '8px 12px 28px', fontSize: 22, fontWeight: 700, color: 'rgba(255,255,255,0.98)', letterSpacing: '-.4px', position: 'relative', textAlign: 'center' }}>
         Rent<span style={{ color: '#4ade80' }}>Flow</span>
       </div>
       

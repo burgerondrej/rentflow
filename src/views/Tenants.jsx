@@ -124,6 +124,7 @@ export default function Tenants({ onOpen }) {
         onDragOver={e => { e.preventDefault(); dragOverId.current = t.id }}
         onDrop={() => handleDrop(filtered)}
         onClick={() => onOpen(t.id)}
+        data-morph={`tenant:${t.id}`}
         style={{
           background: accent + '1A',
           border: '1px solid var(--border)',
