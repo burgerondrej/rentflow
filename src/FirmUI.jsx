@@ -198,7 +198,7 @@ export function FirmPickerButton({ value, onChange, getStat, sections }) {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(o => !o)} style={{
+      <button onClick={() => setOpen(o => !o)} className={`tb-firm${c ? '' : ' is-all'}`} style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', minWidth: 230, cursor: 'pointer', textAlign: 'left',
         border: `1px solid ${c ? c.mid + '88' : 'var(--tone-green-border)'}`, borderRadius: 10, background: c ? c.bg : 'var(--tone-green-soft)',
       }}>

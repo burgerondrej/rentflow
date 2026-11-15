@@ -438,6 +438,42 @@ body { margin: 0; font-family: 'DM Sans', 'Inter', -apple-system, sans-serif; ba
 /* Prolnutí světlého / tmavého režimu (View Transitions v AppContext.setTheme) */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.35s; }
 
+/* ── Přechod obrazovek „posun ve směru“ (App.jsx handleNav – View Transitions, jen během přepnutí) ── */
+html.rf-nav-vt .content { view-transition-name: rf-content; }
+html.rf-nav-vt::view-transition-old(root) { animation: none; opacity: 0; }
+html.rf-nav-vt::view-transition-new(root) { animation: none; }
+html.rf-nav-vt::view-transition-group(rf-content) { animation: none; overflow: clip; }
+html.rf-nav-vt[data-nav-dir="down"]::view-transition-old(rf-content) { animation: rfVtOutUp .26s cubic-bezier(.4,0,1,1) both; }
+html.rf-nav-vt[data-nav-dir="down"]::view-transition-new(rf-content) { animation: rfVtInUp .46s cubic-bezier(.2,.8,.2,1) .07s both; }
+html.rf-nav-vt[data-nav-dir="up"]::view-transition-old(rf-content)   { animation: rfVtOutDown .26s cubic-bezier(.4,0,1,1) both; }
+html.rf-nav-vt[data-nav-dir="up"]::view-transition-new(rf-content)   { animation: rfVtInDown .46s cubic-bezier(.2,.8,.2,1) .07s both; }
+@keyframes rfVtOutUp   { to   { opacity: 0; transform: translateY(-40px); } }
+@keyframes rfVtOutDown { to   { opacity: 0; transform: translateY(40px); } }
+@keyframes rfVtInUp    { from { opacity: 0; transform: translateY(60px); } }
+@keyframes rfVtInDown  { from { opacity: 0; transform: translateY(-60px); } }
+
+/* ── Horní lišta v tmavě zelené (navazuje na sidebar). Prvky mají inline styly → přebití přes !important.
+      Našeptávač a výběr firmy (rozbalené okno) zůstávají v běžných barvách. ── */
+.topbar { background: linear-gradient(100deg, #0E5540 0%, #12654A 55%, #1A8A62 100%) !important; border-bottom: 1px solid rgba(0,0,0,0.25) !important; }
+[data-theme='dark'] .topbar { background: linear-gradient(100deg, #0A3D2B 0%, #0E5540 55%, #12654A 100%) !important; }
+.topbar .tb-search { background: rgba(255,255,255,0.13) !important; border-color: rgba(255,255,255,0.24) !important; color: #fff !important; }
+.topbar .tb-search::placeholder { color: rgba(255,255,255,0.72); }
+.topbar .tb-search:focus { background: rgba(255,255,255,0.2) !important; border-color: rgba(180,255,220,0.65) !important; box-shadow: 0 0 0 3px rgba(74,222,128,0.25) !important; }
+.topbar .tb-search-ic { color: rgba(255,255,255,0.75) !important; }
+.topbar .tb-firm.is-all { background: rgba(255,255,255,0.12) !important; border-color: rgba(255,255,255,0.28) !important; }
+.topbar .tb-firm.is-all span { color: #fff !important; }
+.topbar .tb-firm.is-all > span:first-child { background: rgba(255,255,255,0.2) !important; }
+.topbar .tb-zoom { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.24) !important; }
+.topbar .tb-zoom-btn { color: #fff !important; }
+.topbar .tb-zoom-btn.on { background: #fff !important; color: #0E5540 !important; }
+.topbar .tb-icon { background: rgba(255,255,255,0.12) !important; border-color: rgba(255,255,255,0.24) !important; }
+.topbar .tb-div { background: rgba(255,255,255,0.25) !important; }
+.topbar .tb-backup.btn-tone-green, .topbar .tb-backup.btn-tone-gray { background: rgba(255,255,255,0.12) !important; border-color: rgba(255,255,255,0.26) !important; color: #fff !important; }
+.topbar .tb-label { color: rgba(255,255,255,0.8) !important; }
+.topbar .tb-user { background: rgba(255,255,255,0.14) !important; border-color: rgba(255,255,255,0.3) !important; color: #fff !important; }
+.topbar .tb-user option { color: #111; }
+.topbar.scrolled { box-shadow: 0 8px 22px -10px rgba(10,61,43,0.55); }
+
 /* Windows s vypnutými animacemi: efekty vypnout */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }

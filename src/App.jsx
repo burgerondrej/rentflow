@@ -20,6 +20,7 @@ import UpdateDialog from './UpdateDialog.jsx'
 import ActivationScreen from './ActivationScreen.jsx'
 import { FirmPickerButton, FirmBadge } from './FirmUI.jsx'
 import { prefersReducedMotion } from './UI.jsx'
+import { flushSync } from 'react-dom'
 import DialogShell from './DialogShell.jsx'
 import { isOverlayOpen, isTyping } from './shortcuts.js'
 import { contractSubject, selectionMatches, parseDate, isContractOccupying, hasSuccessor, getMonthRent, getMonthDeposits, groupMembersInMonth, isContractBillable, isContractInMonth, PERIOD_LEN } from './utils.js'
@@ -52,20 +53,33 @@ function AppInner() {
   const [view, setView] = useState('dashboard') 
   const contentRef = useRef(null)
 
-  // Plynulý přechod při přepnutí obrazovky (obsah se prolne a mírně vyjede) + stín horní lišty při skrolování
+  // Přechod obrazovek „posun ve směru“: podle pořadí v sidebaru stará obrazovka odjede a nová přijede z opačné strany.
+  // View Transitions (snímek staré obrazovky, CSS v styles.css – .rf-nav-vt); bez podpory jen vyjetí nové obrazovky.
+  const navDirRef = useRef(1)
+  const vtNavRef = useRef(false)
   const firstViewRef = useRef(true)
   useEffect(() => {
     if (firstViewRef.current) { firstViewRef.current = false; return }
     const el = contentRef.current
-    if (!el || !el.animate || prefersReducedMotion()) return
-    el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' })
+    if (vtNavRef.current || !el || !el.animate || prefersReducedMotion()) return
+    el.animate([{ opacity: 0, transform: `translateY(${navDirRef.current * 40}px)` }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' })
   }, [view])
   const [scrolled, setScrolled] = useState(false)
+  const navIndex = (id) => [...document.querySelectorAll('[data-nav-id]')].findIndex(e => e.dataset.navId === id)
   const handleNav = (newView) => {
+    const resetScroll = () => { if (contentRef.current) contentRef.current.scrollTop = 0 }
+    if (newView !== view) navDirRef.current = navIndex(newView) >= navIndex(view) ? 1 : -1
+    if (newView !== view && document.startViewTransition && !prefersReducedMotion()) {
+      const root = document.documentElement
+      root.dataset.navDir = navDirRef.current > 0 ? 'down' : 'up'
+      root.classList.add('rf-nav-vt')
+      vtNavRef.current = true
+      const t = document.startViewTransition(() => { flushSync(() => setView(newView)); resetScroll() })
+      t.finished.finally(() => { root.classList.remove('rf-nav-vt'); vtNavRef.current = false })
+      return
+    }
     setView(newView)
-    setTimeout(() => {
-      if (contentRef.current) contentRef.current.scrollTop = 0
-    }, 0)
+    setTimeout(resetScroll, 0)
   }
   const [sbWidth, setSbWidth] = useState(252)
 
@@ -478,11 +492,12 @@ function AppInner() {
             
             {/* FULLTEXTOVÉ VYHLEDÁVÁNÍ – paleta: štítek typu a firmy, ovládání ↑↓ Enter Esc */}
             <div style={{ position: 'relative', flex: 1 }}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }}>
+              <svg className="tb-search-ic" width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }}>
                 <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.6"/><path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
               </svg>
               <input
                 ref={searchInputRef}
+                className="tb-search"
                 type="text"
                 placeholder="Hledat nájemce, předmět, smlouvu, telefon… (Ctrl+F)"
                 value={searchQuery}
@@ -552,9 +567,9 @@ function AppInner() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
             {/* Velikost písma */}
-            <div title="Velikost písma" style={{ display: 'flex', alignItems: 'center', gap: 2, border: '1px solid var(--border)', borderRadius: 9, padding: 2, background: 'var(--bg)' }}>
+            <div title="Velikost písma" className="tb-zoom" style={{ display: 'flex', alignItems: 'center', gap: 2, border: '1px solid var(--border)', borderRadius: 9, padding: 2, background: 'var(--bg)' }}>
               {[[1, 12, '100 %'], [1.15, 14.5, '115 %'], [1.3, 17, '130 %']].map(([z, fs, lbl]) => (
-                <button key={z} onClick={() => setUiZoom(z)} title={`Písmo ${lbl}`} style={{
+                <button key={z} onClick={() => setUiZoom(z)} title={`Písmo ${lbl}`} className={`tb-zoom-btn${uiZoom === z ? ' on' : ''}`} style={{
                   width: 30, height: 28, borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: fs, fontWeight: 800, lineHeight: 1,
                   background: uiZoom === z ? 'var(--accent)' : 'transparent', color: uiZoom === z ? '#fff' : 'var(--text)',
                 }}>A</button>
@@ -562,12 +577,12 @@ function AppInner() {
             </div>
             {/* Dark mode toggle */}
             <button
-              className="btn btn-sm"
+              className="btn btn-sm tb-icon"
               style={{ padding: '7px 10px', fontSize: 15 }}
               onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
               title={theme === 'dark' ? 'Přepnout na světlý režim' : 'Přepnout na tmavý režim'}
             >{theme === 'dark' ? '☀️' : '🌙'}</button>
-            <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+            <div className="tb-div" style={{ width: 1, height: 16, background: 'var(--border)' }} />
             {/* Stav kopie na Google Disku (z ní čte Pavel i mobil) — skryto pro Pavla; klik = záloha + kopie (Ctrl+S) */}
             {currentUser !== 'Pavel' && (() => {
               const st = syncStatus
@@ -587,21 +602,21 @@ function AppInner() {
               }
               return (
                 <>
-                  <button type="button" className={`btn btn-sm btn-tone-${tone === 'gray' ? 'gray' : tone}`} title={title}
+                  <button type="button" className={`btn btn-sm btn-tone-${tone === 'gray' ? 'gray' : tone} tb-backup`} title={title}
                     onClick={() => !readOnlyRef.current && runBackupRef.current && runBackupRef.current()}
                     style={{ fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap', borderRadius: 9 }}>{text}</button>
-                  <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+                  <div className="tb-div" style={{ width: 1, height: 16, background: 'var(--border)' }} />
                 </>
               )
             })()}
-            <span style={{ color: 'var(--text3)', fontWeight: 500 }}>Přihlášen jako:</span>
-            <select value={currentUser} onChange={e => handleUserChange(e.target.value)} style={{ padding: '8px 14px', border: '1px solid var(--tone-green-border)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, background: 'var(--tone-green-soft)', color: '#115E59', cursor: 'pointer', outline: 'none' }}>
+            <span className="tb-label" style={{ color: 'var(--text3)', fontWeight: 500 }}>Přihlášen jako:</span>
+            <select className="tb-user" value={currentUser} onChange={e => handleUserChange(e.target.value)} style={{ padding: '8px 14px', border: '1px solid var(--tone-green-border)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, background: 'var(--tone-green-soft)', color: '#115E59', cursor: 'pointer', outline: 'none' }}>
               <option value="Ondra">Ondra</option>
               <option value="Pavel">Pavel</option>
             </select>
             {/* Settings tlačítko */}
             <button
-              className="btn btn-sm"
+              className="btn btn-sm tb-icon"
               style={{ padding: '7px 10px', fontSize: 15 }}
               onClick={() => setShowSettings(true)}
               title="Nastavení"
