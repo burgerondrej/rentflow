@@ -219,6 +219,7 @@ Pravidla:
 - v1.5.0: nové typy předmětů Pozemky a další plochy a Auta (pronajímatel = sekce předmětu, platby po firmách), přesun předmětu do jiné sekce / typu v úpravě předmětu. Ostatní se vyprázdní ručním přesunem (Mercedes → MCB – Auta, Transporter → BP – Auta, Pozemek a Plot U Staré trati → BP – Pozemky).
 - v1.5.1: typ předmětu Servisní smlouvy, sekce sidebaru Portfolio, „Pronajato“ místo „Obsazeno“, „Smlouva platná od“ u aut / pozemků / servisu, cena s DPH na kartě a v detailu předmětu + jednotné pravidlo DPH, „Volné od“ u volného předmětu; grafika: posun obrazovek ve směru, tmavě zelená horní lišta, posuvné pilulky (sidebar, přepínače), najetí karet se září v barvě firmy, výraznější hlavičky, dojíždějící čísla, pulz Uhrazeno, toast s odpočtem, prolnutí tmavého režimu, karta → detail, posun měsíců a protočení názvu v Platbách, záložky detailu s posunem, potvrzení zálohy, odlesk na kartách firem, rozplynutí úvodní obrazovky, vlnka tlačítek.
 - v1.5.2: zaškrtávátko „Na dobu neurčitou“ ve formulářích smluv (jinak povinný konec), všude zobrazení „Na dobu neurčitou“.
+- v1.5.3: překryv smluv (Kontrola dat, formulář smlouvy) u Ostatní / Pozemků / Aut / Servisních smluv jen u téhož nájemce – souběžné smlouvy různých nájemců jsou tam povolené.
 - Nápady na později: uživatelský manuál RF (vč. splatnosti předem a Po splatnosti); Kontrola dat „platná smlouva bez nahraného dokumentu Smlouva“ (až bude hotové nahrávání dokumentů); „Co dnes řešit“ na Dashboardu, předávací protokol PDF, evidence klíčů a čipů. NE: termíny u aut (STK, pojistka), roční výnos po firmách, štítky typů předmětů na kartách firem, hromadná valorizace, import z banky, upomínky PDF, připomínka valorizace, hromadné „Uhrazeno“, začátky smluv v Kalendáři.
 - localStorage pro currentUser.
 - Odložené: sdružování parkovacích stání (group_label) – částečně implementováno.
@@ -226,4 +227,4 @@ Pravidla:
 ## 11. Údržba tohoto souboru
 
 Na konci každé větší session navrhni úpravu CLAUDE.md (nová pravidla, poučení, verze). Zapisuj jen po odsouhlasení.
-Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 15. 11. 2026: v1.5.2).
+Aktuální verze appky: viz `src-tauri/tauri.conf.json` (k 15. 11. 2026: v1.5.3).
