@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from './AppContext.jsx'
-import { parseDate, getCurrentAssetContract, currentAssetContracts, isEndingArchived, FREQ_TYPES, CONTRACT_ONLY_TYPES, firmOf, assetTypeStyle, DUE_PREPAID } from './utils.js'
+import { parseDate, getCurrentAssetContract, currentAssetContracts, isEndingArchived, FREQ_TYPES, CONTRACT_ONLY_TYPES, OWN_SUBJECT_TYPES, firmOf, assetTypeStyle, DUE_PREPAID } from './utils.js'
 import DialogShell from './DialogShell.jsx'
 
 
@@ -126,8 +126,11 @@ export default function ContractForm({ onClose }) {
   const overlapContract = (() => {
     if (!formData.assetId) return null
     const ns = isoToDate(formData.start), ne = isoToDate(formData.end)
+    // Ostatní / Pozemky / Auta / Servisní smlouvy: souběžné smlouvy různých nájemců jsou povolené – upozornit jen na téhož nájemce
+    const ownType = OWN_SUBJECT_TYPES.includes(assets.find(a => a.id === formData.assetId)?.type)
     return contracts.find(c => {
       if (c.assetId !== formData.assetId) return false
+      if (ownType && c.tenantId !== formData.tenantId) return false
       if (c.status !== 'active' && c.status !== 'archived') return false
       const cs = parseDate(c.start), ce = parseDate(c.end)
       if (c.status === 'archived' && !ce) return false

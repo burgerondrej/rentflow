@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useApp } from './AppContext.jsx'
 import DialogShell from './DialogShell.jsx'
-import { parseDate, isContractBillable, isContractOccupying, getCurrentAssetContract, contractSubject, isContractInMonth, getMonthRent, groupMonthStatus, isGroupPayment, dueDateFor, hasSuccessor, PERIOD_LEN } from './utils.js'
+import { parseDate, isContractBillable, isContractOccupying, getCurrentAssetContract, contractSubject, isContractInMonth, getMonthRent, groupMonthStatus, isGroupPayment, dueDateFor, hasSuccessor, PERIOD_LEN, OWN_SUBJECT_TYPES } from './utils.js'
 import { cauceInfo, fmtKc } from './CauceUI.jsx'
 import { sectionMeters } from './MeterUI.jsx'
 
@@ -28,14 +28,16 @@ export function computeDataChecks({ contracts = [], assets = [], tenants = [], p
       contracts.filter(c => c.status === 'active' && parseDate(c.end) && parseDate(c.end) < today)
         .map(c => ({ key: c.id, text: label(c), sub: `konec ${c.end}`, open: ['contract', c.id] })), 'red')
 
-    // 2) Překryv smluv na jednom předmětu (kromě typu Ostatní)
+    // 2) Překryv smluv na jednom předmětu. U Ostatní / Pozemků / Aut / Servisních smluv (OWN_SUBJECT_TYPES) jsou souběžné
+    //    smlouvy různých nájemců povolené – hlásí se jen překryv smluv TÉHOŽ nájemce (duplicita)
     const overlaps = []
-    const billable = contracts.filter(c => isContractBillable(c) && assetOf(c)?.type !== 'ostatni')
+    const billable = contracts.filter(c => isContractBillable(c))
     const ts = (s, def) => parseDate(s)?.getTime() ?? def
     for (let i = 0; i < billable.length; i++) {
       for (let j = i + 1; j < billable.length; j++) {
         const a = billable[i], b = billable[j]
         if (a.assetId !== b.assetId) continue
+        if (OWN_SUBJECT_TYPES.includes(assetOf(a)?.type) && a.tenantId !== b.tenantId) continue
         const aS = ts(a.start, -Infinity), aE = ts(a.end, Infinity), bS = ts(b.start, -Infinity), bE = ts(b.end, Infinity)
         if (aS <= bE && bS <= aE) overlaps.push({ key: a.id + b.id, text: `${assetOf(a)?.unit || '?'}: ${tenantOf(a)?.name || '?'} × ${tenantOf(b)?.name || '?'}`, sub: `${range(a)} / ${range(b)}`, open: ['asset', a.assetId] })
       }
