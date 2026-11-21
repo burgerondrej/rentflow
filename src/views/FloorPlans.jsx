@@ -3,7 +3,7 @@ import { useApp } from '../AppContext.jsx'
 import DialogShell from '../DialogShell.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
 import { isTyping, useNewShortcut } from '../shortcuts.js'
-import { currentAssetContracts, isEndingWithoutSuccessor, assetFreeSince, parseDate, ASSET_TYPES } from '../utils.js'
+import { currentAssetContracts, isEndingWithoutSuccessor, assetFreeSince, parseDate, ASSET_TYPES, tenancySince, rentIncreaseLock, lastRentIncrease } from '../utils.js'
 
 /**
  * Půdorysy (Portfolio → Půdorysy): interaktivní mapa pater budovy.
@@ -69,6 +69,41 @@ function labelBox(pts, at) {
   const best = good.reduce((a, c) => Math.hypot(c.cx - mx, c.cy - my) < Math.hypot(a.cx - mx, a.cy - my) ? c : a)
   return { cx: best.cx, cy: best.cy, w: best.k * 2.7, h: best.k * 2 }
 }
+
+/** Největší obdélník uvnitř plochy (různé poměry stran) – prostor pro popisek bytu s rohy. Výsledek se pamatuje podle tvaru. */
+const rectCache = new Map()
+function bigRect(pts) {
+  const key = ptsStr(pts)
+  if (rectCache.has(key)) return rectCache.get(key)
+  const b = bboxOf(pts)
+  const cands = [[b.x0 + b.w / 2, b.y0 + b.h / 2]]
+  const N = 12
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) cands.push([b.x0 + b.w * (i + 0.5) / N, b.y0 + b.h * (j + 0.5) / N])
+  let best = null
+  for (const asp of [0.6, 0.85, 1.15, 1.5, 2, 2.8]) {
+    for (const [cx, cy] of cands) {
+      if (!inPoly(cx, cy, pts)) continue
+      let lo = 0, hi = Math.max(b.w, b.h)
+      for (let k = 0; k < 13; k++) { const m = (lo + hi) / 2; if (rectFits(cx, cy, m * asp, m, pts)) lo = m; else hi = m }
+      const area = lo * lo * asp
+      if (!best || area > best.area * 1.01) best = { cx, cy, hw: lo * asp, hh: lo, area }
+    }
+  }
+  let r = best ? { x0: best.cx - best.hw, x1: best.cx + best.hw, y0: best.cy - best.hh, y1: best.cy + best.hh } : { x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1 }
+  // dotáhnout ke stěnám bytu (rohy popisku nahoru, štítek dolů) – každou stranu zvlášť, dokud se obdélník vejde
+  const fits = (q) => rectFits((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.x1 - q.x0) / 2, (q.y1 - q.y0) / 2, pts)
+  if (best) for (const [side, limit] of [['y0', b.y0], ['y1', b.y1], ['x0', b.x0], ['x1', b.x1]]) {
+    let lo = 0, hi = Math.abs(r[side] - limit)
+    const dir = side.endsWith('0') ? -1 : 1
+    for (let k = 0; k < 12; k++) { const m = (lo + hi) / 2; if (fits({ ...r, [side]: r[side] + dir * m })) lo = m; else hi = m }
+    r = { ...r, [side]: r[side] + dir * lo }
+  }
+  if (rectCache.size > 800) rectCache.clear()
+  rectCache.set(key, r)
+  return r
+}
+const czDate = (d) => d ? `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}` : ''
+const VALOR_TYPES = ['residential', 'commercial']
 
 // ─── texty ───
 const sqm = (size) => { const m = String(size || '').match(/(\d+(?:[.,]\d+)?)\s*m²/); return m ? `${m[1]} m²` : '' }
@@ -412,6 +447,15 @@ export default function FloorPlans({ onOpen }) {
         <polygon points={ptsStr(s.points)} fill={fill} stroke={stroke} strokeWidth={isSel ? 3 : 1.6}
           strokeDasharray={!common && tone?.dash && !isSel ? tone.dash : undefined} strokeLinejoin="round" vectorEffect="non-scaling-stroke"
           className="fp-poly" />
+        {s.kind === 'unit' && tone?.dot && (() => {
+          const b = bboxOf(s.points)
+          return (
+            <>
+              <clipPath id={`fpc-${si}`}><polygon points={ptsStr(s.points)} /></clipPath>
+              <rect x={b.x0} y={b.y0} width={b.w} height={W / 140} fill={tone.dot} clipPath={`url(#fpc-${si})`} style={{ pointerEvents: 'none' }} />
+            </>
+          )
+        })()}
       </g>
     )
   }
@@ -424,35 +468,122 @@ export default function FloorPlans({ onOpen }) {
       const f = Math.min(maxF * 0.75, box.w / (s.label.length * charW))
       return <text key={'l' + si} x={box.cx} y={box.cy + f * 0.35} textAnchor="middle" fontSize={f} fill="var(--text3)" fontWeight="600" style={{ pointerEvents: 'none' }}>{s.label}</text>
     }
+    return renderUnitLabel(s, si)
+  }
+
+  // Popisek bytu (varianta B): rohy = V nájmu od / Smlouva do, uprostřed jmenovka + m² + nájemce, dole štítek valorizace
+  const renderUnitLabel = (s, si) => {
     const info = unitInfo(s.assetId), tone = TONE[info.status]
-    const name = info.asset?.unit || s.label || 'Nepřiřazeno'
-    const area = info.asset ? [sqm(info.asset.size)].filter(Boolean).join('') : ''
+    const a = info.asset
+    const name = a?.unit || s.label || 'Nepřiřazeno'
+    const area = a ? [dispo(a.size), sqm(a.size)].filter(Boolean).join(' · ') : ''
+    const rented = info.status === 'rented' || info.status === 'ending'
     const who = info.status === 'none' ? (editing ? 'vyberte předmět' : '') : info.status === 'free' ? 'Volné'
       : info.people.length > 1 ? `${info.people.length} nájemci` : info.people[0].name
-    const lines = [
-      { text: name, rel: 0.82, weight: 800, role: 'name' },
-      ...(area ? [{ text: area, rel: 0.7, weight: 600, role: 'area' }] : []),
-      ...(who ? [{ text: who, rel: 1, weight: 800, role: 'who', wrap: true }] : []),
-    ]
-    const { out, height } = layoutLabel(lines, box, maxF)
-    let y = box.cy - height / 2
-    const nameF = out[0]?.size || 10
-    const pillW = name.length * charW * nameF + nameF * (tone.dot ? 2.3 : 1.4), pillH = nameF * 1.55
-    return (
-      <g key={'l' + si} style={{ pointerEvents: 'none' }}>
-        {out.map((l, i) => {
-          const ly = y + l.size * 0.95; y += l.size * 1.22 + (l.role === 'name' ? l.size * 0.35 : 0)
-          if (l.role === 'name') return (
-            <g key={i}>
-              <rect x={box.cx - pillW / 2} y={ly - pillH * 0.72} width={pillW} height={pillH} rx={pillH / 2} fill="var(--bg)" stroke={tone.stroke} strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-              {tone.dot && <circle cx={box.cx - pillW / 2 + nameF * 0.85} cy={ly - pillH * 0.72 + pillH / 2} r={nameF * 0.28} fill={tone.dot} />}
-              <text x={box.cx + (tone.dot ? nameF * 0.45 : 0)} y={ly} textAnchor="middle" fontSize={l.size} fontWeight={l.weight} fill={tone.text}>{l.text}</text>
-            </g>
-          )
-          return <text key={i} x={box.cx} y={ly} textAnchor="middle" fontSize={l.size} fontWeight={l.weight} fill={l.role === 'area' ? 'var(--text2)' : tone.text}>{l.text}</text>
-        })}
+    // rohy
+    let corners = null
+    if (rented) {
+      const froms = info.people.map(p => tenancySince(p.c, contracts)).filter(Boolean)
+      const from = froms.sort((x, y) => parseDate(x) - parseDate(y))[0] || ''
+      const ends = info.people.map(p => p.c.end).filter(e => parseDate(e)).sort((x, y) => parseDate(x) - parseDate(y))
+      const to = info.people.some(p => !parseDate(p.c.end)) && !ends.length ? 'na dobu neurčitou' : ends[0] || 'na dobu neurčitou'
+      corners = { l: ['v nájmu od', from || '—'], r: ['smlouva do', to] }
+    } else if (info.status === 'free' && info.free) corners = { l: ['volné od', info.free.date], r: null }
+    // štítek valorizace (byty a komerční prostory, ne „Zahrnuto v nájemném“)
+    let chip = null
+    if (rented && VALOR_TYPES.includes(a.type)) {
+      const c = info.people[0].c
+      if (c.paymentFrequency !== 'Zahrnuto v nájemném') {
+        const lock = rentIncreaseLock(c)
+        const last = lastRentIncrease(c)
+        chip = lock ? { t: 'amber', a: 'navýšení možné od', b: lock.until }
+          : { t: 'green', a: 'lze navýšit', b: last ? `valor. ${czDate(last)}` : 'bez valorizace' }
+      }
+    }
+
+    const r = bigRect(s.points)
+    const w = r.x1 - r.x0, h = r.y1 - r.y0
+    const pad = Math.min(w, h) * 0.07 + W / 300
+    const iw = w - 2 * pad, ih = h - 2 * pad
+    if (iw <= 0 || ih <= 0) return null
+    const maxF = W / 38
+    // velikost písma: vejít se na výšku i šířku; když je místa málo, nejdřív pryč štítek, pak rohy
+    const fitF = (withC, withChip, lines) => {
+      const units = (withC ? 0.55 * 1.15 + 0.8 * 1.15 + 0.45 : 0) + 1.5 + 0.25 + (area ? 0.72 * 1.2 : 0) + 0.25 + 1.25 * 1.18 * lines + (withChip ? 0.5 + 1.9 : 0)
+      return Math.min(maxF, ih / units, iw / (name.length * charW * 0.95 + 2.4))
+    }
+    const whoFits = (f) => !who || who.length * charW * 1.25 * f <= iw
+    const configs = [[!!corners, !!chip], [!!corners, false], [false, false]]
+    let pick = null
+    for (const [c1, c2] of configs) {
+      let f = fitF(c1, c2, 1), lines = 1
+      if (!whoFits(f)) { lines = 2; f = fitF(c1, c2, 2) }
+      pick = { c1, c2, f, lines }
+      if (f >= W / 75) break
+    }
+    const { c1, c2, f, lines } = pick
+    const els = []
+    let top = r.y0 + pad, bottom = r.y1 - pad
+    // rohy nahoře
+    if (c1) {
+      const lenL = corners.l[1].length, lenR = corners.r ? corners.r[1].length : 0
+      const fv = Math.min(f * 0.85, (iw - f) / (Math.max(1, lenL + lenR) * charW * 1.02))
+      const fl = Math.max(fv * 0.72, f * 0.5)
+      const yl = top + fl, yv = yl + fv * 1.15
+      els.push(<text key="ll" x={r.x0 + pad} y={yl} fontSize={fl} fontWeight="600" fill="var(--text2)">{corners.l[0]}</text>)
+      els.push(<text key="lv" x={r.x0 + pad} y={yv} fontSize={fv} fontWeight="800" fill={tone.text}>{corners.l[1]}</text>)
+      if (corners.r) {
+        els.push(<text key="rl" x={r.x1 - pad} y={yl} textAnchor="end" fontSize={fl} fontWeight="600" fill="var(--text2)">{corners.r[0]}</text>)
+        els.push(<text key="rv" x={r.x1 - pad} y={yv} textAnchor="end" fontSize={fv} fontWeight="800" fill={tone.text}>{corners.r[1]}</text>)
+      }
+      top = yv + f * 0.45
+    }
+    // štítek dole
+    if (c2) {
+      const ch = f * 1.9, fa = f * 0.55, fb = f * 0.74
+      let cw = Math.max(chip.a.length * charW * fa, chip.b.length * charW * fb) + f * 2.2
+      const k = Math.min(1, iw / cw); cw *= k
+      const cx = (r.x0 + r.x1) / 2, cy = bottom - ch * k
+      const dotC = chip.t === 'green' ? '#16A34A' : '#D97706'
+      els.push(
+        <g key="chip">
+          <rect x={cx - cw / 2} y={cy} width={cw} height={ch * k} rx={ch * k / 2} fill={`var(--tone-${chip.t}-bg)`} stroke={`var(--tone-${chip.t}-border)`} strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
+          <circle cx={cx - cw / 2 + f * 0.95 * k} cy={cy + ch * k / 2} r={f * 0.25 * k} fill={dotC} />
+          <text x={cx - cw / 2 + f * 1.6 * k} y={cy + ch * k * 0.43} fontSize={fa * k} fontWeight="600" fill={`var(--tone-${chip.t}-text)`}>{chip.a}</text>
+          <text x={cx - cw / 2 + f * 1.6 * k} y={cy + ch * k * 0.8} fontSize={fb * k} fontWeight="800" fill={`var(--tone-${chip.t}-text)`}>{chip.b}</text>
+        </g>
+      )
+      bottom = cy - f * 0.5
+    }
+    // střed: jmenovka, plocha, nájemce
+    const fName = f * 0.95, pillH = f * 1.5
+    const fArea = f * 0.72
+    let fWho = f * 1.25
+    let whoLines = [who]
+    if (who && lines === 2 && who.includes(' ')) {
+      const sp = [...who].map((c, i) => c === ' ' ? i : -1).filter(i => i > 0), mid = who.length / 2
+      const at = sp.reduce((x, i) => Math.abs(i - mid) < Math.abs(x - mid) ? i : x, sp[0])
+      whoLines = [who.slice(0, at), who.slice(at + 1)]
+    }
+    if (who) fWho = Math.min(fWho, iw / (Math.max(...whoLines.map(l => l.length)) * charW))
+    const blockH = pillH + f * 0.25 + (area ? fArea * 1.2 : 0) + (who ? f * 0.25 + fWho * 1.18 * whoLines.length : 0)
+    let y = Math.max(top, top + (bottom - top - blockH) / 2)
+    const cx = (r.x0 + r.x1) / 2
+    const pillW = name.length * charW * fName + fName * (tone.dot ? 2.4 : 1.5)
+    els.push(
+      <g key="pill">
+        <rect x={cx - pillW / 2} y={y} width={pillW} height={pillH} rx={pillH / 2} fill="var(--bg)" stroke={tone.stroke} strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
+        {tone.dot && <circle cx={cx - pillW / 2 + fName * 0.9} cy={y + pillH / 2} r={fName * 0.27} fill={tone.dot} />}
+        <text x={cx + (tone.dot ? fName * 0.45 : 0)} y={y + pillH * 0.68} textAnchor="middle" fontSize={fName} fontWeight="800" fill={tone.text}>{name}</text>
       </g>
     )
+    y += pillH + f * 0.25
+    if (area) { y += fArea; els.push(<text key="area" x={cx} y={y} textAnchor="middle" fontSize={fArea} fontWeight="600" fill="var(--text2)">{area}</text>); y += fArea * 0.2 }
+    if (who) {
+      y += f * 0.25
+      whoLines.forEach((l, i) => { y += fWho * (i ? 1.18 : 1.0); els.push(<text key={'w' + i} x={cx} y={y} textAnchor="middle" fontSize={fWho} fontWeight="800" fill={info.status === 'free' ? 'var(--text2)' : tone.text}>{l}</text>) })
+    }
+    return <g key={'l' + si} style={{ pointerEvents: 'none' }}>{els}</g>
   }
 
   const hatch = (id, color) => (

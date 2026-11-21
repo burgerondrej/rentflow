@@ -434,14 +434,9 @@ export function tenancySince(c, contracts = []) {
   return best
 }
 
-/**
- * Blokace navýšení nájmu: rok od začátku smlouvy a rok od poslední valorizace (vyšší z obou dat).
- * Poslední valorizace = Datum poslední valorizace nebo účinný dodatek, který zvýšil nájemné.
- * Vrací { reason: 'start' | 'valorization', since, until } (data D. M. RRRR), null = nájem lze navýšit.
- */
-export function rentIncreaseLock(c) {
+/** Poslední valorizace smlouvy k dnešku (Date | null): Datum poslední valorizace nebo účinný dodatek, který zvýšil holé nájemné. */
+export function lastRentIncrease(c) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
-  const yearAfter = (d) => new Date(d.getFullYear() + 1, d.getMonth(), d.getDate())
   let last = parseDate(c?.valorizationDate)
   if (last && last > today) last = null
   for (const am of c?.amendments || []) {
@@ -450,6 +445,18 @@ export function rentIncreaseLock(c) {
     const dayBefore = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1)
     if (getEffectiveValuesAt(c, d).rent > getEffectiveValuesAt(c, dayBefore).rent) last = d
   }
+  return last
+}
+
+/**
+ * Blokace navýšení nájmu: rok od začátku smlouvy a rok od poslední valorizace (vyšší z obou dat).
+ * Poslední valorizace = Datum poslední valorizace nebo účinný dodatek, který zvýšil nájemné.
+ * Vrací { reason: 'start' | 'valorization', since, until } (data D. M. RRRR), null = nájem lze navýšit.
+ */
+export function rentIncreaseLock(c) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const yearAfter = (d) => new Date(d.getFullYear() + 1, d.getMonth(), d.getDate())
+  const last = lastRentIncrease(c)
   const start = parseDate(c?.start)
   const fromStart = start ? yearAfter(start) : null
   const fromValor = last ? yearAfter(last) : null
