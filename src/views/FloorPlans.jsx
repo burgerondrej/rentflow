@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { useApp } from '../AppContext.jsx'
 import DialogShell from '../DialogShell.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
@@ -432,13 +433,33 @@ export default function FloorPlans({ onOpen }) {
   }, [floorPlans, draft?.id])
 
   // ─── vykreslení ───
-  const maxF = W / 42
+  // Kontext vykreslení: obrazovka, nebo dočasně jiné patro pro PDF (buildPdf přepne RC a vrátí zpět)
+  let RC = { W, editing, sel, idp: '' }
+  // Údaje bytu pro popisek i tabulku v PDF: V nájmu od, Smlouva do, štítek navýšení nájmu
+  const unitFacts = (info) => {
+    const rented = info.status === 'rented' || info.status === 'ending'
+    if (!rented) return { rented, from: '', to: '', chip: null }
+    const from = info.people.map(p => tenancySince(p.c, contracts)).filter(Boolean).sort((x, y) => parseDate(x) - parseDate(y))[0] || ''
+    const ends = info.people.map(p => p.c.end).filter(e => parseDate(e)).sort((x, y) => parseDate(x) - parseDate(y))
+    const to = ends[0] || 'na dobu neurčitou'
+    let chip = null
+    const a = info.asset, c = info.people[0].c
+    if (VALOR_TYPES.includes(a.type) && c.paymentFrequency !== 'Zahrnuto v nájemném') {
+      const lock = rentIncreaseLock(c)
+      const last = lastRentIncrease(c)
+      chip = lock ? { t: 'amber', a: 'navýšení možné od', b: lock.until }
+        : a.type === 'residential'
+          ? { t: 'green', a: 'lze navýšit', b: last ? `naposledy ${czDate(last)}` : 'zatím nenavyšováno' }
+          : { t: 'green', a: 'lze navýšit', b: last ? `valor. ${czDate(last)}` : 'bez valorizace' }
+    }
+    return { rented, from, to, chip }
+  }
   const renderShape = (s, si) => {
     const info = s.kind === 'common' ? null : unitInfo(s.assetId)
     const tone = s.kind === 'common' ? null : TONE[info.status]
-    const isSel = editing && si === sel
+    const isSel = RC.editing && si === RC.sel
     const common = s.kind === 'common'
-    const fill = common ? 'var(--tone-gray-bg)' : s.kind === 'extra' ? `url(#fp-hatch-${tone.pat})` : tone.fill
+    const fill = common ? 'var(--tone-gray-bg)' : s.kind === 'extra' ? `url(#${RC.idp}fp-hatch-${tone.pat})` : tone.fill
     const stroke = isSel ? 'var(--accent)' : common ? 'var(--border)' : tone.stroke
     const open = () => { if (!editing && !common && info.asset) onOpen?.(info.asset.id) }
     return (
@@ -451,8 +472,8 @@ export default function FloorPlans({ onOpen }) {
           const b = bboxOf(s.points)
           return (
             <>
-              <clipPath id={`fpc-${si}`}><polygon points={ptsStr(s.points)} /></clipPath>
-              <rect x={b.x0} y={b.y0} width={b.w} height={W / 140} fill={tone.dot} clipPath={`url(#fpc-${si})`} style={{ pointerEvents: 'none' }} />
+              <clipPath id={`${RC.idp}fpc-${si}`}><polygon points={ptsStr(s.points)} /></clipPath>
+              <rect x={b.x0} y={b.y0} width={b.w} height={RC.W / 140} fill={tone.dot} clipPath={`url(#${RC.idp}fpc-${si})`} style={{ pointerEvents: 'none' }} />
             </>
           )
         })()}
@@ -465,7 +486,7 @@ export default function FloorPlans({ onOpen }) {
     if (box.w <= 0) return null
     if (s.kind === 'common') {
       if (!s.label) return null
-      const f = Math.min(maxF * 0.75, box.w / (s.label.length * charW))
+      const f = Math.min((RC.W / 42) * 0.75, box.w / (s.label.length * charW))
       return <text key={'l' + si} x={box.cx} y={box.cy + f * 0.35} textAnchor="middle" fontSize={f} fill="var(--text3)" fontWeight="600" style={{ pointerEvents: 'none' }}>{s.label}</text>
     }
     return renderUnitLabel(s, si)
@@ -478,35 +499,21 @@ export default function FloorPlans({ onOpen }) {
     const name = a?.unit || s.label || 'Nepřiřazeno'
     const area = a ? [dispo(a.size), sqm(a.size)].filter(Boolean).join(' · ') : ''
     const rented = info.status === 'rented' || info.status === 'ending'
-    const who = info.status === 'none' ? (editing ? 'vyberte předmět' : '') : info.status === 'free' ? 'Volné'
+    const who = info.status === 'none' ? (RC.editing ? 'vyberte předmět' : '') : info.status === 'free' ? 'Volné'
       : info.people.length > 1 ? `${info.people.length} nájemci` : info.people[0].name
-    // rohy
+    // rohy a štítek navýšení (unitFacts – stejné údaje jako tabulka v PDF)
+    const fx = unitFacts(info)
     let corners = null
-    if (rented) {
-      const froms = info.people.map(p => tenancySince(p.c, contracts)).filter(Boolean)
-      const from = froms.sort((x, y) => parseDate(x) - parseDate(y))[0] || ''
-      const ends = info.people.map(p => p.c.end).filter(e => parseDate(e)).sort((x, y) => parseDate(x) - parseDate(y))
-      const to = info.people.some(p => !parseDate(p.c.end)) && !ends.length ? 'na dobu neurčitou' : ends[0] || 'na dobu neurčitou'
-      corners = { l: ['v nájmu od', from || '—'], r: ['smlouva do', to] }
-    } else if (info.status === 'free' && info.free) corners = { l: ['volné od', info.free.date], r: null }
-    // štítek valorizace (byty a komerční prostory, ne „Zahrnuto v nájemném“)
-    let chip = null
-    if (rented && VALOR_TYPES.includes(a.type)) {
-      const c = info.people[0].c
-      if (c.paymentFrequency !== 'Zahrnuto v nájemném') {
-        const lock = rentIncreaseLock(c)
-        const last = lastRentIncrease(c)
-        chip = lock ? { t: 'amber', a: 'navýšení možné od', b: lock.until }
-          : { t: 'green', a: 'lze navýšit', b: last ? `valor. ${czDate(last)}` : 'bez valorizace' }
-      }
-    }
+    if (rented) corners = { l: ['v nájmu od', fx.from || '—'], r: ['smlouva do', fx.to] }
+    else if (info.status === 'free' && info.free) corners = { l: ['volné od', info.free.date], r: null }
+    const chip = fx.chip
 
     const r = bigRect(s.points)
     const w = r.x1 - r.x0, h = r.y1 - r.y0
-    const pad = Math.min(w, h) * 0.07 + W / 300
+    const pad = Math.min(w, h) * 0.07 + RC.W / 300
     const iw = w - 2 * pad, ih = h - 2 * pad
     if (iw <= 0 || ih <= 0) return null
-    const maxF = W / 38
+    const maxF = RC.W / 38
     // velikost písma: vejít se na výšku i šířku; když je místa málo, nejdřív pryč štítek, pak rohy
     const fitF = (withC, withChip, lines) => {
       const units = (withC ? 0.55 * 1.15 + 0.8 * 1.15 + 0.45 : 0) + 1.5 + 0.25 + (area ? 0.72 * 1.2 : 0) + 0.25 + 1.25 * 1.18 * lines + (withChip ? 0.5 + 1.9 : 0)
@@ -519,7 +526,7 @@ export default function FloorPlans({ onOpen }) {
       let f = fitF(c1, c2, 1), lines = 1
       if (!whoFits(f)) { lines = 2; f = fitF(c1, c2, 2) }
       pick = { c1, c2, f, lines }
-      if (f >= W / 75) break
+      if (f >= RC.W / 75) break
     }
     const { c1, c2, f, lines } = pick
     const els = []
@@ -587,14 +594,123 @@ export default function FloorPlans({ onOpen }) {
   }
 
   const hatch = (id, color) => (
-    <pattern key={id} id={`fp-hatch-${id}`} width={W / 110} height={W / 110} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width={W / 110} height={W / 110} fill={`var(--tone-${color}-soft)`} />
-      <line x1="0" y1="0" x2="0" y2={W / 110} stroke={`var(--tone-${color}-border)`} strokeWidth={W / 450} />
+    <pattern key={id} id={`${RC.idp}fp-hatch-${id}`} width={RC.W / 110} height={RC.W / 110} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width={RC.W / 110} height={RC.W / 110} fill={`var(--tone-${color}-soft)`} />
+      <line x1="0" y1="0" x2="0" y2={RC.W / 110} stroke={`var(--tone-${color}-border)`} strokeWidth={RC.W / 450} />
     </pattern>
   )
   const order = (k) => ({ common: 0, extra: 1, unit: 2 }[k] ?? 2)
   const drawOrder = shapes.map((s, i) => [s, i]).sort((a, b) => order(a[0].kind) - order(b[0].kind) || a[1] - b[1])
   const selShape = editing && sel >= 0 ? shapes[sel] : null
+
+  // ─── PDF půdorysu (Edge headless jako ostatní PDF) – vždy světlé barvy z :root (CSS proměnné v PDF nefungují) ───
+  const [pdfOpen, setPdfOpen] = useState(false)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const lightVars = () => {
+    const m = {}
+    for (const sh of document.styleSheets) {
+      let rules; try { rules = sh.cssRules } catch { continue }
+      for (const r of rules || []) {
+        if (r.selectorText !== ':root') continue
+        for (let i = 0; i < r.style.length; i++) { const n = r.style[i]; if (n.startsWith('--')) m[n] = r.style.getPropertyValue(n).trim() }
+      }
+    }
+    return m
+  }
+  const buildPdfHtml = (list) => {
+    const vars = lightVars()
+    const res = (str) => { let out = str; for (let k = 0; k < 4 && out.includes('var('); k++) out = out.replace(/var\((--[\w-]+)(?:\s*,[^()]*)?\)/g, (_, n) => vars[n] || '#888888'); return out }
+    const esc = (t) => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+    const saved = RC
+    const pages = []
+    try {
+      list.forEach((p, pi) => {
+        const sh = parseShapes(p)
+        RC = { W: p.width || 1600, editing: false, sel: -1, idp: `p${pi}-` }
+        const ord = sh.map((x, i) => [x, i]).sort((a, b) => order(a[0].kind) - order(b[0].kind) || a[1] - b[1])
+        const svg = renderToStaticMarkup(
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${p.width} ${p.height}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block' }}>
+            <defs>{hatch('green', 'green')}{hatch('amber', 'amber')}{hatch('gray', 'gray')}</defs>
+            {ord.map(([x, i]) => renderShape(x, i))}
+            {ord.map(([x, i]) => renderLabel(x, i))}
+          </svg>
+        )
+        const ids = [...new Set(sh.filter(x => x.kind === 'unit' && x.assetId).map(x => x.assetId))]
+        const rows = ids.map(id => { const info = unitInfo(id); return { info, fx: unitFacts(info) } }).filter(r => r.info.asset)
+          .sort((x, y) => String(x.info.asset.unit).localeCompare(String(y.info.asset.unit), 'cs', { numeric: true }))
+        pages.push({ p, svg: res(svg), rows })
+      })
+    } finally { RC = saved }
+    const today = czDate(new Date())
+    const tag = (t, txt) => `<span class="tag ${t}">${esc(txt)}</span>`
+    const body = pages.map(({ p, svg, rows }) => {
+      const rented = rows.filter(r => r.fx.rented).length
+      const mapH = Math.max(70, Math.min(135, 192 - 30 - (9 + rows.length * 6.6)))
+      const tr = rows.map(({ info, fx }) => {
+        const a = info.asset
+        const stav = info.status === 'free' ? tag('gray', `Volné${info.free ? ' od ' + info.free.date : ''}`) : info.status === 'ending' ? tag('warn', 'Končí') : tag('ok', 'Pronajato')
+        const nav = fx.chip ? tag(fx.chip.t === 'amber' ? 'warn' : 'ok', fx.chip.t === 'amber' ? `možné od ${fx.chip.b}` : `${fx.chip.a} · ${fx.chip.b}`) : '—'
+        return `<tr><td class="b">${esc(a.unit)}</td><td>${esc([dispo(a.size), sqm(a.size)].filter(Boolean).join(' · ') || a.size || '')}</td>
+          <td class="b">${esc(info.status === 'free' ? '—' : info.people.map(x => x.name).join(', '))}</td>
+          <td>${esc(fx.from || '—')}</td><td${info.status === 'ending' ? ' class="warnt"' : ''}>${esc(fx.rented ? fx.to : '—')}</td><td>${nav}</td><td>${stav}</td></tr>`
+      }).join('')
+      return `<section class="page">
+        <div class="head"><div><div class="title">${esc(p.building)} – ${esc(p.name)}</div>
+          <div class="sub">${rows.length} ${rows.length === 1 ? 'předmět' : rows.length > 1 && rows.length < 5 ? 'předměty' : 'předmětů'} · ${rented} pronajato · ${rows.length - rented} volných</div></div>
+          <div class="date">Stav k ${today}<small>RentFlow · půdorys</small></div></div>
+        <div class="map" style="height:${mapH}mm">${svg}</div>
+        <div class="legend"><span><i class="sw ok"></i>Pronajato</span><span><i class="sw warn"></i>Smlouva končí do ${ENDING_DAYS} dní (bez navazující)</span><span><i class="sw free"></i>Volné</span><span><i class="sw hatch"></i>Terasa / balkon</span></div>
+        ${rows.length ? `<table><thead><tr><th>Byt / prostor</th><th>Dispozice · plocha</th><th>Nájemce</th><th>V nájmu od</th><th>Smlouva do</th><th>Navýšení nájmu</th><th>Stav</th></tr></thead><tbody>${tr}</tbody></table>` : ''}
+      </section>`
+    }).join('')
+    return `<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8"><title>Půdorys</title><style>
+      @page { size: A4 landscape; margin: 9mm 10mm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1c1b; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { page-break-after: always; }
+      .page:last-child { page-break-after: auto; }
+      .head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #12654A; padding-bottom: 5px; margin-bottom: 6px; }
+      .title { font-size: 19px; font-weight: 800; color: #12654A; }
+      .sub { font-size: 11px; color: #555; margin-top: 2px; }
+      .date { text-align: right; font-size: 11.5px; color: #374151; font-weight: 700; }
+      .date small { display: block; font-weight: 400; color: #9CA3AF; font-size: 10px; }
+      .map { width: 100%; }
+      .legend { display: flex; gap: 16px; font-size: 9.5px; color: #4B5563; font-weight: 600; margin: 4px 0 6px; }
+      .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 1.3px solid; vertical-align: -2px; margin-right: 5px; }
+      .sw.ok { background: #F0FDF4; border-color: #86EFAC; } .sw.warn { background: #FFFBEB; border-color: #FCD34D; }
+      .sw.free { background: #fff; border-color: #9CA3AF; border-style: dashed; }
+      .sw.hatch { border-color: #86EFAC; background: repeating-linear-gradient(45deg, #F0FDF4 0 2px, #86EFAC 2px 3px); }
+      table { width: 100%; border-collapse: collapse; font-size: 10px; page-break-inside: auto; }
+      th { text-align: left; background: #F3F4F6; color: #374151; font-weight: 700; padding: 4px 6px; border-bottom: 1.5px solid #D1D5DB; }
+      td { padding: 3px 6px; border-bottom: 1px solid #E5E7EB; }
+      tr { page-break-inside: avoid; }
+      td.b { font-weight: 700; } td.warnt { color: #B45309; font-weight: 700; }
+      .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; border: 1px solid; font-weight: 700; font-size: 9.5px; white-space: nowrap; }
+      .tag.ok { background: #F0FDF4; color: #166534; border-color: #86EFAC; } .tag.warn { background: #FFFBEB; color: #B45309; border-color: #FCD34D; }
+      .tag.gray { background: #F3F4F6; color: #4B5563; border-color: #D1D5DB; }
+    </style></head><body>${body}</body></html>`
+  }
+  const exportPdf = async (scope) => {
+    const list = scope === 'all' ? floors : [plan]
+    if (!list.length) return
+    setPdfBusy(true)
+    try {
+      const html = buildPdfHtml(list)
+      const { save } = await import('@tauri-apps/api/dialog')
+      const fileName = `Pudorys ${curBuilding}${scope === 'all' ? '' : ' ' + plan.name} ${czDate(new Date()).replace(/\s/g, '')}.pdf`.replace(/[\\/:*?"<>|]/g, '-')
+      const outPath = await save({ defaultPath: fileName, filters: [{ name: 'PDF soubor', extensions: ['pdf'] }] })
+      if (!outPath) return
+      const { invoke } = await import('@tauri-apps/api/tauri')
+      await invoke('export_to_pdf', { html, outPath })
+      setPdfOpen(false)
+      try { const { open } = await import('@tauri-apps/api/shell'); await open(outPath) } catch { /* PDF je uložené, jen se neotevřelo */ }
+      showToast('PDF půdorysu je uložené a otevřené – tisk přes Ctrl+P.', 'success')
+    } catch (e) {
+      console.error('PDF půdorysu:', e)
+      showToast('PDF se nepodařilo vytvořit: ' + e)
+    } finally { setPdfBusy(false) }
+  }
+  if (import.meta.env.DEV) window.__rfFloorPdf = (scope) => buildPdfHtml(scope === 'all' ? floors : plan ? [plan] : [])
 
   // výběr předmětu pro plochu: nejdřív byty, podle názvu
   const assetOptions = useMemo(() => {
@@ -648,6 +764,7 @@ export default function FloorPlans({ onOpen }) {
                 {' '}· {fStats.free} volných
               </div>
             )}
+            {!editing && <button className="btn" onClick={() => setPdfOpen(true)} title="Půdorys s aktuálními údaji do PDF k tisku">🖨 PDF</button>}
             {!isReadOnly && !editing && <button className="btn" onClick={() => startEdit()}>✏️ Upravit patro</button>}
           </div>
 
@@ -817,6 +934,24 @@ export default function FloorPlans({ onOpen }) {
         </>
       )}
 
+      {pdfOpen && plan && (
+        <DialogShell icon="🖨" title="PDF půdorysu" subtitle="S aktuálními nájemci – k uložení a tisku" width={460} onClose={() => !pdfBusy && setPdfOpen(false)} busy={pdfBusy}
+          footer={<button className="btn" onClick={() => setPdfOpen(false)} disabled={pdfBusy}>Zrušit</button>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button className="btn" style={{ padding: '14px 16px', textAlign: 'left' }} disabled={pdfBusy} onClick={() => exportPdf('floor')}>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>📄 Toto patro</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{curBuilding} – {plan.name}</div>
+            </button>
+            {floors.length > 1 && (
+              <button className="btn" style={{ padding: '14px 16px', textAlign: 'left' }} disabled={pdfBusy} onClick={() => exportPdf('all')}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>🏢 Celá budova</div>
+                <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{curBuilding} – {floors.length} {floors.length < 5 ? 'patra' : 'pater'}, každé na vlastní stránce</div>
+              </button>
+            )}
+            <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 }}>A4 na šířku: mapa, legenda a tabulka (byt, nájemce, v nájmu od, smlouva do, navýšení nájmu). Po uložení se PDF otevře k tisku.</div>
+          </div>
+        </DialogShell>
+      )}
       {newOpen && <NewFloorDialog buildings={mainObjects} defaultBuilding={curBuilding} onClose={() => setNewOpen(false)}
         onCreate={async (b, name) => {
           const out = await saveFloorPlan({ id: '', building: b, name, width: 1600, height: 1000, shapes: '[]' })

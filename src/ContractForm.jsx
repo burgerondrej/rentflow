@@ -198,7 +198,8 @@ export default function ContractForm({ onClose }) {
       terminationMonths: formData.terminationMonths ? parseInt(formData.terminationMonths) : null,
       renewalMethod: formData.renewalMethod || null,
       valorizationEnabled: formData.valorizationEnabled ? 1 : 0,
-      valorizationDate: formData.valorizationEnabled && formData.valorizationDate ? isoToCz(formData.valorizationDate) : null,
+      // Byty: „Poslední navýšení nájemného“ (bez zaškrtávátka), komerční: jen se sjednanou valorizací
+      valorizationDate: (contractType === 'residential' || formData.valorizationEnabled) && formData.valorizationDate ? isoToCz(formData.valorizationDate) : null,
       invoiceDue: null,
       contractVersion: contractType === 'residential' ? formData.contractVersion : null,
       occupants: contractType === 'residential' && formData.occupants ? parseInt(formData.occupants) : null,
@@ -525,6 +526,13 @@ export default function ContractForm({ onClose }) {
                   </button>
                 ))}
               </div>
+            </div>
+            <div>
+              {/* Byty: stejné pole jako „Datum poslední valorizace“ u komerčních (valorizationDate) – rok od něj blokuje navýšení */}
+              {lbl('Poslední navýšení nájemného')}
+              <input type="date" className="btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                value={formData.valorizationDate} onChange={e => set('valorizationDate', e.target.value)} />
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Nevyplněné = počítá se rok od začátku smlouvy.</div>
             </div>
           </div>
         )}

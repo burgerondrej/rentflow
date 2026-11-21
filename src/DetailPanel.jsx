@@ -2042,7 +2042,8 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         terminationMonths: formData.terminationMonths ? parseInt(formData.terminationMonths) : null,
         renewalMethod: formData.renewalMethod || null,
         valorizationEnabled: formData.valorizationEnabled ? 1 : 0,
-        valorizationDate: formData.valorizationEnabled && formData.valorizationDate ? isoToCz(formData.valorizationDate) : null,
+        // Byty: „Poslední navýšení nájemného“ (bez zaškrtávátka), komerční: jen se sjednanou valorizací
+        valorizationDate: (a?.type === 'residential' || formData.valorizationEnabled) && formData.valorizationDate ? isoToCz(formData.valorizationDate) : null,
         invoiceDue: formData.invoiceDue || null,
         contractVersion: formData.contractVersion || null,
         occupants: formData.occupants ? parseInt(formData.occupants) : null,
@@ -2558,6 +2559,12 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <option value="Stará verze smlouvy">📜 Stará verze smlouvy</option>
                 </select>
               </div>
+              <div style={{ marginBottom: 12 }}>
+                {/* Byty: stejné pole jako „Datum poslední valorizace“ (valorizationDate), bez zaškrtávátka */}
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Poslední navýšení nájemného</label>
+                <input type="date" className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left' }} value={formData.valorizationDate || ''} onChange={e => setFormData({...formData, valorizationDate: e.target.value})} />
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Nevyplněné = rok od začátku smlouvy (navýšení dodatkem se pozná samo).</div>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Počet osob v bytě</label>
@@ -2796,7 +2803,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   Nájem zatím nelze navyšovat
                 </div>
                 <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--tone-amber-text)' }}>
-                  {lock.reason === 'valorization' ? `Od poslední valorizace (${lock.since}) ještě neuplynul rok.` : 'Od začátku smlouvy ještě neuplynul rok.'} Navýšení je možné od {lock.until}.
+                  {lock.reason === 'valorization'
+                    ? (a?.type === 'residential' ? `Od posledního navýšení nájemného (${lock.since}) ještě neuplynul rok.` : `Od poslední valorizace (${lock.since}) ještě neuplynul rok.`)
+                    : 'Od začátku smlouvy ještě neuplynul rok.'} Navýšení je možné od {lock.until}.
                 </div>
               </div>
             </div>
@@ -3066,10 +3075,16 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         )}
 
         {/* Verze smlouvy + obsazenost */}
-        {(c.contractVersion || c.occupants != null || c.coResidents) && (
+        {(c.contractVersion || c.occupants != null || c.coResidents || (a?.type === 'residential' && c.valorizationDate)) && (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
             <SectionHeader icon="👥" tone="violet" title="Obsazenost a verze smlouvy" />
             <div style={{ padding: '4px 0' }}>
+              {a?.type === 'residential' && c.valorizationDate && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text2)' }}>Poslední navýšení nájemného</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.valorizationDate}</span>
+                </div>
+              )}
               {c.contractVersion && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                   <span style={{ fontSize: 13, color: 'var(--text2)' }}>Verze smlouvy</span>
