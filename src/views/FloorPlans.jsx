@@ -514,36 +514,46 @@ export default function FloorPlans({ onOpen }) {
     }
     const nameLines = name.length > 16 ? split2(name) : [name]
     const nameLen = Math.max(...nameLines.map(l => l.length))
+    // rohy vedle sebe, nebo u úzkého prostoru pod sebe (vlevo „od“, pod tím vpravo „do“)
+    const cLenL = corners ? corners.l[1].length : 0, cLenR = corners?.r ? corners.r[1].length : 0
+    const stacked = !!corners?.r && (iw - 0.5 * maxF) / ((cLenL + cLenR) * charW * 1.02) < 0.5 * maxF
     // velikost písma: vejít se na výšku i šířku; když je místa málo, nejdřív pryč štítek, pak rohy
+    const whoSplit = who && who.includes(' ') ? split2(who) : [who]
     const fitF = (withC, withChip, lines) => {
-      const units = (withC ? 0.55 * 1.15 + 0.8 * 1.15 + 0.45 : 0) + 1.5 + 1.15 * (nameLines.length - 1) + 0.25 + (area ? 0.72 * 1.2 : 0) + 0.25 + 1.25 * 1.18 * lines + (withChip ? 0.5 + 1.9 : 0)
-      return Math.min(maxF, ih / units, iw / (nameLen * charW * 0.95 + 2.4))
+      const cornerU = withC ? (stacked ? 2 * (0.55 * 1.15 + 0.8 * 1.15) + 0.45 : 0.55 * 1.15 + 0.8 * 1.15 + 0.45) : 0
+      const units = cornerU + 1.5 + 1.15 * (nameLines.length - 1) + 0.25 + (area ? 0.72 * 1.2 : 0) + 0.25 + (who ? 1.25 * 1.18 * lines : 0) + (withChip ? 0.5 + 1.9 : 0)
+      const whoLen = !who ? 0 : lines === 1 ? who.length : Math.max(...whoSplit.map(l => l.length))
+      return Math.min(maxF, ih / units, iw / (nameLen * charW * 0.95 + 2.4), whoLen ? iw / (whoLen * charW * 1.25) : Infinity)
     }
-    const whoFits = (f) => !who || who.length * charW * 1.25 * f <= iw
     const configs = [[!!corners, !!chip], [!!corners, false], [false, false]]
     let pick = null
     for (const [c1, c2] of configs) {
-      let f = fitF(c1, c2, 1), lines = 1
-      if (!whoFits(f)) { lines = 2; f = fitF(c1, c2, 2) }
-      pick = { c1, c2, f, lines }
-      if (f >= RC.W / 75) break
+      // jméno nájemce na jeden, nebo dva řádky – podle toho, co dovolí větší písmo
+      const f1 = fitF(c1, c2, 1), f2 = whoSplit.length > 1 ? fitF(c1, c2, 2) : 0
+      pick = f2 > f1 * 1.08 ? { c1, c2, f: f2, lines: 2 } : { c1, c2, f: f1, lines: 1 }
+      if (pick.f >= RC.W / 85) break
     }
     const { c1, c2, f, lines } = pick
     const els = []
     let top = r.y0 + pad, bottom = r.y1 - pad
     // rohy nahoře
     if (c1) {
-      const lenL = corners.l[1].length, lenR = corners.r ? corners.r[1].length : 0
-      const fv = Math.min(f * 0.85, (iw - f) / (Math.max(1, lenL + lenR) * charW * 1.02))
-      const fl = Math.max(fv * 0.72, f * 0.5)
+      const lblLen = corners.l[0].length + (corners.r ? corners.r[0].length : 0)
+      const fv = stacked
+        ? Math.min(f * 0.85, iw / (Math.max(cLenL, cLenR) * charW * 1.02))
+        : Math.min(f * 0.85, (iw - f) / (Math.max(1, cLenL + cLenR) * charW * 1.02))
+      const fl = Math.min(Math.max(fv * 0.72, f * 0.5), stacked ? iw / (Math.max(corners.l[0].length, corners.r[0].length) * charW) : (iw - f * 0.6) / (lblLen * charW))
       const yl = top + fl, yv = yl + fv * 1.15
       els.push(<text key="ll" x={r.x0 + pad} y={yl} fontSize={fl} fontWeight="600" fill="var(--text2)">{corners.l[0]}</text>)
       els.push(<text key="lv" x={r.x0 + pad} y={yv} fontSize={fv} fontWeight="800" fill={tone.text}>{corners.l[1]}</text>)
+      let yEnd = yv
       if (corners.r) {
-        els.push(<text key="rl" x={r.x1 - pad} y={yl} textAnchor="end" fontSize={fl} fontWeight="600" fill="var(--text2)">{corners.r[0]}</text>)
-        els.push(<text key="rv" x={r.x1 - pad} y={yv} textAnchor="end" fontSize={fv} fontWeight="800" fill={tone.text}>{corners.r[1]}</text>)
+        const yl2 = stacked ? yv + f * 0.25 + fl : yl, yv2 = yl2 + fv * 1.15
+        els.push(<text key="rl" x={r.x1 - pad} y={yl2} textAnchor="end" fontSize={fl} fontWeight="600" fill="var(--text2)">{corners.r[0]}</text>)
+        els.push(<text key="rv" x={r.x1 - pad} y={yv2} textAnchor="end" fontSize={fv} fontWeight="800" fill={tone.text}>{corners.r[1]}</text>)
+        yEnd = yv2
       }
-      top = yv + f * 0.45
+      top = yEnd + f * 0.45
     }
     // štítek dole
     if (c2) {
