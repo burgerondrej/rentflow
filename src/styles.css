@@ -511,6 +511,17 @@ html.rf-morph-vt::view-transition-old(root), html.rf-morph-vt::view-transition-n
 @keyframes rfSplashOut { to { opacity: 0; transform: scale(1.08); filter: blur(6px); } }
 
 /* Windows s vypnutými animacemi: efekty vypnout */
+/* Půdorysy (Portfolio → Půdorysy) */
+.fp-stage { animation: rfFpIn .3s ease both; }
+@keyframes rfFpIn { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
+.fp-shape .fp-poly { transition: stroke-width .15s, filter .15s; }
+.fp-click { cursor: pointer; }
+.fp-click:hover .fp-poly { stroke-width: 3.2px; filter: brightness(0.97) saturate(1.15); }
+.fp-panel { background: var(--bg); border: 1.5px solid var(--border); border-radius: 14px; padding: 12px 14px; }
+.fp-panel-title { font-size: 11px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.fp-leg { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 7px; }
+.fp-leg-hatch { border-color: var(--tone-green-border); background: repeating-linear-gradient(45deg, var(--tone-green-soft) 0 3px, var(--tone-green-border) 3px 4.5px); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
 }

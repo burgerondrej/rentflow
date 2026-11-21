@@ -402,6 +402,32 @@ pub struct DebtNote {
     pub user_name: Option<String>,
 }
 
+/// Půdorys patra budovy (interaktivní mapa v Portfolio → Půdorysy).
+/// building = název budovy (objects.name, přejmenování se propisuje); shapes = JSON pole ploch
+/// [{ kind: "unit"|"extra"|"common", assetId, label, points: [[x,y],…] }] – zpracovává jen frontend.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FloorPlan {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub building: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub sort_order: i64,
+    #[serde(default)]
+    pub width: f64,
+    #[serde(default)]
+    pub height: f64,
+    #[serde(default)]
+    pub background: Option<String>, // soubor podkladu v documents/ (plochý název)
+    #[serde(default)]
+    pub shapes: String,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+}
+
 /// Stav měřidel (odečet) ke smlouvě – typicky při nástupu / odchodu nájemce.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]

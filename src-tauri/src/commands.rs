@@ -1080,6 +1080,30 @@ pub fn delete_debt_note(id: String, user: String, state: State<AppState>) -> std
 }
 
 #[tauri::command]
+pub fn get_floor_plans(state: State<AppState>) -> std::result::Result<Vec<FloorPlan>, AppError> {
+    db!(state).get_floor_plans()
+}
+
+#[tauri::command]
+pub fn save_floor_plan(plan: FloorPlan, user: String, state: State<AppState>) -> std::result::Result<FloorPlan, AppError> {
+    let db = db!(state);
+    let is_new = plan.id.is_empty();
+    let out = db.save_floor_plan(&plan)?;
+    db.add_log(&user, if is_new { "Přidání" } else { "Úprava" }, "Půdorysy", &format!("Půdorys: {} – {}", out.building, out.name))?;
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn delete_floor_plan(id: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    let what = db.get_floor_plans().ok().and_then(|ps| ps.into_iter().find(|p| p.id == id))
+        .map(|p| format!("{} – {}", p.building, p.name)).unwrap_or_default();
+    db.delete_floor_plan(&id)?;
+    db.add_log(&user, "Smazání", "Půdorysy", &format!("Smazán půdorys: {}", what))?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_meter_readings(state: State<AppState>) -> std::result::Result<Vec<MeterReading>, AppError> {
     db!(state).get_meter_readings()
 }

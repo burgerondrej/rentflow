@@ -15,6 +15,7 @@ import Trash from './views/Trash.jsx'
 import { Docs, Alerts } from './views/DocsAlerts.jsx'
 import History from './views/History.jsx'
 import OperationalCosts from './views/OperationalCosts.jsx'
+import FloorPlans from './views/FloorPlans.jsx'
 import SettingsPanel from './SettingsPanel.jsx'
 import UpdateDialog from './UpdateDialog.jsx'
 import ActivationScreen from './ActivationScreen.jsx'
@@ -458,6 +459,7 @@ function AppInner() {
     vehicle: () => <Assets type="vehicle" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     service: () => <Assets type="service" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     ostatni: () => <Assets type="ostatni" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
+    floorplans: () => <FloorPlans onOpen={(id) => openDetail('asset', id)} />,
     contracts: () => <Contracts activeSubject={subject} onOpen={(id) => openDetail('contract', id)} />, 
     payments: () => <Payments />, 
     'operational-costs': () => <OperationalCosts />,

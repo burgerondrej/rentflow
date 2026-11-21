@@ -399,6 +399,17 @@ impl Database {
                 user_name     TEXT,
                 UNIQUE(tenant_id, firm)
             );
+            CREATE TABLE IF NOT EXISTS floor_plans (
+                id          TEXT PRIMARY KEY,
+                building    TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                sort_order  INTEGER NOT NULL DEFAULT 0,
+                width       REAL NOT NULL DEFAULT 1600,
+                height      REAL NOT NULL DEFAULT 1000,
+                background  TEXT,
+                shapes      TEXT NOT NULL DEFAULT '[]',
+                updated_at  TEXT
+            );
             CREATE TABLE IF NOT EXISTS meter_readings (
                 id          TEXT PRIMARY KEY,
                 contract_id TEXT NOT NULL,
@@ -1375,6 +1386,7 @@ impl Database {
                 tx.execute("UPDATE operational_costs SET object_name = ?1 WHERE object_name = ?2", params![name, old_name])?;
                 tx.execute("UPDATE revisions SET subject = ?1 WHERE subject = ?2", params![name, old_name])?;
                 tx.execute("UPDATE documents SET subject = ?1 WHERE subject = ?2", params![name, old_name])?;
+                tx.execute("UPDATE floor_plans SET building = ?1 WHERE building = ?2", params![name, old_name])?;
             }
             tx.execute("UPDATE objects SET firm = ?1 WHERE name = ?2", params![firm, name])?;
         }
@@ -1386,9 +1398,9 @@ impl Database {
     pub fn delete_object(&self, name: &str) -> Result<()> {
         let used: i64 = self.conn.query_row(
             "SELECT (SELECT COUNT(*) FROM operational_costs WHERE object_name = ?1) + (SELECT COUNT(*) FROM revisions WHERE subject = ?1)
-                  + (SELECT COUNT(*) FROM documents WHERE subject = ?1)",
+                  + (SELECT COUNT(*) FROM documents WHERE subject = ?1) + (SELECT COUNT(*) FROM floor_plans WHERE building = ?1)",
             params![name], |r| r.get(0))?;
-        if used > 0 { return Err(AppError::Other(format!("Budovu nelze smazat – používá ji {} záznamů (náklady, revize, dokumenty).", used))); }
+        if used > 0 { return Err(AppError::Other(format!("Budovu nelze smazat – používá ji {} záznamů (náklady, revize, dokumenty, půdorysy).", used))); }
         self.conn.execute("DELETE FROM objects WHERE name = ?1", params![name])?;
         Ok(())
     }
@@ -1462,6 +1474,49 @@ impl Database {
 
     pub fn delete_debt_note(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM debt_notes WHERE id=?1", params![id])?;
+        Ok(())
+    }
+
+    // ─────────────────────────────────────────
+    // PŮDORYSY (interaktivní mapa budovy)
+    // ─────────────────────────────────────────
+    pub fn get_floor_plans(&self) -> Result<Vec<FloorPlan>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, building, name, sort_order, width, height, background, shapes, updated_at FROM floor_plans ORDER BY building, sort_order")?;
+        let items = stmt.query_map([], |r| Ok(FloorPlan {
+            id: r.get(0)?, building: r.get(1)?, name: r.get(2)?, sort_order: r.get(3)?, width: r.get(4)?, height: r.get(5)?,
+            background: r.get(6)?, shapes: r.get(7)?, updated_at: r.get(8)?,
+        }))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
+
+    /// Uloží půdorys patra (prázdné id = nové patro na konec budovy).
+    pub fn save_floor_plan(&self, p: &FloorPlan) -> Result<FloorPlan> {
+        if p.building.trim().is_empty() { return Err(AppError::Other("Vyberte budovu.".into())); }
+        if p.name.trim().is_empty() { return Err(AppError::Other("Zadejte název patra.".into())); }
+        let now = Self::now_cs();
+        let mut out = p.clone();
+        out.updated_at = Some(now.clone());
+        if out.shapes.trim().is_empty() { out.shapes = "[]".into(); }
+        if out.width <= 0.0 { out.width = 1600.0; }
+        if out.height <= 0.0 { out.height = 1000.0; }
+        if out.id.is_empty() {
+            out.id = Self::new_id();
+            out.sort_order = self.conn.query_row(
+                "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM floor_plans WHERE building = ?1", params![out.building], |r| r.get(0))?;
+            self.conn.execute(
+                "INSERT INTO floor_plans (id, building, name, sort_order, width, height, background, shapes, updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![out.id, out.building, out.name, out.sort_order, out.width, out.height, out.background, out.shapes, now])?;
+        } else {
+            self.conn.execute(
+                "UPDATE floor_plans SET building=?1, name=?2, sort_order=?3, width=?4, height=?5, background=?6, shapes=?7, updated_at=?8 WHERE id=?9",
+                params![out.building, out.name, out.sort_order, out.width, out.height, out.background, out.shapes, now, out.id])?;
+        }
+        Ok(out)
+    }
+
+    pub fn delete_floor_plan(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM floor_plans WHERE id=?1", params![id])?;
         Ok(())
     }
 

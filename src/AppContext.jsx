@@ -37,6 +37,7 @@ export function AppProvider({ children }) {
   const [logs, setLogs] = useState([])
   const [operationalCosts, setOperationalCosts] = useState([])
   const [cauceSettlements, setCauceSettlements] = useState([]) // vypořádání kaucí (contractId → vráceno / započteno)
+  const [floorPlans, setFloorPlans] = useState([])             // půdorysy pater budov (Portfolio → Půdorysy)
   const [debtNotes, setDebtNotes] = useState([])               // poznámky k dlužníkům (nájemce + firma)
   const [meterReadings, setMeterReadings] = useState([])       // stavy měřidel ke smlouvám
   const [subjectData, setSubjectData] = useState([])
@@ -147,9 +148,11 @@ export function AppProvider({ children }) {
         if (tr) setTrash(tr)
         if (l) setLogs(l)
         if (oc) setOperationalCosts(oc)
-        const [cs, dn, mr] = await Promise.all([
+        const [cs, dn, mr, fp] = await Promise.all([
           invoke('get_cauce_settlements').catch(() => []), invoke('get_debt_notes').catch(() => []), invoke('get_meter_readings').catch(() => []),
+          invoke('get_floor_plans').catch(() => []),
         ])
+        if (fp) setFloorPlans(fp)
         if (cs) setCauceSettlements(cs)
         if (dn) setDebtNotes(dn)
         if (mr) setMeterReadings(mr)
@@ -686,6 +689,23 @@ export function AppProvider({ children }) {
       setDebtNotes(prev => prev.filter(x => x.id !== id))
     } catch (err) { console.error('deleteDebtNote error:', err) }
   }
+  // ─── Půdorysy (shapes = JSON text, ID patra generuje Rust) ───
+  const saveFloorPlan = async (plan) => {
+    if (guardWrite()) return null
+    try {
+      const saved = await invoke('save_floor_plan', { plan, user: currentUser })
+      if (saved) setFloorPlans(prev => [...prev.filter(x => x.id !== saved.id), saved])
+      return saved
+    } catch (err) { console.error('saveFloorPlan error:', err); showToast('Půdorys se nepodařilo uložit: ' + err); return null }
+  }
+  const deleteFloorPlan = async (id) => {
+    if (guardWrite()) return false
+    try {
+      await invoke('delete_floor_plan', { id, user: currentUser })
+      setFloorPlans(prev => prev.filter(x => x.id !== id))
+      return true
+    } catch (err) { console.error('deleteFloorPlan error:', err); showToast('Půdorys se nepodařilo smazat: ' + err); return false }
+  }
   const addMeterReading = async (reading) => {
     if (guardWrite()) return null
     try {
@@ -1020,6 +1040,7 @@ export function AppProvider({ children }) {
     addPayment, updatePayment, updatePaymentAmount, deletePayment, removePayments, confirmAction,
     cauceSettlements, saveCauceSettlement, deleteCauceSettlement, debtNotes, saveDebtNote, deleteDebtNote,
     meterReadings, addMeterReading, deleteMeterReading,
+    floorPlans, saveFloorPlan, deleteFloorPlan,
     // CRUD – Kanban
     addTask, updateTask, deleteTask,
     // CRUD – Revize
