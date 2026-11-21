@@ -514,10 +514,19 @@ export default function FloorPlans({ onOpen }) {
     const iw = w - 2 * pad, ih = h - 2 * pad
     if (iw <= 0 || ih <= 0) return null
     const maxF = RC.W / 38
+    // dlouhý název (komerční prostory) na dva řádky
+    const split2 = (t) => {
+      const sp = [...t].map((c, i) => c === ' ' ? i : -1).filter(i => i > 0), mid = t.length / 2
+      if (!sp.length) return [t]
+      const at = sp.reduce((x, i) => Math.abs(i - mid) < Math.abs(x - mid) ? i : x, sp[0])
+      return [t.slice(0, at), t.slice(at + 1)]
+    }
+    const nameLines = name.length > 16 ? split2(name) : [name]
+    const nameLen = Math.max(...nameLines.map(l => l.length))
     // velikost písma: vejít se na výšku i šířku; když je místa málo, nejdřív pryč štítek, pak rohy
     const fitF = (withC, withChip, lines) => {
-      const units = (withC ? 0.55 * 1.15 + 0.8 * 1.15 + 0.45 : 0) + 1.5 + 0.25 + (area ? 0.72 * 1.2 : 0) + 0.25 + 1.25 * 1.18 * lines + (withChip ? 0.5 + 1.9 : 0)
-      return Math.min(maxF, ih / units, iw / (name.length * charW * 0.95 + 2.4))
+      const units = (withC ? 0.55 * 1.15 + 0.8 * 1.15 + 0.45 : 0) + 1.5 + 1.15 * (nameLines.length - 1) + 0.25 + (area ? 0.72 * 1.2 : 0) + 0.25 + 1.25 * 1.18 * lines + (withChip ? 0.5 + 1.9 : 0)
+      return Math.min(maxF, ih / units, iw / (nameLen * charW * 0.95 + 2.4))
     }
     const whoFits = (f) => !who || who.length * charW * 1.25 * f <= iw
     const configs = [[!!corners, !!chip], [!!corners, false], [false, false]]
@@ -563,25 +572,24 @@ export default function FloorPlans({ onOpen }) {
       bottom = cy - f * 0.5
     }
     // střed: jmenovka, plocha, nájemce
-    const fName = f * 0.95, pillH = f * 1.5
+    const fName = f * 0.95, pillH = f * 1.5 + fName * 1.15 * (nameLines.length - 1)
     const fArea = f * 0.72
     let fWho = f * 1.25
     let whoLines = [who]
-    if (who && lines === 2 && who.includes(' ')) {
-      const sp = [...who].map((c, i) => c === ' ' ? i : -1).filter(i => i > 0), mid = who.length / 2
-      const at = sp.reduce((x, i) => Math.abs(i - mid) < Math.abs(x - mid) ? i : x, sp[0])
-      whoLines = [who.slice(0, at), who.slice(at + 1)]
-    }
+    if (who && lines === 2 && who.includes(' ')) whoLines = split2(who)
     if (who) fWho = Math.min(fWho, iw / (Math.max(...whoLines.map(l => l.length)) * charW))
     const blockH = pillH + f * 0.25 + (area ? fArea * 1.2 : 0) + (who ? f * 0.25 + fWho * 1.18 * whoLines.length : 0)
     let y = Math.max(top, top + (bottom - top - blockH) / 2)
     const cx = (r.x0 + r.x1) / 2
-    const pillW = name.length * charW * fName + fName * (tone.dot ? 2.4 : 1.5)
+    const pillW = nameLen * charW * fName + fName * (tone.dot ? 2.4 : 1.5)
+    const multi = nameLines.length > 1
     els.push(
       <g key="pill">
-        <rect x={cx - pillW / 2} y={y} width={pillW} height={pillH} rx={pillH / 2} fill="var(--bg)" stroke={tone.stroke} strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
+        <rect x={cx - pillW / 2} y={y} width={pillW} height={pillH} rx={multi ? fName * 0.6 : pillH / 2} fill="var(--bg)" stroke={tone.stroke} strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
         {tone.dot && <circle cx={cx - pillW / 2 + fName * 0.9} cy={y + pillH / 2} r={fName * 0.27} fill={tone.dot} />}
-        <text x={cx + (tone.dot ? fName * 0.45 : 0)} y={y + pillH * 0.68} textAnchor="middle" fontSize={fName} fontWeight="800" fill={tone.text}>{name}</text>
+        {nameLines.map((l, i) => (
+          <text key={i} x={cx + (tone.dot ? fName * 0.45 : 0)} y={y + f * 1.5 * 0.68 + i * fName * 1.15} textAnchor="middle" fontSize={fName} fontWeight="800" fill={tone.text}>{l}</text>
+        ))}
       </g>
     )
     y += pillH + f * 0.25
@@ -957,11 +965,13 @@ export default function FloorPlans({ onOpen }) {
           const out = await saveFloorPlan({ id: '', building: b, name, width: 1600, height: 1000, shapes: '[]' })
           if (out) { setNewOpen(false); setBuilding(b); setPlanId(out.id); startEdit(out) }
         }} />}
-      {importOpen && <ImportDialog buildings={mainObjects} assets={assets} onClose={() => setImportOpen(false)}
+      {importOpen && <ImportDialog buildings={mainObjects} assets={assets} floorPlans={floorPlans} onClose={() => setImportOpen(false)}
         onImport={async (b, floorsIn) => {
           let last = null
           for (const f of floorsIn) {
-            const out = await saveFloorPlan({ id: '', building: b, name: f.name, width: f.width, height: f.height, shapes: JSON.stringify(f.shapes) })
+            // Patro se stejným názvem v budově se nahradí (zůstává pořadí i podklad), jinak vznikne nové
+            const ex = floorPlans.find(x => x.building === b && normUnit(x.name) === normUnit(f.name))
+            const out = await saveFloorPlan({ ...(ex || {}), id: ex?.id || '', building: b, name: f.name, width: f.width, height: f.height, shapes: JSON.stringify(f.shapes) })
             if (!out) return
             last = last || out
           }
@@ -999,7 +1009,7 @@ function NewFloorDialog({ buildings, defaultBuilding, onClose, onCreate }) {
 }
 
 // ─── Import ze souboru (JSON: { building, floors: [{ name, width, height, shapes: [{ kind, unit, label, points, labelAt }] }] }) ───
-function ImportDialog({ buildings, assets, onClose, onImport }) {
+function ImportDialog({ buildings, assets, floorPlans = [], onClose, onImport }) {
   const [data, setData] = useState(null)
   const [err, setErr] = useState('')
   const [b, setB] = useState('')
@@ -1056,7 +1066,9 @@ function ImportDialog({ buildings, assets, onClose, onImport }) {
           <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {prepared.map((f, i) => (
               <div key={i} style={{ border: '1.5px solid var(--border)', borderRadius: 10, padding: '8px 12px', fontSize: 13 }}>
-                <div style={{ fontWeight: 800 }}>{f.name}</div>
+                <div style={{ fontWeight: 800 }}>{f.name}
+                  {floorPlans.some(x => x.building === b && normUnit(x.name) === normUnit(f.name)) && <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--tone-amber-text)' }}> · nahradí stávající patro</span>}
+                </div>
                 <div style={{ color: f.missing.length ? 'var(--tone-amber-text)' : 'var(--tone-green-text)', fontWeight: 600 }}>
                   {f.units - f.missing.length} z {f.units} předmětů spárováno{f.missing.length ? ` – chybí: ${f.missing.join(', ')}` : ' ✓'}
                 </div>
