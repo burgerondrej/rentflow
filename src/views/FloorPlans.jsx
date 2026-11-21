@@ -468,15 +468,6 @@ export default function FloorPlans({ onOpen }) {
         <polygon points={ptsStr(s.points)} fill={fill} stroke={stroke} strokeWidth={isSel ? 3 : 1.6}
           strokeDasharray={!common && tone?.dash && !isSel ? tone.dash : undefined} strokeLinejoin="round" vectorEffect="non-scaling-stroke"
           className="fp-poly" />
-        {s.kind === 'unit' && tone?.dot && (() => {
-          const b = bboxOf(s.points)
-          return (
-            <>
-              <clipPath id={`${RC.idp}fpc-${si}`}><polygon points={ptsStr(s.points)} /></clipPath>
-              <rect x={b.x0} y={b.y0} width={b.w} height={RC.W / 140} fill={tone.dot} clipPath={`url(#${RC.idp}fpc-${si})`} style={{ pointerEvents: 'none' }} />
-            </>
-          )
-        })()}
       </g>
     )
   }
