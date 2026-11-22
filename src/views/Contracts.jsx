@@ -525,22 +525,50 @@ export default function Contracts({ activeSubject, onOpen }) {
 
               {subjectContracts.length === 0 ? (
                 <EmptyState compact icon="📑" title="Zatím žádné smlouvy" />
-              ) : viewMode === 'table' ? renderTable([...activeInSubject, ...archivedInSubject], subjectContracts.filter(x => x.status === 'active')) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 16 }}>
-                  {activeInSubject.map(c => (
-                    <div key={c.id}
-                      draggable
-                      onDragStart={() => { dragId.current = c.id }}
-                      onDragOver={e => { e.preventDefault(); dragOverId.current = c.id }}
-                      onDrop={() => handleDrop(subjectContracts.filter(x => x.status === 'active'))}
-                      style={{ cursor: 'grab' }}
-                    >
-                      {renderCard(c, false)}
-                    </div>
-                  ))}
-                  {archivedInSubject.map(c => renderCard(c, true))}
-                </div>
-              )}
+              ) : (() => {
+                // Karty / tabulka jedné skupiny smluv (tažení mění pořadí jen v rámci této skupiny)
+                const renderList = (act, arch) => viewMode === 'table' ? renderTable([...act, ...arch], act) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 16 }}>
+                    {act.map(c => (
+                      <div key={c.id}
+                        draggable
+                        onDragStart={() => { dragId.current = c.id }}
+                        onDragOver={e => { e.preventDefault(); dragOverId.current = c.id }}
+                        onDrop={() => handleDrop(act)}
+                        style={{ cursor: 'grab' }}
+                      >
+                        {renderCard(c, false)}
+                      </div>
+                    ))}
+                    {arch.map(c => renderCard(c, true))}
+                  </div>
+                )
+                // Parkování: podbloky podle umístění stání (jako Portfolio → Parkovací stání). Jen zobrazení – sekce, skupiny i Platby beze změny.
+                const isParking = subjectContracts.every(c => c.assetType === 'parking')
+                if (!isParking) return renderList(activeInSubject, archivedInSubject)
+                const fmtOf = (c) => (assets.find(a => a.id === c.assetId)?.format || '').trim() || 'Ostatní'
+                const order = []
+                ;[...subjectContracts].sort((a, b) => String(a.assetUnit || '').localeCompare(String(b.assetUnit || ''), 'cs', { numeric: true, sensitivity: 'base' }))
+                  .forEach(c => { const f = fmtOf(c); if (!order.includes(f)) order.push(f) })
+                order.sort((x, y) => (x === 'Ostatní') - (y === 'Ostatní'))
+                if (order.length < 2) return renderList(activeInSubject, archivedInSubject)
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                    {order.map(f => {
+                      const act = activeInSubject.filter(c => fmtOf(c) === f), arch = archivedInSubject.filter(c => fmtOf(c) === f)
+                      return (
+                        <div key={f}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px', paddingLeft: 10, borderLeft: `4px solid ${subjectFc ? subjectFc.mid : 'var(--border)'}` }}>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>🅿️ {f}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>{tab === 'valid' ? `${act.length} aktivních` : `${act.length + arch.length} ukončených`}{tab === 'valid' && arch.length ? ` · ${arch.length} končí` : ''}</span>
+                          </div>
+                          {renderList(act, arch)}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </div>
           )
         })}
