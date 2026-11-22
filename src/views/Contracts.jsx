@@ -7,7 +7,8 @@ import { StatusPill, contractStatus } from '../StatusUI.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
 import { useNewShortcut, peekContractsFilter, clearContractsFilter } from '../shortcuts.js'
 import { cauceInfo, fmtKc, CauceSettleDialog } from '../CauceUI.jsx'
-import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES } from '../utils.js'
+import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES, rentIncreaseLock } from '../utils.js'
+import { spanText } from '../ContractInsights.jsx'
 
 export default function Contracts({ activeSubject, onOpen }) {
   const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [] } = useApp()
@@ -15,6 +16,10 @@ export default function Contracts({ activeSubject, onOpen }) {
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   useNewShortcut(() => setShowForm(true)) // Ctrl+N
+  // Karty / Tabulka (pamatuje se) + řazení tabulky
+  const [viewMode, setViewModeState] = useState(() => { try { return localStorage.getItem('rf_contracts_view') || 'cards' } catch { return 'cards' } })
+  const setViewMode = (v) => { setViewModeState(v); try { localStorage.setItem('rf_contracts_view', v) } catch { /* ignore */ } }
+  const [sort, setSort] = useState({ key: '', dir: 1 })
   const [tab, setTab] = useState('valid') // 'valid' = platné (vč. ukončených s budoucím koncem) | 'ended' = ukončené | 'cauce' = kauce
   // Filtr končících smluv: all | 30 | 60 | 90 | expired (z menu přijde „30“)
   const [endFilter, setEndFilter] = useState(() => peekContractsFilter() || 'all')
@@ -159,6 +164,15 @@ export default function Contracts({ activeSubject, onOpen }) {
     )
   }
 
+  // Možnost navýšení nájmu (byty a komerční, ne „Zahrnuto v nájemném“) – stejné pravidlo jako bublina v detailu a půdorys
+  const increaseInfo = (c) => {
+    if ((c.assetType !== 'residential' && c.assetType !== 'commercial') || c.paymentFrequency === 'Zahrnuto v nájemném') return null
+    const lock = rentIncreaseLock(c)
+    return lock ? { t: 'amber', text: `navýšení možné od ${lock.until}`, short: `od ${lock.until}`, ts: parseDate(lock.until)?.getTime() || 0 } : { t: 'green', text: 'nájem lze navýšit', short: 'lze', ts: 0 }
+  }
+  const sqmOf = (c) => { const a = assets.find(x => x.id === c.assetId); const m = String(a?.size || '').match(/(\d+(?:[.,]\d+)?)\s*m²/); return m ? Number(m[1].replace(',', '.')) : null }
+  const today0 = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })()
+
   const renderCard = (c, isArchived = false) => {
     const isEndingSoon = c.daysLeft !== null && c.daysLeft <= 60 && c.daysLeft >= 0
     const isExpired = c.daysLeft !== null && c.daysLeft < 0
@@ -245,7 +259,87 @@ export default function Contracts({ activeSubject, onOpen }) {
               </div>
             )
           })()}
+
+          {/* Uplynulá doba smlouvy + možnost navýšení nájmu */}
+          {!isArchived && (() => {
+            const st = parseDate(c.start), en = parseDate(c.end)
+            const showProg = st && en && en > st
+            const pct = showProg ? Math.min(100, Math.max(0, (today0 - st) / (en - st) * 100)) : 0
+            const inc = increaseInfo(c)
+            if (!showProg && !inc) return null
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {showProg && (
+                  <div>
+                    <div style={{ height: 6, background: 'var(--bg)', border: `1px solid ${innerBorderColor}`, borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: accentColor }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--text2)', fontWeight: 600, marginTop: 3 }}>
+                      <span>{today0 < st ? 'zatím nezačala' : `uplynulo ${Math.round(pct)} %`}</span>
+                      <span>{today0 >= en ? 'skončila' : today0 < st ? `začne za ${spanText(today0, st)}` : `zbývá ${spanText(today0, en)}`}</span>
+                    </div>
+                  </div>
+                )}
+                {inc && (
+                  <span style={{ alignSelf: 'flex-start', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, background: `var(--tone-${inc.t}-soft)`, color: `var(--tone-${inc.t}-text)`, border: `1px solid var(--tone-${inc.t}-border)` }}>{inc.text}</span>
+                )}
+              </div>
+            )
+          })()}
         </div>
+      </div>
+    )
+  }
+
+  // ── Tabulkový režim (řazení klikem na záhlaví; bez řazení = stejné pořadí jako karty) ──
+  const SORTS = {
+    unit: (c) => String(c.assetUnit || ''), tenant: (c) => String(c.tenantName || ''), rent: (c) => (c.effRent || 0) + (c.effParking || 0),
+    m2: (c) => sqmOf(c) ?? -1, start: (c) => parseDate(c.start)?.getTime() || 0, end: (c) => parseDate(c.end)?.getTime() || Infinity,
+    inc: (c) => { const i = increaseInfo(c); return i ? i.ts : Infinity },
+  }
+  const sortRows = (rows) => {
+    if (!sort.key) return rows
+    const f = SORTS[sort.key]
+    return [...rows].sort((a, b) => { const x = f(a), y = f(b); return (typeof x === 'string' ? x.localeCompare(y, 'cs', { numeric: true }) : x - y) * sort.dir })
+  }
+  const renderTable = (rows) => {
+    const heads = [['unit', 'Předmět'], ['tenant', 'Nájemce'], ['rent', 'Nájem'], ['m2', 'm²'], ['start', 'Od'], ['end', 'Do'], ['inc', 'Navýšení'], ['', 'Stav']]
+    return (
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'clip' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: 'var(--bg2)', borderBottom: '2px solid var(--border)' }}>
+              {heads.map(([k, h], i) => (
+                <th key={i} onClick={k ? () => setSort(s => ({ key: k, dir: s.key === k ? -s.dir : 1 })) : undefined}
+                  style={{ padding: '10px 12px', textAlign: k === 'rent' || k === 'm2' ? 'right' : 'left', fontSize: 10.5, color: k && sort.key === k ? 'var(--accent)' : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: k ? 'pointer' : 'default', whiteSpace: 'nowrap', userSelect: 'none' }}>
+                  {h}{k && sort.key === k ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sortRows(rows).map(c => {
+              const ts = assetTypeStyle(c.assetType)
+              const inc = c.status === 'active' || isEndingArchived(c) ? increaseInfo(c) : null
+              const m2 = sqmOf(c)
+              const soon = c.daysLeft !== null && c.daysLeft <= 60 && (c.status === 'active' || isEndingArchived(c))
+              const per = { 'Čtvrtletně': ' / čtvrtl.', 'Pololetně': ' / pololetí', 'Ročně': ' / rok' }[c.paymentFrequency] || ''
+              const st = contractStatus(c)
+              return (
+                <tr key={c.id} onClick={() => onOpen(c.id)} className="ct-row" data-morph={`contract:${c.id}`} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer' }}>
+                  <td style={{ padding: '9px 12px', fontWeight: 800, fontSize: 13.5, color: ts.accent, minWidth: 140 }}>{ts.icon} {c.assetUnit || '—'}</td>
+                  <td title={c.tenantName || ''} style={{ padding: '9px 12px', fontWeight: 700, fontSize: 13.5, color: 'var(--text)', whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.tenantName || '—'}</td>
+                  <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 800, fontSize: 13.5, whiteSpace: 'nowrap' }}>{c.paymentFrequency === 'Zahrnuto v nájemném' ? <span style={{ color: 'var(--text3)', fontWeight: 600 }}>v nájmu</span> : `${Math.round((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč${per}`}</td>
+                  <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 13, color: 'var(--text2)' }}>{m2 != null ? m2.toLocaleString('cs-CZ') : '—'}</td>
+                  <td style={{ padding: '9px 12px', fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{c.start || '—'}</td>
+                  <td style={{ padding: '9px 12px', fontSize: 13, whiteSpace: 'nowrap', fontWeight: soon ? 800 : 500, color: soon ? (c.daysLeft < 0 ? 'var(--tone-red-text)' : 'var(--tone-amber-text)') : 'var(--text2)' }}>{c.end || 'Na dobu neurčitou'}</td>
+                  <td style={{ padding: '9px 12px', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', color: inc ? `var(--tone-${inc.t}-text)` : 'var(--text3)' }}>{inc ? inc.short : '—'}</td>
+                  <td style={{ padding: '9px 12px' }}><StatusPill kind={st.kind} text={st.text} size="sm" /></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     )
   }
@@ -299,6 +393,13 @@ export default function Contracts({ activeSubject, onOpen }) {
               </button>
             )
           })}
+          <div style={{ flex: 1 }} />
+          <Segmented size="sm" value={viewMode} onChange={setViewMode} items={[{ id: 'cards', label: '▦ Karty' }, { id: 'table', label: '☰ Tabulka' }]} />
+        </div>
+      )}
+      {tab === 'ended' && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '-8px 0 18px' }}>
+          <Segmented size="sm" value={viewMode} onChange={setViewMode} items={[{ id: 'cards', label: '▦ Karty' }, { id: 'table', label: '☰ Tabulka' }]} />
         </div>
       )}
 
@@ -331,7 +432,7 @@ export default function Contracts({ activeSubject, onOpen }) {
 
               {subjectContracts.length === 0 ? (
                 <EmptyState compact icon="📑" title="Zatím žádné smlouvy" />
-              ) : (
+              ) : viewMode === 'table' ? renderTable([...activeInSubject, ...archivedInSubject]) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 16 }}>
                   {activeInSubject.map(c => (
                     <div key={c.id}

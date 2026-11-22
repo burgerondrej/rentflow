@@ -40,3 +40,9 @@ let pendingContractsFilter = null
 export const requestContractsFilter = (v) => { pendingContractsFilter = v; window.dispatchEvent(new CustomEvent('rf-contracts-filter', { detail: v })) }
 export const peekContractsFilter = () => pendingContractsFilter
 export const clearContractsFilter = () => { pendingContractsFilter = null }
+
+// 📍 Na půdorysu: předmět ke zvýraznění v Půdorysech (App.jsx zavře detaily a přepne obrazovku, Půdorysy si ho vyzvednou)
+let pendingFloorFocus = null
+export const requestFloorPlanFocus = (assetId) => { pendingFloorFocus = assetId; window.dispatchEvent(new CustomEvent('rf-floorplan-focus', { detail: assetId })) }
+export const peekFloorPlanFocus = () => pendingFloorFocus
+export const clearFloorPlanFocus = () => { pendingFloorFocus = null }

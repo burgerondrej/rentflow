@@ -3,8 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { useApp } from '../AppContext.jsx'
 import DialogShell from '../DialogShell.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
-import { isTyping, useNewShortcut } from '../shortcuts.js'
-import { currentAssetContracts, isEndingWithoutSuccessor, assetFreeSince, parseDate, ASSET_TYPES, tenancySince, rentIncreaseLock, lastRentIncrease } from '../utils.js'
+import { isTyping, useNewShortcut, peekFloorPlanFocus, clearFloorPlanFocus } from '../shortcuts.js'
+import { currentAssetContracts, isEndingWithoutSuccessor, assetFreeSince, parseDate, ASSET_TYPES, tenancySince, rentIncreaseLock, lastRentIncrease,
+  contractMonthStatus, groupMonthStatus, overdueDays, dueDateFor, hasSuccessor, getMonthRent, PERIOD_LEN, contractSubject, firmOf } from '../utils.js'
 
 /**
  * Půdorysy (Portfolio → Půdorysy): interaktivní mapa pater budovy.
@@ -105,6 +106,9 @@ function bigRect(pts) {
 }
 const czDate = (d) => d ? `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}` : ''
 const VALOR_TYPES = ['residential', 'commercial']
+const MODE_KEY = 'rf_floorplan_mode'
+const MONTHS_CZ = ['leden', 'únor', 'březen', 'duben', 'květen', 'červen', 'červenec', 'srpen', 'září', 'říjen', 'listopad', 'prosinec']
+const fmtKcFp = (v) => `${Math.round(v).toLocaleString('cs-CZ')} Kč`
 
 // ─── texty ───
 const sqm = (size) => { const m = String(size || '').match(/(\d+(?:[.,]\d+)?)\s*m²/); return m ? `${m[1]} m²` : '' }
@@ -143,10 +147,15 @@ const TONE = {
   ending: { fill: 'var(--tone-amber-soft)', stroke: 'var(--tone-amber-border)', text: 'var(--tone-amber-text)', dot: '#D97706', pat: 'amber' },
   free:   { fill: 'var(--bg)', stroke: 'var(--tone-gray-border)', text: 'var(--text2)', dot: null, pat: 'gray', dash: '7 5' },
   none:   { fill: 'var(--tone-gray-bg)', stroke: 'var(--tone-gray-border)', text: 'var(--text3)', dot: null, pat: 'gray', dash: '3 4' },
+  // režimy Platby / Konce smluv
+  green:  { fill: 'var(--tone-green-soft)', stroke: 'var(--tone-green-border)', text: 'var(--tone-green-text)', dot: '#16A34A', pat: 'green' },
+  amber:  { fill: 'var(--tone-amber-soft)', stroke: 'var(--tone-amber-border)', text: 'var(--tone-amber-text)', dot: '#D97706', pat: 'amber' },
+  red:    { fill: 'var(--tone-red-soft)', stroke: 'var(--tone-red-border)', text: 'var(--tone-red-text)', dot: '#DC2626', pat: 'red' },
+  gray:   { fill: 'var(--tone-gray-soft)', stroke: 'var(--tone-gray-border)', text: 'var(--text2)', dot: '#9CA3AF', pat: 'gray' },
 }
 
 export default function FloorPlans({ onOpen }) {
-  const { floorPlans = [], saveFloorPlan, deleteFloorPlan, assets = [], contracts = [], tenants = [], mainObjects = [], isReadOnly, confirmAction, showToast } = useApp()
+  const { payments = [], floorPlans = [], saveFloorPlan, deleteFloorPlan, assets = [], contracts = [], tenants = [], mainObjects = [], isReadOnly, confirmAction, showToast } = useApp()
 
   // ─── výběr budovy a patra (pamatuje se) ───
   const saved = useMemo(() => { try { return JSON.parse(localStorage.getItem(SEL_KEY) || '{}') } catch { return {} } }, [])
@@ -161,6 +170,26 @@ export default function FloorPlans({ onOpen }) {
   const [planId, setPlanId] = useState(saved.planId || '')
   const plan = floors.find(p => p.id === planId) || floors[0] || null
   useEffect(() => { try { localStorage.setItem(SEL_KEY, JSON.stringify({ building: curBuilding, planId: plan?.id || '' })) } catch { /* ignore */ } }, [curBuilding, plan?.id])
+
+  // ─── režim mapy, hledání, zvýraznění prostoru (📍 z detailu předmětu) ───
+  const [mode, setModeState] = useState(() => { try { return localStorage.getItem(MODE_KEY) || 'tenants' } catch { return 'tenants' } })
+  const setMode = (m) => { setModeState(m); try { localStorage.setItem(MODE_KEY, m) } catch { /* ignore */ } }
+  const [q, setQ] = useState('')
+  const [focusId, setFocusId] = useState(null)
+  const focusOn = (assetId) => {
+    const hit = floorPlans.find(p => parseShapes(p).some(x => x.kind === 'unit' && x.assetId === assetId))
+    clearFloorPlanFocus()
+    if (!hit) return
+    setBuilding(hit.building); setPlanId(hit.id); setFocusId(assetId); setQ('')
+  }
+  useEffect(() => {
+    const pend = peekFloorPlanFocus()
+    if (pend) focusOn(pend)
+    const onReq = (e) => focusOn(e.detail)
+    window.addEventListener('rf-floorplan-focus', onReq)
+    return () => window.removeEventListener('rf-floorplan-focus', onReq)
+  }, [floorPlans])
+  useEffect(() => { if (!focusId) return; const t = setTimeout(() => setFocusId(null), 9000); return () => clearTimeout(t) }, [focusId])
 
   // ─── úpravy ───
   const [draft, setDraft] = useState(null)      // { ...plan, shapes: [] } během úprav
@@ -419,10 +448,70 @@ export default function FloorPlans({ onOpen }) {
   }
 
   // ─── statistiky patra / budovy ───
+  const NOW = new Date(), NY = NOW.getFullYear(), NM = NOW.getMonth()
+  const sqmNum = (size) => { const m = String(size || '').match(/(\d+(?:[.,]\d+)?)\s*m²/); return m ? Number(m[1].replace(',', '.')) : 0 }
   const countFor = (list) => {
     const ids = [...new Set(list.flatMap(p => parseShapes(p)).filter(s => s.kind === 'unit' && s.assetId).map(s => s.assetId))]
-    const st = ids.map(id => unitInfo(id).status)
-    return { total: ids.length, rented: st.filter(x => x === 'rented' || x === 'ending').length, free: st.filter(x => x === 'free').length, ending: st.filter(x => x === 'ending').length }
+    const infos = ids.map(id => unitInfo(id)).filter(i => i.asset)
+    const st = infos.map(i => i.status)
+    const isRented = (i) => i.status === 'rented' || i.status === 'ending'
+    const m2 = infos.reduce((sum, i) => sum + sqmNum(i.asset.size), 0)
+    const m2r = infos.filter(isRented).reduce((sum, i) => sum + sqmNum(i.asset.size), 0)
+    // nájem za měsíc (předpis, víceměsíční přepočtené na měsíc) – jen když jsou všechny smlouvy jedné firmy (firmy striktně odděleně)
+    const cs = infos.filter(isRented).flatMap(i => i.people.map(p => p.c)).filter(c => c.paymentFrequency !== 'Zahrnuto v nájemném')
+    const firmsSet = new Set(cs.map(c => firmOf(contractSubject(c, assets))))
+    const rent = firmsSet.size <= 1 ? cs.reduce((sum, c) => sum + getMonthRent(c, NY, NM) / (PERIOD_LEN[c.paymentFrequency] || 1), 0) : null
+    return { total: infos.length, rented: st.filter(x => x === 'rented' || x === 'ending').length, free: st.filter(x => x === 'free').length, ending: st.filter(x => x === 'ending').length,
+      m2, m2r, pct: m2 > 0 ? Math.round(m2r / m2 * 100) : (infos.length ? Math.round(infos.filter(isRented).length / infos.length * 100) : 0), rent, firm: firmsSet.size === 1 ? [...firmsSet][0] : '' }
+  }
+  // Hledání: nájemce / název předmětu (od 2 znaků), počty shod po patrech a budovách
+  const qn = q.trim().toLowerCase()
+  const matchAsset = (assetId) => {
+    if (qn.length < 2 || !assetId) return false
+    const info = unitInfo(assetId)
+    if (!info.asset) return false
+    return String(info.asset.unit).toLowerCase().includes(qn) || (info.people || []).some(p => p.name.toLowerCase().includes(qn))
+  }
+  const matchCount = (p) => qn.length < 2 ? 0 : new Set(parseShapes(p).filter(x => x.kind === 'unit' && matchAsset(x.assetId)).map(x => x.assetId)).size
+
+  // Režim mapy: Platby (stav za tento měsíc) / Konce smluv – barva plochy a štítek dole
+  const modeView = (info) => {
+    if (RC.mode === 'tenants' || !info || info.status === 'none') return null
+    if (info.status === 'free') return { tone: 'free', chip: null }
+    const ctx = { payments, contracts, assets }
+    if (RC.mode === 'payments') {
+      const rank = { red: 3, amber: 2, gray: 1, green: 0 }
+      let best = null
+      for (const { c } of info.people) {
+        let v
+        if (c.paymentFrequency === 'Zahrnuto v nájemném') v = { t: 'gray', b: 'zahrnuto v nájmu' }
+        else {
+          const st = c.groupLabel ? groupMonthStatus(c.groupLabel, NY, NM, ctx).status : contractMonthStatus(c, NY, NM, ctx).status
+          const od = overdueDays(c, NY, NM), due = dueDateFor(c, NY, NM)
+          v = st === 'paid' ? { t: 'green', b: 'uhrazeno' }
+            : st === 'partial' ? { t: od > 0 ? 'red' : 'amber', b: od > 0 ? `částečně · ${od} dní po spl.` : 'uhrazeno částečně' }
+            : od > 0 ? { t: 'red', b: `po splatnosti ${od} ${od === 1 ? 'den' : od < 5 ? 'dny' : 'dní'}` }
+            : { t: 'gray', b: due ? `splatnost ${czDate(due)}` : 'zatím neuhrazeno' }
+        }
+        if (!best || rank[v.t] > rank[best.t]) best = v
+      }
+      return { tone: best.t, chip: { t: best.t, a: `${MONTHS_CZ[NM]} ${NY}`, b: best.b } }
+    }
+    // konce smluv: červená do 3 měsíců, oranžová do roka, zelená později / navazující smlouva, šedá na dobu neurčitou
+    const today0 = new Date(); today0.setHours(0, 0, 0, 0)
+    let best = null
+    for (const { c } of info.people) {
+      const e = parseDate(c.end)
+      let v
+      if (!e) v = { t: 'gray', b: 'na dobu neurčitou', d: Infinity }
+      else if (hasSuccessor(c, contracts)) v = { t: 'green', b: `do ${c.end} · navazuje`, d: 1e9 }
+      else {
+        const days = Math.round((e - today0) / 864e5)
+        v = { t: days <= 92 ? 'red' : days <= 365 ? 'amber' : 'green', b: `do ${c.end}`, d: days }
+      }
+      if (!best || v.d < best.d) best = v
+    }
+    return { tone: best.t, chip: { t: best.t, a: 'smlouva končí', b: best.b } }
   }
   const bStats = countFor(floors)
   const fStats = plan ? countFor([plan]) : null
@@ -434,7 +523,7 @@ export default function FloorPlans({ onOpen }) {
 
   // ─── vykreslení ───
   // Kontext vykreslení: obrazovka, nebo dočasně jiné patro pro PDF (buildPdf přepne RC a vrátí zpět)
-  let RC = { W, editing, sel, idp: '' }
+  let RC = { W, editing, sel, idp: '', mode: editing ? 'tenants' : mode, q: editing ? '' : qn, focus: editing ? null : focusId }
   // Údaje bytu pro popisek i tabulku v PDF: V nájmu od, Smlouva do, štítek navýšení nájmu
   const unitFacts = (info) => {
     const rented = info.status === 'rented' || info.status === 'ending'
@@ -456,17 +545,22 @@ export default function FloorPlans({ onOpen }) {
   }
   const renderShape = (s, si) => {
     const info = s.kind === 'common' ? null : unitInfo(s.assetId)
-    const tone = s.kind === 'common' ? null : TONE[info.status]
+    const mv = s.kind === 'common' ? null : modeView(info)
+    const tone = s.kind === 'common' ? null : TONE[mv?.tone || info.status]
     const isSel = RC.editing && si === RC.sel
     const common = s.kind === 'common'
+    const hit = !common && RC.q.length >= 2 && matchAsset(s.assetId)
+    const dim = RC.q.length >= 2 && !hit
+    const focus = !common && RC.focus && s.assetId === RC.focus
     const fill = common ? 'var(--tone-gray-bg)' : s.kind === 'extra' ? `url(#${RC.idp}fp-hatch-${tone.pat})` : tone.fill
-    const stroke = isSel ? 'var(--accent)' : common ? 'var(--border)' : tone.stroke
+    const stroke = isSel || hit || focus ? 'var(--accent)' : common ? 'var(--border)' : tone.stroke
     const open = () => { if (!editing && !common && info.asset) onOpen?.(info.asset.id) }
     return (
-      <g key={si} data-si={si} className={`fp-shape${!editing && !common && info?.asset ? ' fp-click' : ''}${isSel ? ' fp-sel' : ''}`}
+      <g key={si} data-si={si} className={`fp-shape${!editing && !common && info?.asset ? ' fp-click' : ''}${isSel ? ' fp-sel' : ''}${focus && s.kind === 'unit' ? ' fp-focus' : ''}`}
+        style={dim ? { opacity: 0.28 } : undefined}
         onClick={open} onMouseMove={(e) => (!common && s.kind === 'unit') && onHover(e, s)} onMouseLeave={() => setHover(null)}>
-        <polygon points={ptsStr(s.points)} fill={fill} stroke={stroke} strokeWidth={isSel ? 3 : 1.6}
-          strokeDasharray={!common && tone?.dash && !isSel ? tone.dash : undefined} strokeLinejoin="round" vectorEffect="non-scaling-stroke"
+        <polygon points={ptsStr(s.points)} fill={fill} stroke={stroke} strokeWidth={isSel ? 3 : focus ? 4 : hit ? 3.2 : 1.6}
+          strokeDasharray={!common && tone?.dash && !isSel && !hit && !focus ? tone.dash : undefined} strokeLinejoin="round" vectorEffect="non-scaling-stroke"
           className="fp-poly" />
       </g>
     )
@@ -485,7 +579,7 @@ export default function FloorPlans({ onOpen }) {
 
   // Popisek bytu (varianta B): rohy = V nájmu od / Smlouva do, uprostřed jmenovka + m² + nájemce, dole štítek valorizace
   const renderUnitLabel = (s, si) => {
-    const info = unitInfo(s.assetId), tone = TONE[info.status]
+    const info = unitInfo(s.assetId), mv = modeView(info), tone = TONE[mv?.tone || info.status]
     const a = info.asset
     const name = a?.unit || s.label || 'Nepřiřazeno'
     const area = a ? [dispo(a.size), sqm(a.size)].filter(Boolean).join(' · ') : ''
@@ -497,7 +591,7 @@ export default function FloorPlans({ onOpen }) {
     let corners = null
     if (rented) corners = { l: ['v nájmu od', fx.from || '—'], r: ['smlouva do', fx.to] }
     else if (info.status === 'free' && info.free) corners = { l: ['volné od', info.free.date], r: null }
-    const chip = fx.chip
+    const chip = mv ? mv.chip : fx.chip
 
     const r = bigRect(s.points)
     const w = r.x1 - r.x0, h = r.y1 - r.y0
@@ -599,7 +693,7 @@ export default function FloorPlans({ onOpen }) {
       y += f * 0.25
       whoLines.forEach((l, i) => { y += fWho * (i ? 1.18 : 1.0); els.push(<text key={'w' + i} x={cx} y={y} textAnchor="middle" fontSize={fWho} fontWeight="800" fill={info.status === 'free' ? 'var(--text2)' : tone.text}>{l}</text>) })
     }
-    return <g key={'l' + si} style={{ pointerEvents: 'none' }}>{els}</g>
+    return <g key={'l' + si} style={{ pointerEvents: 'none', opacity: RC.q.length >= 2 && !matchAsset(s.assetId) ? 0.28 : 1 }}>{els}</g>
   }
 
   const hatch = (id, color) => (
@@ -635,11 +729,11 @@ export default function FloorPlans({ onOpen }) {
     try {
       list.forEach((p, pi) => {
         const sh = parseShapes(p)
-        RC = { W: p.width || 1600, editing: false, sel: -1, idp: `p${pi}-` }
+        RC = { W: p.width || 1600, editing: false, sel: -1, idp: `p${pi}-`, mode: 'tenants', q: '', focus: null }
         const ord = sh.map((x, i) => [x, i]).sort((a, b) => order(a[0].kind) - order(b[0].kind) || a[1] - b[1])
         const svg = renderToStaticMarkup(
           <svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${p.width} ${p.height}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block' }}>
-            <defs>{hatch('green', 'green')}{hatch('amber', 'amber')}{hatch('gray', 'gray')}</defs>
+            <defs>{hatch('green', 'green')}{hatch('amber', 'amber')}{hatch('gray', 'gray')}{hatch('red', 'red')}</defs>
             {ord.map(([x, i]) => renderShape(x, i))}
             {ord.map(([x, i]) => renderLabel(x, i))}
           </svg>
@@ -732,6 +826,8 @@ export default function FloorPlans({ onOpen }) {
 
   const pageSub = !plan ? 'Interaktivní mapa budov – kdo kde bydlí'
     : `${curBuilding} · ${bStats.total} ${bStats.total === 1 ? 'předmět' : bStats.total < 5 && bStats.total > 0 ? 'předměty' : 'předmětů'} · ${bStats.rented} pronajato · ${bStats.free} volných`
+      + (bStats.m2 > 0 ? ` · ${Math.round(bStats.m2r).toLocaleString('cs-CZ')} / ${Math.round(bStats.m2).toLocaleString('cs-CZ')} m² (${bStats.pct} %)` : '')
+      + (bStats.rent != null && bStats.rent > 0 ? ` · ${fmtKcFp(bStats.rent)} / měs.` : '')
 
   return (
     <div>
@@ -760,22 +856,35 @@ export default function FloorPlans({ onOpen }) {
           {/* Výběr budovy a patra */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
             {buildings.length > 1 && (
-              <Segmented items={buildings.map(b => ({ id: b, label: `🏢 ${b}` }))} value={curBuilding}
+              <Segmented items={buildings.map(b => { const n = qn.length >= 2 ? floorPlans.filter(p => p.building === b).reduce((x, p) => x + matchCount(p), 0) : 0; return { id: b, label: `🏢 ${b}`, count: n || undefined } })} value={curBuilding}
                 onChange={(b) => { if (editing) return; setBuilding(b); setPlanId('') }} />
             )}
-            <Segmented items={floors.map(p => ({ id: p.id, label: p.name }))} value={plan.id}
+            <Segmented items={floors.map(p => ({ id: p.id, label: p.name, count: matchCount(p) || undefined }))} value={plan.id}
               onChange={(id) => { if (editing) return; setPlanId(id) }} />
-            <div style={{ flex: 1 }} />
-            {fStats && !editing && (
-              <div style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                Patro: <span style={{ color: 'var(--tone-green-text)' }}>{fStats.rented} pronajato</span>
-                {fStats.ending > 0 && <> · <span style={{ color: 'var(--tone-amber-text)' }}>{fStats.ending} končí</span></>}
-                {' '}· {fStats.free} volných
+            {!editing && (
+              <Segmented size="sm" items={[{ id: 'tenants', label: '👤 Nájemci' }, { id: 'payments', label: '💳 Platby' }, { id: 'ends', label: '⏳ Konce smluv' }]} value={mode} onChange={setMode} />
+            )}
+            {!editing && (
+              <div style={{ position: 'relative' }}>
+                <input className="btn" value={q} onChange={e => setQ(e.target.value)} placeholder="Hledat nájemce…"
+                  onKeyDown={e => { if (e.key === 'Escape') { setQ(''); e.stopPropagation() } }}
+                  style={{ width: 190, cursor: 'text', textAlign: 'left', paddingLeft: 30, boxSizing: 'border-box' }} />
+                <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text3)', pointerEvents: 'none' }}>🔍</span>
               </div>
             )}
+            <div style={{ flex: 1 }} />
             {!editing && <button className="btn" onClick={() => setPdfOpen(true)} title="Půdorys s aktuálními údaji do PDF k tisku">🖨 PDF</button>}
             {!isReadOnly && !editing && <button className="btn" onClick={() => startEdit()}>✏️ Upravit patro</button>}
           </div>
+          {fStats && !editing && (
+            <div className="fp-summary">
+              <span><b>{fStats.rented}</b> pronajato{fStats.ending > 0 && <> · <b style={{ color: 'var(--tone-amber-text)' }}>{fStats.ending}</b> končí</>} · <b>{fStats.free}</b> volných</span>
+              {fStats.m2 > 0 && <span>Plocha <b>{Math.round(fStats.m2r).toLocaleString('cs-CZ')} / {Math.round(fStats.m2).toLocaleString('cs-CZ')} m²</b> pronajato</span>}
+              <span className="fp-occ"><span className="fp-occ-bar"><span style={{ width: `${fStats.pct}%` }} /></span><b>{fStats.pct} %</b> obsazenost</span>
+              {fStats.rent != null && fStats.rent > 0 && <span>Nájem <b>{fmtKcFp(fStats.rent)}</b> / měs.</span>}
+              {qn.length >= 2 && <span style={{ color: 'var(--accent)' }}>🔍 {matchCount(plan) ? `${matchCount(plan)} na tomto patře` : 'na tomto patře nic'}{floors.some(p => p.id !== plan.id && matchCount(p)) ? ' · další v přepínači pater' : ''}</span>}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
             {/* Mapa */}
@@ -784,7 +893,7 @@ export default function FloorPlans({ onOpen }) {
               <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%"
                 style={{ display: 'block', maxHeight: `calc(74vh / var(--ui-zoom, 1))`, cursor: editing && tool !== 'select' ? 'crosshair' : undefined, touchAction: 'none', userSelect: 'none' }}
                 onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onDoubleClick={onDoubleClick}>
-                <defs>{hatch('green', 'green')}{hatch('amber', 'amber')}{hatch('gray', 'gray')}</defs>
+                <defs>{hatch('green', 'green')}{hatch('amber', 'amber')}{hatch('gray', 'gray')}{hatch('red', 'red')}</defs>
                 {editing && (
                   <>
                     <defs>
@@ -934,8 +1043,11 @@ export default function FloorPlans({ onOpen }) {
 
           {!editing && (
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text2)', margin: '12px 4px 0', fontWeight: 600 }}>
-              <span><span className="fp-leg" style={{ background: 'var(--tone-green-soft)', borderColor: 'var(--tone-green-border)' }} />Pronajato</span>
-              <span><span className="fp-leg" style={{ background: 'var(--tone-amber-soft)', borderColor: 'var(--tone-amber-border)' }} />Smlouva končí do {ENDING_DAYS} dní (bez navazující)</span>
+              {(mode === 'payments' ? [['green', `Uhrazeno (${MONTHS_CZ[NM]})`], ['amber', 'Částečně'], ['red', 'Po splatnosti'], ['gray', 'Čeká na splatnost']]
+                : mode === 'ends' ? [['red', 'Končí do 3 měsíců'], ['amber', 'Končí do roka'], ['green', 'Později / navazující smlouva'], ['gray', 'Na dobu neurčitou']]
+                : [['green', 'Pronajato'], ['amber', `Smlouva končí do ${ENDING_DAYS} dní (bez navazující)`]]).map(([t, l]) => (
+                <span key={t}><span className="fp-leg" style={{ background: `var(--tone-${t}-soft)`, borderColor: `var(--tone-${t}-border)` }} />{l}</span>
+              ))}
               <span><span className="fp-leg" style={{ background: 'var(--bg)', borderColor: 'var(--tone-gray-border)', borderStyle: 'dashed' }} />Volné</span>
               <span><span className="fp-leg fp-leg-hatch" />Terasa / balkon</span>
             </div>

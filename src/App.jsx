@@ -329,6 +329,14 @@ function AppInner() {
     else setStack([])
     if (s[0]?.onReturn) s[0].onReturn()
   }, [])
+  // 📍 Na půdorysu (detail předmětu): zavřít detaily a přejít do Půdorysů – ty si předmět vyzvednou (shortcuts.js)
+  const navRef = useRef(null)
+  navRef.current = handleNav
+  useEffect(() => {
+    const onFocus = () => { setStack([]); navRef.current && navRef.current('floorplans') }
+    window.addEventListener('rf-floorplan-focus', onFocus)
+    return () => window.removeEventListener('rf-floorplan-focus', onFocus)
+  }, [])
   // Popisek předchozího detailu pro tlačítko „← Zpět“ (jen když je detail otevřený z jiného detailu)
   const detailBackLabel = () => {
     const prev = detailStack[detailStack.length - 2]

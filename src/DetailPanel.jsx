@@ -6,6 +6,8 @@ import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
 import ContractHistory from './ContractHistory.jsx'
 import DialogShell, { isDialogOpen } from './DialogShell.jsx'
+import { requestFloorPlanFocus } from './shortcuts.js'
+import { ContractTimeline, ContractRentBreakdown } from './ContractInsights.jsx'
 import { SectionHeader, Segmented, EmptyState, PayAmountHint, partiesLabel, prefersReducedMotion } from './UI.jsx'
 import TenantTimeline from './TenantTimeline.jsx'
 import AssetRentHistory from './AssetRentHistory.jsx'
@@ -37,7 +39,7 @@ const TYPE_META = {
 const DETAIL_TAB_ORDER = ['overview', 'contracts', 'payments', 'amendments', 'docs', 'history']
 
 export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange, backLabel, morphCloseReady }) {
-  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, moveAsset, confirmAction, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast } = useApp()
+  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, moveAsset, confirmAction, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast, floorPlans = [] } = useApp()
 
   const SEP = ' – '
   const PREDEFINED_TAGS = [
@@ -1680,6 +1682,10 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.unit}</div>
                 </div>
                 <StatusPill kind={isFreeNow ? 'free' : 'occupied'} text={isFreeNow ? 'Volné k pronájmu' : 'Pronajato'} style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }} />
+                {floorPlans.some(fp => { try { return JSON.parse(fp.shapes || '[]').some(x => x.kind === 'unit' && x.assetId === a.id) } catch { return false } }) && (
+                  <button onClick={() => requestFloorPlanFocus(a.id)} title="Otevřít půdorys se zvýrazněným prostorem"
+                    style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>📍 Na půdorysu</button>
+                )}
                 {!isReadOnly && (
                   <button onClick={handleEditClick} style={{ background: '#fff', color: ts.strong, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Upravit</button>
                 )}
@@ -2847,6 +2853,10 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
             </div>
           )
         })()}
+
+        {/* Časová osa smlouvy a rozpad předpisu (ContractInsights.jsx) */}
+        <ContractTimeline c={c} contracts={contracts} assetType={a?.type} />
+        <ContractRentBreakdown c={c} contracts={contracts} assets={assets} billingGroups={billingGroups} />
 
         {/* Finanční sekce */}
         {(() => {
