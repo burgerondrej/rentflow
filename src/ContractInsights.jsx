@@ -96,8 +96,9 @@ export function ContractTimeline({ c, contracts = [], assetType }) {
           {labels.map((l, i) => (
             <div key={i} style={{ position: 'absolute', top: l.row * 34, left: l.align === 'right' ? 'auto' : `${l.p}%`, right: l.align === 'right' ? 0 : 'auto',
               transform: l.align === 'center' ? 'translateX(-50%)' : 'none', textAlign: l.align, fontSize: 11.5, lineHeight: 1.3, whiteSpace: 'nowrap' }}>
-              <div style={{ fontWeight: 800, color: l.tone ? toneVar(l.tone) : 'var(--text)' }}>{l.top}</div>
+              {/* nejdřív popis, pod ním datum */}
               <div style={{ color: l.tone ? toneVar(l.tone) : 'var(--text3)', fontWeight: 600 }}>{l.bottom}</div>
+              <div style={{ fontWeight: 800, color: l.tone ? toneVar(l.tone) : 'var(--text)' }}>{l.top}</div>
             </div>
           ))}
         </div>
