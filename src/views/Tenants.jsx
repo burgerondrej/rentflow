@@ -392,7 +392,7 @@ export default function Tenants({ onOpen }) {
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ position: 'relative' }}>
             <input
-              type="text" placeholder="Hledat jméno nebo štítek..."
+              type="text" placeholder="Hledat jméno nebo štítek..." data-local-search="1"
               className="btn"
               style={{ width: 240, cursor: 'text', textAlign: 'left', paddingLeft: 30 }}
               value={search} onChange={e => setSearch(e.target.value)}

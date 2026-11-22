@@ -877,7 +877,7 @@ export default function FloorPlans({ onOpen, onOpenContract }) {
             )}
             {!editing && (
               <div style={{ position: 'relative' }}>
-                <input className="btn" value={q} onChange={e => setQ(e.target.value)} placeholder="Hledat nájemce…"
+                <input className="btn" data-local-search="1" value={q} onChange={e => setQ(e.target.value)} placeholder="Hledat nájemce…"
                   onKeyDown={e => { if (e.key === 'Escape') { setQ(''); e.stopPropagation() } }}
                   style={{ width: 190, cursor: 'text', textAlign: 'left', paddingLeft: 30, boxSizing: 'border-box' }} />
                 <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text3)', pointerEvents: 'none' }}>🔍</span>

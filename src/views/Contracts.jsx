@@ -436,7 +436,7 @@ export default function Contracts({ activeSubject, onOpen }) {
           <div style={{ position: 'relative' }}>
             <input 
               type="text" 
-              placeholder="Hledat nájemce nebo předmět..." 
+              placeholder="Hledat nájemce nebo předmět..." data-local-search="1" 
               className="btn" 
               style={{ width: 240, cursor: 'text', textAlign: 'left', paddingLeft: 30 }}
               value={search}

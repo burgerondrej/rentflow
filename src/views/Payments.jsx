@@ -1259,7 +1259,7 @@ export default function Payments() {
                     <span style={{ fontSize: 13, color: 'var(--text3)' }}>🔍</span>
                     <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Escape' && search) { e.preventDefault(); e.stopPropagation(); setSearch('') } }}
-                      placeholder="Hledat nájemce, jednotku…" title="Hledá ve všech firmách: nájemce, IČO, jednotka"
+                      placeholder="Hledat nájemce, jednotku…" data-local-search="1" title="Hledá ve všech firmách: nájemce, IČO, jednotka"
                       style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--text)', fontFamily: 'inherit' }} />
                     {search && <button type="button" onClick={() => setSearch('')} title="Zrušit hledání (Esc)"
                       style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14, padding: 0, lineHeight: 1 }}>✕</button>}

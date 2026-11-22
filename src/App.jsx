@@ -212,7 +212,10 @@ function AppInner() {
       // Ctrl+F odkudkoli (i s Caps Lockem / jiným rozložením): bez okna → hledání v liště, s oknem / detailem → paleta nad ním
       if ((e.ctrlKey || e.metaKey) && ((e.key || '').toLowerCase() === 'f' || e.code === 'KeyF')) {
         e.preventDefault()
-        if (isOverlayOpen()) { setSearchQuery(''); setSearchIdx(0); setSearchPalette(true) }
+        if (isOverlayOpen()) { setSearchQuery(''); setSearchIdx(0); setSearchPalette(true); return }
+        // Obrazovka s vlastním hledáním (lupička – Smlouvy, Nájemníci, předměty, Platby, Půdorysy): Ctrl+F do něj, další Ctrl+F do hledání v liště
+        const local = [...document.querySelectorAll('.content [data-local-search]')].find(el => el.offsetParent !== null)
+        if (local && document.activeElement !== local) { local.focus(); local.select() }
         else { searchInputRef.current?.focus(); searchInputRef.current?.select() }
       }
       // Ctrl+N → „Nový …“ na aktuální obrazovce (Smlouvy, Nájemníci, Předměty, Úkoly, Revize, Náklady)
@@ -583,7 +586,7 @@ function AppInner() {
           onClose={() => setShowShortcuts(false)}
           footer={<button className="btn" onClick={() => setShowShortcuts(false)}>Zavřít</button>}>
           {[
-            ['Ctrl + F', 'Hledání – bez textu nabídne nedávno otevřené'],
+            ['Ctrl + F', 'Hledání na obrazovce (lupička – Smlouvy, Nájemníci, předměty, Platby, Půdorysy); znovu Ctrl + F = celé hledání nahoře (bez textu nabídne nedávno otevřené); v otevřeném okně hledání nad ním'],
             ['↑ ↓  Enter', 'Výběr a otevření výsledku hledání'],
             ['Ctrl + S', 'Záloha databáze (+ kopie na Google Disk)'],
             ['Ctrl + N', 'Nový záznam na aktuální obrazovce (smlouva, nájemce, předmět, úkol, revize, náklad)'],

@@ -349,7 +349,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ position: 'relative' }}>
             <input
-              type="text" placeholder="Hledat..." className="btn"
+              type="text" placeholder="Hledat..." className="btn" data-local-search="1"
               style={{ width: 180, cursor: 'text', textAlign: 'left', paddingLeft: 30 }}
               value={search} onChange={e => setSearch(e.target.value)}
             />
