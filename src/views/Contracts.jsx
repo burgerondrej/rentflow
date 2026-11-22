@@ -11,7 +11,7 @@ import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES, rentIncreaseLock,
 import { spanText } from '../ContractInsights.jsx'
 
 export default function Contracts({ activeSubject, onOpen }) {
-  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [], showToast, contractOrder = null, saveContractOrder } = useApp()
+  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [], showToast, contractOrder = null, saveContractOrder, confirmAction, isReadOnly } = useApp()
   const [settleFor, setSettleFor] = useState(null) // smlouva, u které se vypořádává kauce
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -51,6 +51,25 @@ export default function Contracts({ activeSubject, onOpen }) {
     const section = new Set(ids)
     saveContractOrder([...(cardOrder || []).filter(id => !section.has(id)), ...newIds])
     dragId.current = null; dragOverId.current = null
+  }
+
+  // Parkování: srovnat smlouvy sekce podle čísla stání (č. 2 < č. 10). Sekce zůstává na svých místech v celkovém pořadí
+  // (Platby „Vše“ firmy se nepřehází), mění se jen pořadí uvnitř ní. Skupiny plateb se tím nemění – v Platbách se skupina ukáže na místě svého prvního člena.
+  const sortSectionByUnit = (subject) => {
+    const list = enrichedContracts.filter(c => c.assetSubject === subject && c.assetType === 'parking')
+    if (!list.length) return
+    const sorted = [...list].sort((a, b) => String(a.assetUnit || '').localeCompare(String(b.assetUnit || ''), 'cs', { numeric: true, sensitivity: 'base' })
+      || (parseDate(a.start)?.getTime() || 0) - (parseDate(b.start)?.getTime() || 0)).map(c => c.id)
+    const section = new Set(sorted)
+    const base = cardOrder || []
+    const queue = [...sorted]
+    const merged = base.map(id => section.has(id) ? queue.shift() : id)
+    confirmAction({
+      title: 'Seřadit parkování podle čísel',
+      text: `Smlouvy v sekci „${subject}“ (${list.length}) se seřadí podle čísla stání. Vlastní pořadí v této sekci se přepíše, ostatní sekce zůstanou. Platby, skupiny ani data se nemění – jen pořadí zobrazení (i v Platbách).`,
+      okLabel: 'Seřadit',
+      onOk: () => { saveContractOrder([...merged, ...queue]); showToast('Parkování seřazeno podle čísel.', 'success') },
+    })
   }
 
   // Helper: platné finanční hodnoty k dnešnímu datu (importováno z utils.js)
@@ -521,6 +540,9 @@ export default function Contracts({ activeSubject, onOpen }) {
                 <FirmBadge firm={subjectFirm} size={30} />
                 <div style={{ fontSize: 13, fontWeight: 800, color: subjectFc ? subjectFc.txt : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '1.2px' }}>{subject}</div>
                 <div className="badge" style={{ background: 'var(--bg2)', color: 'var(--text2)', fontSize: 12, fontWeight: 600 }}>{tab === 'valid' ? `${activeInSubject.length} aktivních` : `${subjectContracts.length} ukončených`}</div>
+                {tab === 'valid' && !isReadOnly && subjectContracts.some(c => c.assetType === 'parking') && (
+                  <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => sortSectionByUnit(subject)} title="Srovná smlouvy této sekce podle čísla stání">🔢 Seřadit podle čísel</button>
+                )}
               </div>
 
               {subjectContracts.length === 0 ? (
