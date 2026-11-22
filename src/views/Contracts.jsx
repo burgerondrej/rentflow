@@ -20,6 +20,7 @@ export default function Contracts({ activeSubject, onOpen }) {
   const [viewMode, setViewModeState] = useState(() => { try { return localStorage.getItem('rf_contracts_view') || 'cards' } catch { return 'cards' } })
   const setViewMode = (v) => { setViewModeState(v); try { localStorage.setItem('rf_contracts_view', v) } catch { /* ignore */ } }
   const [sort, setSort] = useState({ key: '', dir: 1 })
+  const [dragOverRow, setDragOverRow] = useState(null) // tabulka: řádek, nad kterým se táhne
   const [tab, setTab] = useState('valid') // 'valid' = platné (vč. ukončených s budoucím koncem) | 'ended' = ukončené | 'cauce' = kauce
   // Filtr končících smluv: all | 30 | 60 | 90 | expired (z menu přijde „30“)
   const [endFilter, setEndFilter] = useState(() => peekContractsFilter() || 'all')
@@ -302,7 +303,9 @@ export default function Contracts({ activeSubject, onOpen }) {
     const f = SORTS[sort.key]
     return [...rows].sort((a, b) => { const x = f(a), y = f(b); return (typeof x === 'string' ? x.localeCompare(y, 'cs', { numeric: true }) : x - y) * sort.dir })
   }
-  const renderTable = (rows) => {
+  // dropItems = aktivní smlouvy sekce (pořadí jako u karet, rf_contract_order); tažení jen bez řazení podle sloupce
+  const renderTable = (rows, dropItems = []) => {
+    const canDrag = !sort.key && tab === 'valid'
     const heads = [['unit', 'Předmět'], ['tenant', 'Nájemce'], ['rent', 'Nájem'], ['m2', 'm²'], ['start', 'Od'], ['end', 'Do'], ['inc', 'Navýšení'], ['', 'Stav']]
     return (
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'clip' }}>
@@ -310,7 +313,8 @@ export default function Contracts({ activeSubject, onOpen }) {
           <thead>
             <tr style={{ background: 'var(--bg2)', borderBottom: '2px solid var(--border)' }}>
               {heads.map(([k, h], i) => (
-                <th key={i} onClick={k ? () => setSort(s => ({ key: k, dir: s.key === k ? -s.dir : 1 })) : undefined}
+                <th key={i} onClick={k ? () => setSort(s => s.key !== k ? { key: k, dir: 1 } : s.dir > 0 ? { key: k, dir: -1 } : { key: '', dir: 1 }) : undefined}
+                  title={k ? 'Řadit (3. klik = vlastní pořadí, které jde měnit tažením)' : undefined}
                   style={{ padding: '10px 12px', textAlign: k === 'rent' || k === 'm2' ? 'right' : 'left', fontSize: 10.5, color: k && sort.key === k ? 'var(--accent)' : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: k ? 'pointer' : 'default', whiteSpace: 'nowrap', userSelect: 'none' }}>
                   {h}{k && sort.key === k ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}
                 </th>
@@ -326,8 +330,17 @@ export default function Contracts({ activeSubject, onOpen }) {
               const per = { 'Čtvrtletně': ' / čtvrtl.', 'Pololetně': ' / pololetí', 'Ročně': ' / rok' }[c.paymentFrequency] || ''
               const st = contractStatus(c)
               return (
-                <tr key={c.id} onClick={() => onOpen(c.id)} className="ct-row" data-morph={`contract:${c.id}`} style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer' }}>
-                  <td style={{ padding: '9px 12px', fontWeight: 800, fontSize: 13.5, color: ts.accent, minWidth: 140 }}>{ts.icon} {c.assetUnit || '—'}</td>
+                <tr key={c.id} onClick={() => onOpen(c.id)} className="ct-row" data-morph={`contract:${c.id}`}
+                  draggable={canDrag && c.status === 'active'}
+                  onDragStart={canDrag && c.status === 'active' ? () => { dragId.current = c.id } : undefined}
+                  onDragOver={canDrag && c.status === 'active' ? (e => { e.preventDefault(); dragOverId.current = c.id; if (dragOverRow !== c.id) setDragOverRow(c.id) }) : undefined}
+                  onDragEnd={() => setDragOverRow(null)}
+                  onDrop={canDrag && c.status === 'active' ? () => { handleDrop(dropItems); setDragOverRow(null) } : undefined}
+                  style={{ borderBottom: '1px solid var(--border2)', cursor: canDrag && c.status === 'active' ? 'grab' : 'pointer',
+                    boxShadow: dragOverRow === c.id ? 'inset 0 3px 0 var(--accent)' : undefined }}>
+                  <td style={{ padding: '9px 12px', fontWeight: 800, fontSize: 13.5, color: ts.accent, minWidth: 140 }}>
+                    {canDrag && c.status === 'active' && <span title="Přetáhnout – změnit pořadí" style={{ color: 'var(--text3)', marginRight: 6, cursor: 'grab' }}>⠿</span>}
+                    {ts.icon} {c.assetUnit || '—'}</td>
                   <td title={c.tenantName || ''} style={{ padding: '9px 12px', fontWeight: 700, fontSize: 13.5, color: 'var(--text)', whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.tenantName || '—'}</td>
                   <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 800, fontSize: 13.5, whiteSpace: 'nowrap' }}>{c.paymentFrequency === 'Zahrnuto v nájemném' ? <span style={{ color: 'var(--text3)', fontWeight: 600 }}>v nájmu</span> : `${Math.round((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč${per}`}</td>
                   <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 13, color: 'var(--text2)' }}>{m2 != null ? m2.toLocaleString('cs-CZ') : '—'}</td>
@@ -512,7 +525,7 @@ export default function Contracts({ activeSubject, onOpen }) {
 
               {subjectContracts.length === 0 ? (
                 <EmptyState compact icon="📑" title="Zatím žádné smlouvy" />
-              ) : viewMode === 'table' ? renderTable([...activeInSubject, ...archivedInSubject]) : (
+              ) : viewMode === 'table' ? renderTable([...activeInSubject, ...archivedInSubject], subjectContracts.filter(x => x.status === 'active')) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 16 }}>
                   {activeInSubject.map(c => (
                     <div key={c.id}
