@@ -134,6 +134,8 @@ fn main() {
             commands::get_debt_notes,
             commands::save_debt_note,
             commands::delete_debt_note,
+            commands::get_pref,
+            commands::set_pref,
             commands::get_floor_plans,
             commands::save_floor_plan,
             commands::delete_floor_plan,

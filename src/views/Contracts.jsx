@@ -11,7 +11,7 @@ import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES, rentIncreaseLock,
 import { spanText } from '../ContractInsights.jsx'
 
 export default function Contracts({ activeSubject, onOpen }) {
-  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [], showToast } = useApp()
+  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [], showToast, contractOrder = null, saveContractOrder } = useApp()
   const [settleFor, setSettleFor] = useState(null) // smlouva, u které se vypořádává kauce
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -30,9 +30,8 @@ export default function Contracts({ activeSubject, onOpen }) {
     window.addEventListener('rf-contracts-filter', onReq)
     return () => window.removeEventListener('rf-contracts-filter', onReq)
   }, [])
-  const [cardOrder, setCardOrder] = useState(() => {
-    try { const s = localStorage.getItem('rf_contract_order'); return s ? JSON.parse(s) : null } catch { return null }
-  })
+  // Ruční pořadí smluv je v DB (AppContext → app_prefs „contract_order“), sdílí ho i Platby
+  const cardOrder = contractOrder
   const dragId = useRef(null)
   const dragOverId = useRef(null)
 
@@ -48,8 +47,9 @@ export default function Contracts({ activeSubject, onOpen }) {
     const newIds = [...ids]
     newIds.splice(from, 1)
     newIds.splice(to, 0, dragId.current)
-    setCardOrder(newIds)
-    try { localStorage.setItem('rf_contract_order', JSON.stringify(newIds)) } catch {}
+    // Změnit jen pořadí této sekce – pořadí ostatních sekcí zůstává (dřív se přepsalo celé pořadí jen touto sekcí)
+    const section = new Set(ids)
+    saveContractOrder([...(cardOrder || []).filter(id => !section.has(id)), ...newIds])
     dragId.current = null; dragOverId.current = null
   }
 

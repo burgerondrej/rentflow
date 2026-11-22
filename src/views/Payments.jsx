@@ -445,7 +445,7 @@ function EditAmountModal({ payment, monthLabel, tenantName, onConfirm, onClose }
 }
 
 export default function Payments() {
-  const { contracts = [], tenants = [], assets = [], payments = [], firms = [], getFirm, theme, addPayment, deletePayment, removePayments, debtNotes = [], updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
+  const { contractOrder = null, contracts = [], tenants = [], assets = [], payments = [], firms = [], getFirm, theme, addPayment, deletePayment, removePayments, debtNotes = [], updatePaymentAmount, addAmendment, deleteAmendment, isReadOnly, subjects = [], residentialSubjects = [], billingGroups = [] } = useApp() || {}
   // Otevření z karty firmy („po splatnosti“) může předat i měsíc: { filter, year, month }
   const [selectedMonth, setSelectedMonth] = useState(() => peekPaymentsFilter()?.month ?? new Date().getMonth())
   const [selectedYear, setSelectedYear]   = useState(() => peekPaymentsFilter()?.year ?? new Date().getFullYear())
@@ -582,10 +582,8 @@ export default function Payments() {
     return c.billingSubject || asset?.subject || ''
   }
 
-  // Stejné pořadí jako ve Smlouvách (rf_contract_order z localStorage)
-  const getSavedOrder = () => {
-    try { const s = localStorage.getItem('rf_contract_order'); return s ? JSON.parse(s) : null } catch { return null }
-  }
+  // Stejné pořadí jako ve Smlouvách (v DB, AppContext contractOrder)
+  const getSavedOrder = () => contractOrder
   const applyOrder = (items) => applyContractOrder(items, getSavedOrder(), contracts)
 
 

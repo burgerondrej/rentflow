@@ -37,6 +37,7 @@ export function AppProvider({ children }) {
   const [logs, setLogs] = useState([])
   const [operationalCosts, setOperationalCosts] = useState([])
   const [cauceSettlements, setCauceSettlements] = useState([]) // vypořádání kaucí (contractId → vráceno / započteno)
+  const [contractOrder, setContractOrder] = useState(null)       // ruční pořadí smluv (Smlouvy, Platby) – v DB app_prefs, dřív localStorage
   const [floorPlans, setFloorPlans] = useState([])             // půdorysy pater budov (Portfolio → Půdorysy)
   const [debtNotes, setDebtNotes] = useState([])               // poznámky k dlužníkům (nájemce + firma)
   const [meterReadings, setMeterReadings] = useState([])       // stavy měřidel ke smlouvám
@@ -153,6 +154,19 @@ export function AppProvider({ children }) {
           invoke('get_floor_plans').catch(() => []),
         ])
         if (fp) setFloorPlans(fp)
+        // Pořadí smluv z DB; při prvním spuštění převzít dosavadní pořadí z tohoto počítače (localStorage)
+        try {
+          const raw = await invoke('get_pref', { key: 'contract_order' }).catch(() => null)
+          let order = raw ? JSON.parse(raw) : null
+          if (!Array.isArray(order)) {
+            const local = JSON.parse(localStorage.getItem('rf_contract_order') || 'null')
+            if (Array.isArray(local) && local.length) {
+              order = local
+              if (localStorage.getItem('rentflow_user') !== 'Pavel') invoke('set_pref', { key: 'contract_order', value: JSON.stringify(local) }).catch(() => {})
+            }
+          }
+          if (Array.isArray(order)) setContractOrder(order)
+        } catch { /* pořadí je jen pohodlí */ }
         if (cs) setCauceSettlements(cs)
         if (dn) setDebtNotes(dn)
         if (mr) setMeterReadings(mr)
@@ -689,6 +703,14 @@ export function AppProvider({ children }) {
       setDebtNotes(prev => prev.filter(x => x.id !== id))
     } catch (err) { console.error('deleteDebtNote error:', err) }
   }
+  // ─── Ruční pořadí smluv (sdílí Smlouvy a Platby; Pavel jen čte) ───
+  const saveContractOrder = (order) => {
+    setContractOrder(order)
+    try { localStorage.setItem('rf_contract_order', JSON.stringify(order)) } catch { /* ignore */ }
+    if (isReadOnly) return
+    invoke('set_pref', { key: 'contract_order', value: JSON.stringify(order) }).catch(err => console.error('saveContractOrder error:', err))
+  }
+
   // ─── Půdorysy (shapes = JSON text, ID patra generuje Rust) ───
   const saveFloorPlan = async (plan) => {
     if (guardWrite()) return null
@@ -1071,6 +1093,7 @@ export function AppProvider({ children }) {
     cauceSettlements, saveCauceSettlement, deleteCauceSettlement, debtNotes, saveDebtNote, deleteDebtNote,
     meterReadings, addMeterReading, updateMeterReading, deleteMeterReading,
     floorPlans, saveFloorPlan, deleteFloorPlan,
+    contractOrder, saveContractOrder,
     // CRUD – Kanban
     addTask, updateTask, deleteTask,
     // CRUD – Revize

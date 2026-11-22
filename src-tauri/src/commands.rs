@@ -1105,6 +1105,16 @@ pub fn delete_debt_note(id: String, user: String, state: State<AppState>) -> std
 }
 
 #[tauri::command]
+pub fn get_pref(key: String, state: State<AppState>) -> std::result::Result<Option<String>, AppError> {
+    db!(state).get_pref(&key)
+}
+
+#[tauri::command]
+pub fn set_pref(key: String, value: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    db!(state).set_pref(&key, &value)
+}
+
+#[tauri::command]
 pub fn get_floor_plans(state: State<AppState>) -> std::result::Result<Vec<FloorPlan>, AppError> {
     db!(state).get_floor_plans()
 }

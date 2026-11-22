@@ -402,6 +402,11 @@ impl Database {
                 user_name     TEXT,
                 UNIQUE(tenant_id, firm)
             );
+            CREATE TABLE IF NOT EXISTS app_prefs (
+                key         TEXT PRIMARY KEY,
+                value       TEXT,
+                updated_at  TEXT
+            );
             CREATE TABLE IF NOT EXISTS floor_plans (
                 id          TEXT PRIMARY KEY,
                 building    TEXT NOT NULL,
@@ -1507,6 +1512,20 @@ impl Database {
 
     pub fn delete_debt_note(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM debt_notes WHERE id=?1", params![id])?;
+        Ok(())
+    }
+
+    // ─────────────────────────────────────────
+    // SDÍLENÉ NASTAVENÍ V DB (app_prefs) – např. ruční pořadí smluv; jde se zálohou i na Google Disk
+    // ─────────────────────────────────────────
+    pub fn get_pref(&self, key: &str) -> Result<Option<String>> {
+        Ok(self.conn.query_row("SELECT value FROM app_prefs WHERE key=?1", params![key], |r| r.get(0)).ok())
+    }
+
+    pub fn set_pref(&self, key: &str, value: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO app_prefs (key, value, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            params![key, value, Self::now_cs()])?;
         Ok(())
     }
 
