@@ -6,6 +6,7 @@ import { FirmBadge } from '../FirmUI.jsx'
 import { StatusPill } from '../StatusUI.jsx'
 import { partiesLabel } from '../UI.jsx'
 import { useNewShortcut } from '../shortcuts.js'
+import BulkMoveDialog from '../BulkMoveDialog.jsx'
 
 
 // Sekce pro bytové jednotky
@@ -60,7 +61,13 @@ function useDragOrder(initialItems) {
 }
 
 export default function Assets({ type, activeSubject, onOpen }) {
-  const { assets = [], contracts = [], tenants = [] , residentialSubjects = [], firms = [], billingGroups = [], getFirm, theme } = useApp()
+  const { assets = [], contracts = [], tenants = [] , residentialSubjects = [], firms = [], billingGroups = [], getFirm, theme, isReadOnly } = useApp()
+  // Hromadný výběr → přesun do jiné sekce (BulkMoveDialog)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState([])
+  const [moveOpen, setMoveOpen] = useState(false)
+  const toggleSel = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+  const addSel = (list) => setSelected(s => [...new Set([...s, ...list])])
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   useNewShortcut(() => setShowForm(true)) // Ctrl+N
@@ -104,11 +111,11 @@ export default function Assets({ type, activeSubject, onOpen }) {
     return (
       <div
         key={asset.id}
-        draggable={dh.draggable}
+        draggable={!selectMode && dh.draggable}
         onDragStart={dh.onDragStart}
         onDragOver={dh.onDragOver}
         onDrop={() => dh.onDrop(filtered)}
-        onClick={() => onOpen(asset.id)}
+        onClick={() => selectMode ? toggleSel(asset.id) : onOpen(asset.id)}
         data-morph={`asset:${asset.id}`}
         className="card card-interactive"
         style={{
@@ -119,8 +126,15 @@ export default function Assets({ type, activeSubject, onOpen }) {
           '--glow': getFirm && getFirm(asset.subject) ? firmColors(getFirm(asset.subject).color, theme).mid : cardBorder,
           opacity: isDragging ? 0.5 : 1,
           userSelect: 'none',
+          position: 'relative',
+          ...(selectMode ? { cursor: 'pointer' } : {}),
+          ...(selected.includes(asset.id) ? { boxShadow: '0 0 0 3px var(--accent), 0 3px 12px rgba(0,0,0,0.08)' } : {}),
         }}
       >
+        {selectMode && (
+          <span style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, width: 22, height: 22, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900,
+            background: selected.includes(asset.id) ? 'var(--accent)' : 'var(--bg)', color: '#fff', border: `2px solid ${selected.includes(asset.id) ? 'var(--accent)' : 'var(--border)'}` }}>{selected.includes(asset.id) ? '✓' : ''}</span>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', background: headerBg, borderBottom: `1.5px solid ${cardBorder}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <span style={{ fontSize: 13, cursor: 'grab', opacity: 0.5 }}>⠿</span>
@@ -314,6 +328,7 @@ export default function Assets({ type, activeSubject, onOpen }) {
             <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '3px 10px', borderRadius: 8, fontWeight: 600 }}>
               {activeCount} pronajato / {items.length} celkem
             </span>
+            {selectMode && <button className="btn btn-sm" onClick={() => addSel(items.map(a => a.id))}>☑ Vybrat blok ({items.length})</button>}
             <button
               onClick={() => toggleSection(key)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text3)', padding: '2px 6px', borderRadius: 6 }}
@@ -358,9 +373,27 @@ export default function Assets({ type, activeSubject, onOpen }) {
               <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </div>
+          {!isReadOnly && type !== 'ostatni' && (
+            <button className="btn btn-sm" onClick={() => { setSelectMode(m => !m); setSelected([]) }} title="Vybrat víc předmětů a přesunout je do jiné sekce">
+              {selectMode ? '✕ Konec výběru' : '☑ Vybrat'}
+            </button>
+          )}
           <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>{conf.btnLabel}</button>
         </div>
       </div>
+
+      {selectMode && (
+        <div style={{ position: 'sticky', top: -24, zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px', margin: '-8px 0 18px',
+          background: 'var(--tone-blue-soft)', border: '1px solid var(--tone-blue-border)', borderRadius: 12, fontSize: 13, fontWeight: 700, color: 'var(--tone-blue-text)' }}>
+          <span>Vybráno {selected.length}</span>
+          <button className="btn btn-sm" onClick={() => addSel(filtered.map(a => a.id))}>Vybrat vše zobrazené ({filtered.length})</button>
+          {selected.length > 0 && <button className="btn btn-sm" onClick={() => setSelected([])}>Zrušit výběr</button>}
+          <span style={{ flex: 1 }} />
+          <span style={{ fontWeight: 500, color: 'var(--text2)' }}>Klik na kartu = vybrat · hledání zúží výběr</span>
+          <button className="btn btn-sm btn-primary" disabled={!selected.length} onClick={() => setMoveOpen(true)}>📦 Přesunout do sekce…</button>
+        </div>
+      )}
+      {moveOpen && <BulkMoveDialog ids={selected} type={type} onClose={() => setMoveOpen(false)} onDone={() => { setMoveOpen(false); setSelected([]); setSelectMode(false) }} />}
 
       {type === 'residential'
         ? renderResidentialSections()
