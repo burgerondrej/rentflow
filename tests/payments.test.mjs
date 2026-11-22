@@ -303,3 +303,20 @@ test('volné od: den po konci poslední skončené smlouvy, jen bez platné smlo
   assert.equal(u.assetFreeSince([ended, cur], 'a1'), null)
   assert.equal(u.assetFreeSince([ended, { ...base, id: 'c2', assetId: 'a1', start: '1. 9. 2026', end: '' }], 'a1'), null)
 })
+
+test('aktuální období smlouvy: poslední prodloužení dodatkem, které už začalo; bez prodloužení null', () => {
+  const am = (effectiveFrom, termFrom, termTo, rent) => ({ effectiveFrom, termFrom, termTo, rent })
+  const c = { ...base, start: '5. 9. 2023', end: '4. 9. 2029', rent: 15000,
+    amendments: [am('1. 3. 2025', null, null, 15500), am('1. 9. 2026', '5. 9. 2026', '4. 9. 2029', 17000), am('1. 9. 2027', '5. 9. 2027', '4. 9. 2030', null)] }
+  const t = u.currentTerm(c)
+  assert.equal(t.from, '5. 9. 2026')
+  assert.equal(t.to, '4. 9. 2029')
+  // jen změna částek = žádné prodloužení
+  assert.equal(u.currentTerm({ ...base, start: '1. 1. 2024', amendments: [am('1. 3. 2025', null, null, 100)] }), null)
+  // prodloužení bez změny nájmu blokaci navýšení neobnoví (počítá se dál od začátku smlouvy / posledního navýšení)
+  const noRaise = { ...base, start: '1. 1. 2024', rent: 10000, amendments: [am('1. 9. 2026', '1. 9. 2026', '31. 8. 2029', null)] }
+  assert.equal(u.rentIncreaseLock(noRaise), null)
+  // prodloužení se zvýšením nájmu = nový rok od účinnosti dodatku
+  const raise = { ...base, start: '1. 1. 2024', rent: 10000, amendments: [am('1. 9. 2026', '1. 9. 2026', '31. 8. 2029', 11000)] }
+  assert.equal(u.rentIncreaseLock(raise)?.until, '1. 9. 2027')
+})

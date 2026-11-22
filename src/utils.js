@@ -449,6 +449,21 @@ export function lastRentIncrease(c) {
 }
 
 /**
+ * Aktuální období smlouvy prodloužené dodatkem (am.termFrom / am.termTo): poslední dodatek, jehož období už začalo.
+ * { from, to, am } nebo null (neprodlužováno dodatkem → platí začátek smlouvy). Jen zobrazení – platby počítají ze začátku smlouvy.
+ */
+export function currentTerm(c, today = new Date()) {
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  let best = null
+  for (const am of c?.amendments || []) {
+    const d = parseDate(am.termFrom)
+    if (!d || d > t0) continue
+    if (!best || d > best.d) best = { d, from: am.termFrom, to: am.termTo || '', am }
+  }
+  return best ? { from: best.from, to: best.to, am: best.am } : null
+}
+
+/**
  * Blokace navýšení nájmu: rok od začátku smlouvy a rok od poslední valorizace (vyšší z obou dat).
  * Poslední valorizace = Datum poslední valorizace nebo účinný dodatek, který zvýšil nájemné.
  * Vrací { reason: 'start' | 'valorization', since, until } (data D. M. RRRR), null = nájem lze navýšit.

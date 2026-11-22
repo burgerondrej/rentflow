@@ -180,6 +180,9 @@ impl Database {
 
         // Migrace: přidej parking sloupec pokud ještě neexistuje
         let _ = self.conn.execute("ALTER TABLE contracts ADD COLUMN parking REAL DEFAULT 0", []);
+        // v1.6.1 – prodloužení smlouvy dodatkem (nové období od–do)
+        let _ = self.conn.execute("ALTER TABLE contract_amendments ADD COLUMN term_from TEXT", []);
+        let _ = self.conn.execute("ALTER TABLE contract_amendments ADD COLUMN term_to TEXT", []);
         // Migrace: přidej dic a address do tenants
         let _ = self.conn.execute("ALTER TABLE tenants ADD COLUMN dic TEXT", []);
         let _ = self.conn.execute("ALTER TABLE tenants ADD COLUMN address TEXT", []);
@@ -689,7 +692,7 @@ impl Database {
 
         // Načti amendments pro všechny smlouvy
         let mut amend_stmt = self.conn.prepare(
-            "SELECT id, contract_id, effective_from, rent, deposit, deposit_water, flat_fee, parking, note, added FROM contract_amendments ORDER BY effective_from ASC"
+            "SELECT id, contract_id, effective_from, rent, deposit, deposit_water, flat_fee, parking, note, added, term_from, term_to FROM contract_amendments ORDER BY effective_from ASC"
         )?;
         let amendments: Vec<ContractAmendment> = amend_stmt.query_map([], |row| {
             Ok(ContractAmendment {
@@ -703,6 +706,8 @@ impl Database {
                 parking: row.get(7)?,
                 note: row.get(8)?,
                 added: row.get(9)?,
+                term_from: row.get(10)?,
+                term_to: row.get(11)?,
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
 
@@ -796,13 +801,32 @@ impl Database {
         let id = Self::new_id();
         let added = Self::now_cs();
         self.conn.execute(
-            "INSERT INTO contract_amendments (id, contract_id, effective_from, rent, deposit, deposit_water, flat_fee, parking, note, added) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-            params![id, a.contract_id, a.effective_from, a.rent, a.deposit, a.deposit_water, a.flat_fee, a.parking, a.note, added],
+            "INSERT INTO contract_amendments (id, contract_id, effective_from, rent, deposit, deposit_water, flat_fee, parking, note, added, term_from, term_to) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+            params![id, a.contract_id, a.effective_from, a.rent, a.deposit, a.deposit_water, a.flat_fee, a.parking, a.note, added, a.term_from, a.term_to],
         )?;
+        self.apply_amendment_term(a)?;
         let mut result = a.clone();
         result.id = id;
         result.added = Some(added);
         Ok(result)
+    }
+
+    /// Úprava dodatku (částky, datum účinnosti, poznámka, prodloužení).
+    pub fn update_amendment(&self, a: &ContractAmendment) -> Result<ContractAmendment> {
+        self.conn.execute(
+            "UPDATE contract_amendments SET effective_from=?1, rent=?2, deposit=?3, deposit_water=?4, flat_fee=?5, parking=?6, note=?7, term_from=?8, term_to=?9 WHERE id=?10",
+            params![a.effective_from, a.rent, a.deposit, a.deposit_water, a.flat_fee, a.parking, a.note, a.term_from, a.term_to, a.id],
+        )?;
+        self.apply_amendment_term(a)?;
+        Ok(a.clone())
+    }
+
+    /// Dodatek s prodloužením: konec nového období = konec smlouvy (začátek smlouvy se kvůli historii plateb nemění).
+    fn apply_amendment_term(&self, a: &ContractAmendment) -> Result<()> {
+        if let Some(to) = a.term_to.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+            self.conn.execute("UPDATE contracts SET end_date=?1 WHERE id=?2", params![to, a.contract_id])?;
+        }
+        Ok(())
     }
 
     /// (contract_id, effective_from) dodatku – pro záznam do historie před smazáním

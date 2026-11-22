@@ -7,7 +7,7 @@ import { StatusPill, contractStatus } from '../StatusUI.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
 import { useNewShortcut, peekContractsFilter, clearContractsFilter } from '../shortcuts.js'
 import { cauceInfo, fmtKc, CauceSettleDialog } from '../CauceUI.jsx'
-import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES, rentIncreaseLock, selectionLabel } from '../utils.js'
+import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES, rentIncreaseLock, selectionLabel, currentTerm } from '../utils.js'
 import { spanText } from '../ContractInsights.jsx'
 
 export default function Contracts({ activeSubject, onOpen }) {
@@ -262,7 +262,7 @@ export default function Contracts({ activeSubject, onOpen }) {
 
           {/* Uplynulá doba smlouvy + možnost navýšení nájmu */}
           {!isArchived && (() => {
-            const st = parseDate(c.start), en = parseDate(c.end)
+            const st = parseDate(currentTerm(c)?.from || c.start), en = parseDate(c.end) // u prodloužení dodatkem od aktuálního období
             const showProg = st && en && en > st
             const pct = showProg ? Math.min(100, Math.max(0, (today0 - st) / (en - st) * 100)) : 0
             const inc = increaseInfo(c)
@@ -294,7 +294,7 @@ export default function Contracts({ activeSubject, onOpen }) {
   // ── Tabulkový režim (řazení klikem na záhlaví; bez řazení = stejné pořadí jako karty) ──
   const SORTS = {
     unit: (c) => String(c.assetUnit || ''), tenant: (c) => String(c.tenantName || ''), rent: (c) => (c.effRent || 0) + (c.effParking || 0),
-    m2: (c) => sqmOf(c) ?? -1, start: (c) => parseDate(c.start)?.getTime() || 0, end: (c) => parseDate(c.end)?.getTime() || Infinity,
+    m2: (c) => sqmOf(c) ?? -1, start: (c) => parseDate(currentTerm(c)?.from || c.start)?.getTime() || 0, end: (c) => parseDate(c.end)?.getTime() || Infinity,
     inc: (c) => { const i = increaseInfo(c); return i ? i.ts : Infinity },
   }
   const sortRows = (rows) => {
@@ -331,7 +331,7 @@ export default function Contracts({ activeSubject, onOpen }) {
                   <td title={c.tenantName || ''} style={{ padding: '9px 12px', fontWeight: 700, fontSize: 13.5, color: 'var(--text)', whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.tenantName || '—'}</td>
                   <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 800, fontSize: 13.5, whiteSpace: 'nowrap' }}>{c.paymentFrequency === 'Zahrnuto v nájemném' ? <span style={{ color: 'var(--text3)', fontWeight: 600 }}>v nájmu</span> : `${Math.round((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč${per}`}</td>
                   <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 13, color: 'var(--text2)' }}>{m2 != null ? m2.toLocaleString('cs-CZ') : '—'}</td>
-                  <td style={{ padding: '9px 12px', fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{c.start || '—'}</td>
+                  <td style={{ padding: '9px 12px', fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }} title={currentTerm(c) ? `prodlouženo dodatkem · původně od ${c.start}` : undefined}>{currentTerm(c)?.from || c.start || '—'}</td>
                   <td style={{ padding: '9px 12px', fontSize: 13, whiteSpace: 'nowrap', fontWeight: soon ? 800 : 500, color: soon ? (c.daysLeft < 0 ? 'var(--tone-red-text)' : 'var(--tone-amber-text)') : 'var(--text2)' }}>{c.end || 'Na dobu neurčitou'}</td>
                   <td style={{ padding: '9px 12px', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', color: inc ? `var(--tone-${inc.t}-text)` : 'var(--text3)' }}>{inc ? inc.short : '—'}</td>
                   <td style={{ padding: '9px 12px' }}><StatusPill kind={st.kind} text={st.text} size="sm" /></td>
@@ -357,7 +357,7 @@ export default function Contracts({ activeSubject, onOpen }) {
     return {
       unit: c.assetUnit || '', tenant: c.tenantName || '',
       rent: incl ? '' : Math.round((c.effRent || 0) + (c.effParking || 0)), freq: incl ? 'zahrnuto v nájmu' : (c.paymentFrequency || 'Měsíčně'),
-      m2: sqmOf(c) ?? '', start: c.start || '', end: c.end || 'Na dobu neurčitou', inc: inc ? inc.text : '', status: contractStatus(c).text,
+      m2: sqmOf(c) ?? '', start: currentTerm(c)?.from || c.start || '', end: c.end || 'Na dobu neurčitou', inc: inc ? inc.text : '', status: contractStatus(c).text,
     }
   }
   const exportDesc = () => [

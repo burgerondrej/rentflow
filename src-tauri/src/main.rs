@@ -161,6 +161,7 @@ fn main() {
             commands::delete_operational_cost,
             commands::add_amendment,
             commands::delete_amendment,
+            commands::update_amendment,
             commands::check_for_update,
             commands::install_update,
             commands::get_subjects,

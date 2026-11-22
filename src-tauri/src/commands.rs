@@ -862,7 +862,24 @@ pub fn add_amendment(amendment: ContractAmendment, user: String, state: State<Ap
             format!("{} – {}", asset_unit, tenant_name)
         })
         .unwrap_or_else(|| amendment.contract_id.clone());
-    db.add_log(&user, "Přidání", "Dodatek smlouvy", &format!("Změna nájemného/záloh od {} | {}", amendment.effective_from, context))?;
+    let what = match (amendment.term_from.as_deref().filter(|s| !s.is_empty()), amendment.term_to.as_deref().filter(|s| !s.is_empty())) {
+        (None, None) => format!("Změna nájemného/záloh od {}", amendment.effective_from),
+        (f, t) => format!("Prodloužení smlouvy dodatkem {} – {} (účinnost {})", f.unwrap_or("?"), t.unwrap_or("na dobu neurčitou"), amendment.effective_from),
+    };
+    db.add_log(&user, "Přidání", "Dodatek smlouvy", &format!("{} | {}", what, context))?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn update_amendment(amendment: ContractAmendment, user: String, state: State<AppState>) -> std::result::Result<ContractAmendment, AppError> {
+    let db = db!(state);
+    let result = db.update_amendment(&amendment)?;
+    let context = contract_label(&db, &amendment.contract_id).unwrap_or_else(|| amendment.contract_id.clone());
+    let term = match (amendment.term_from.as_deref().filter(|s| !s.is_empty()), amendment.term_to.as_deref().filter(|s| !s.is_empty())) {
+        (None, None) => String::new(),
+        (f, t) => format!(" · prodloužení {} – {}", f.unwrap_or("?"), t.unwrap_or("na dobu neurčitou")),
+    };
+    db.add_log(&user, "Úprava", "Dodatek smlouvy", &format!("Upraven dodatek od {}{} | {}", amendment.effective_from, term, context))?;
     Ok(result)
 }
 

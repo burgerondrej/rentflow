@@ -921,10 +921,24 @@ export function AppProvider({ children }) {
     // Přidej amendment k příslušné smlouvě v state
     setContracts(prev => prev.map(c =>
       c.id === amendment.contractId
-        ? { ...c, amendments: [...(c.amendments || []), result].sort((a, b) => compareEffectiveFrom(a.effectiveFrom, b.effectiveFrom)) }
+        ? { ...c, ...(result?.termTo ? { end: result.termTo } : {}), amendments: [...(c.amendments || []), result].sort((a, b) => compareEffectiveFrom(a.effectiveFrom, b.effectiveFrom)) }
         : c
     ))
     return result
+  }
+
+  // Úprava dodatku; prodloužení (termTo) přepíše konec smlouvy – stejně jako Rust (apply_amendment_term)
+  const updateAmendment = async (amendment) => {
+    if (guardWrite()) return null
+    try {
+      const result = await invoke('update_amendment', { amendment, user: currentUser })
+      setContracts(prev => prev.map(c =>
+        c.id === amendment.contractId
+          ? { ...c, ...(result?.termTo ? { end: result.termTo } : {}), amendments: (c.amendments || []).map(a => a.id === result.id ? result : a).sort((a, b) => compareEffectiveFrom(a.effectiveFrom, b.effectiveFrom)) }
+          : c
+      ))
+      return result
+    } catch (err) { console.error('updateAmendment error:', err); showToast('Dodatek se nepodařilo uložit: ' + err); return null }
   }
 
   const deleteAmendment = async (amendmentId, contractId) => {
@@ -1050,7 +1064,7 @@ export function AppProvider({ children }) {
     // CRUD – Provozní náklady
     addOperationalCost, updateOperationalCost, deleteOperationalCost,
     // CRUD – Dodatky smluv (změny nájemného/záloh)
-    addAmendment, deleteAmendment,
+    addAmendment, updateAmendment, deleteAmendment,
     // Koš
     restoreFromTrash, permanentDelete, emptyTrash,
     // Zálohy + Nastavení

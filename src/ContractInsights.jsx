@@ -1,6 +1,6 @@
 import React from 'react'
 import { SectionHeader } from './UI.jsx'
-import { parseDate, toCzDate, getEffectiveValuesAt, getEffectiveValuesToday, getMonthDeposits, rentIncreaseLock, noticeDeadline, hasSuccessor, contractShowsVat, PERIOD_LEN } from './utils.js'
+import { parseDate, toCzDate, getEffectiveValuesAt, getEffectiveValuesToday, getMonthDeposits, rentIncreaseLock, noticeDeadline, hasSuccessor, contractShowsVat, PERIOD_LEN, currentTerm } from './utils.js'
 
 /**
  * Detail smlouvy – časová osa (začátek → konec, dnes, dodatky, možnost navýšení, poslední den výpovědi)
@@ -20,7 +20,9 @@ export function spanText(from, to) {
 }
 
 export function ContractTimeline({ c, contracts = [], assetType }) {
-  const start = parseDate(c.start)
+  // Smlouva prodloužená dodatkem: osa od začátku aktuálního období
+  const term = currentTerm(c)
+  const start = parseDate(term ? term.from : c.start)
   if (!start || c.paymentFrequency === 'Zahrnuto v nájemném') return null
   const end = parseDate(c.end)
   const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -56,7 +58,7 @@ export function ContractTimeline({ c, contracts = [], assetType }) {
 
   // popisky pod osou: blízké posunout do dalšího řádku
   const labels = [
-    { p: 0, top: c.start, bottom: 'začátek', align: 'left' },
+    { p: 0, top: term ? term.from : c.start, bottom: term ? 'aktuální smlouva od' : 'začátek', align: 'left' },
     ...ev.sort((a, b) => a.d - b.d).map(e => ({ p: pos(e.d), top: toCzDate(e.d), bottom: e.label, tone: e.tone, align: 'center' })),
     { p: 100, top: end ? c.end : '♾', bottom: end ? 'konec' : 'na dobu neurčitou', align: 'right', tone: ending ? 'amber' : undefined },
   ]

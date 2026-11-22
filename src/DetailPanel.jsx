@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
-import { getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, ASSET_TYPES, assetTypeOfSection, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt, contractVatPayer, contractShowsVat, CONTRACT_ONLY_TYPES, assetFreeSince } from './utils.js'
+import { currentTerm, getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, ASSET_TYPES, assetTypeOfSection, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt, contractVatPayer, contractShowsVat, CONTRACT_ONLY_TYPES, assetFreeSince } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
 import ChangeTenantDialog from './ChangeTenantDialog.jsx'
@@ -39,7 +39,7 @@ const TYPE_META = {
 const DETAIL_TAB_ORDER = ['overview', 'contracts', 'payments', 'amendments', 'docs', 'history']
 
 export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange, backLabel, morphCloseReady }) {
-  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, moveAsset, confirmAction, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast, floorPlans = [] } = useApp()
+  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, moveAsset, confirmAction, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, updateAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast, floorPlans = [] } = useApp()
 
   const SEP = ' – '
   const PREDEFINED_TAGS = [
@@ -110,7 +110,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
   const [payType, setPayType] = useState('rent') // rent | deposit
   const [payDate, setPayDate] = useState('')
   const [amendForm, setAmendForm] = useState(false)
-  const [amendData, setAmendData] = useState({ effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '' })
+  const [amendData, setAmendData] = useState({ id: '', effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '', termOn: false, termFrom: '', termTo: '' })
   const [depYear, setDepYear] = useState(() => new Date().getFullYear())
   const [settleEdit, setSettleEdit] = useState(null) // { type: 'doplatek'|'preplatek', amount } – vyúčtování záloh za depYear
 
@@ -2754,13 +2754,16 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8 }}>
           {[
             ...(!CONTRACT_ONLY_TYPES.includes(a?.type) && tenancySince(c, contracts) ? [{ label: 'V nájmu od', value: tenancySince(c, contracts), icon: '🕰' }] : []),
-            { label: 'Platnost od', value: c.start || '—', icon: '▶' },
+            ...(() => { const term = currentTerm(c); return term
+              ? [{ label: 'Platnost aktuální smlouvy od', value: term.from, icon: '▶', sub: `prodlouženo dodatkem · původně od ${c.start || '—'}` }]
+              : [{ label: 'Platnost od', value: c.start || '—', icon: '▶' }] })(),
             { label: 'Platnost do', value: c.end || '♾ Na dobu neurčitou', icon: '⏹' },
             ...(c.dueDay && c.paymentFrequency !== 'Zahrnuto v nájemném' ? [{ label: 'Splatnost', value: c.dueDay, icon: '📅' }] : []),
-          ].map(({ label, value, icon }) => (
+          ].map(({ label, value, icon, sub }) => (
             <div key={label} style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 10, padding: '10px 14px' }}>
               <div style={{ fontSize: 10, color: 'var(--tone-green-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }}>{label}</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{value}</div>
+              {sub && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>{sub}</div>}
             </div>
           ))}
         </div>
@@ -3176,7 +3179,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               <div className="sec-head-icon" style={{ background: 'var(--tone-blue-soft)', borderColor: 'var(--tone-blue-border)' }}>📈</div>
               <div className="sec-head-title">Dodatky – změny nájemného a záloh</div>
               {!isReadOnly && (
-                <button className="btn btn-sm" onClick={() => { setAmendForm(v => !v); setAmendData({ effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '' }) }}
+                <button className="btn btn-sm" onClick={() => { setAmendForm(v => !v); setAmendData({ id: '', effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '', termOn: false, termFrom: '', termTo: '' }) }}
                   style={{ fontSize: 11.5, padding: '3px 10px', fontWeight: 700 }}>
                   {amendForm ? '✕ Zrušit' : '+ Přidat změnu'}
                 </button>
@@ -3194,21 +3197,31 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                 return `${parseInt(day)}. ${parseInt(mo)}. ${yr}`
               }
               const handleSaveAmend = async () => {
-                if (!amendData.effectiveFrom) return
+                const term = amendData.termOn && amendData.termFrom && amendData.termTo
+                if (amendData.termOn && !term) { showToast('Vyplňte nové období smlouvy (od i do), nebo zrušte „Prodlužuje smlouvu“.', 'warning'); return }
+                if (term && amendData.termTo <= amendData.termFrom) { showToast('Konec nového období musí být po jeho začátku.', 'warning'); return }
+                const effIso = amendData.effectiveFrom || (term ? amendData.termFrom : '')
+                if (!effIso) return
                 const payload = {
                   contractId: c.id,
-                  effectiveFrom: isoToCz(amendData.effectiveFrom),
+                  effectiveFrom: isoToCz(effIso),
                   rent: amendData.rent !== '' ? Number(amendData.rent) : null,
                   deposit: amendData.deposit !== '' ? Number(amendData.deposit) : null,
                   depositWater: amendData.depositWater !== '' ? Number(amendData.depositWater) : null,
                   flatFee: amendData.flatFee !== '' ? Number(amendData.flatFee) : null,
                   parking: amendData.parking !== '' ? Number(amendData.parking) : null,
                   note: amendData.note || null,
+                  // Prodloužení smlouvy dodatkem: nové období (konec se propíše do smlouvy, začátek smlouvy zůstává kvůli historii)
+                  termFrom: term ? isoToCz(amendData.termFrom) : null,
+                  termTo: term ? isoToCz(amendData.termTo) : null,
                 }
-                // Alespoň jedna částka musí být vyplněna
+                // Alespoň jedna částka, nebo prodloužení
                 const hasValue = [payload.rent, payload.deposit, payload.depositWater, payload.flatFee, payload.parking].some(v => v !== null)
-                if (!hasValue) return
-                await addAmendment(payload)
+                if (!hasValue && !term) { showToast('Vyplňte novou částku, nebo prodloužení smlouvy.', 'warning'); return }
+                if (amendData.id) {
+                  const orig = (c.amendments || []).find(x => x.id === amendData.id)
+                  await updateAmendment({ ...payload, id: amendData.id, added: orig?.added || null })
+                } else await addAmendment(payload)
                 setAmendForm(false)
               }
               const inp = (label, field, placeholder) => (
@@ -3222,7 +3235,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               return (
                 <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>
-                    Nové hodnoty platné od zadaného data. Ponechejte prázdné pole = beze změny.
+                    {amendData.id ? '✏️ Úprava dodatku. ' : ''}Nové hodnoty platné od zadaného data. Ponechejte prázdné pole = beze změny.
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                     <div>
@@ -3243,11 +3256,35 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                       style={{ width: '100%', cursor: 'text', textAlign: 'left', background: 'var(--bg2)', boxSizing: 'border-box' }}
                       value={amendData.note} onChange={e => setAmendData(p => ({ ...p, note: e.target.value }))} />
                   </div>
+                  {/* Prodloužení smlouvy dodatkem (nepovinné) – nové období; konec se propíše do smlouvy */}
+                  <div style={{ marginBottom: 12, padding: amendData.termOn ? '10px 12px' : 0, borderRadius: 10, border: amendData.termOn ? '1px solid var(--tone-green-border)' : 'none', background: amendData.termOn ? 'var(--tone-green-soft)' : 'transparent' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 700, color: amendData.termOn ? 'var(--tone-green-text)' : 'var(--text2)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!amendData.termOn} onChange={e => setAmendData(p => ({ ...p, termOn: e.target.checked }))} />
+                      Dodatek prodlužuje smlouvu
+                    </label>
+                    {amendData.termOn && (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Platnost aktuální smlouvy od *</label>
+                            <input type="date" className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left', background: 'var(--bg)', boxSizing: 'border-box' }}
+                              value={amendData.termFrom} onChange={e => setAmendData(p => ({ ...p, termFrom: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Platnost do *</label>
+                            <input type="date" className="btn" style={{ width: '100%', cursor: 'pointer', textAlign: 'left', background: 'var(--bg)', boxSizing: 'border-box' }}
+                              value={amendData.termTo} onChange={e => setAmendData(p => ({ ...p, termTo: e.target.value }))} />
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 6, lineHeight: 1.45 }}>Konec smlouvy se nastaví na „Platnost do“. Začátek smlouvy zůstává (historie plateb se nemění) – v detailu se ukáže „Platnost aktuální smlouvy od“.</div>
+                      </>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn btn-sm" onClick={() => setAmendForm(false)} style={{ flex: 1 }}>Zrušit</button>
                     <button className="btn btn-sm" onClick={handleSaveAmend}
-                      style={{ flex: 2, background: amendData.effectiveFrom ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', fontWeight: 700 }}>
-                      ✓ Uložit změnu
+                      style={{ flex: 2, background: amendData.effectiveFrom || (amendData.termOn && amendData.termFrom) ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', fontWeight: 700 }}>
+                      ✓ {amendData.id ? 'Uložit úpravu' : 'Uložit změnu'}
                     </button>
                   </div>
                 </div>
@@ -3256,7 +3293,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
 
             {/* Seznam existujících amendments */}
             {(c.amendments || []).length === 0 && !amendForm ? (
-              <div style={{ padding: 12 }}><EmptyState compact icon="📈" title="Zatím žádné dodatky" text="Valorizaci nebo jinou změnu nájemného či záloh přidáte přes + Přidat změnu." /></div>
+              <div style={{ padding: 12 }}><EmptyState compact icon="📈" title="Zatím žádné dodatky" text="Změnu nájemného či záloh nebo prodloužení smlouvy přidáte přes + Přidat změnu." /></div>
             ) : (
               <div style={{ padding: '4px 0' }}>
                 {[...(c.amendments || [])].reverse().map((am, i, arr) => (
@@ -3267,6 +3304,11 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                         {am.note && <span style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>{am.note}</span>}
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {am.termFrom && (
+                          <span style={{ fontSize: 11, background: 'var(--tone-green-soft)', color: 'var(--tone-green-text)', border: '1px solid var(--tone-green-border)', padding: '1px 8px', borderRadius: 6, fontWeight: 800 }}>
+                            🔁 Prodloužení: {am.termFrom} – {am.termTo || 'na dobu neurčitou'}
+                          </span>
+                        )}
                         {am.rent !== null && am.rent !== undefined && (
                           <span style={{ fontSize: 11, background: 'var(--tone-blue-soft)', color: '#1e40af', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
                             Nájem: {Number(am.rent).toLocaleString('cs-CZ')} Kč
@@ -3294,6 +3336,14 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                         )}
                       </div>
                     </div>
+                    {!isReadOnly && (
+                      <button title="Upravit dodatek" onClick={() => {
+                        setAmendData({ id: am.id, effectiveFrom: czToIso(am.effectiveFrom), note: am.note || '',
+                          rent: am.rent ?? '', deposit: am.deposit ?? '', depositWater: am.depositWater ?? '', flatFee: am.flatFee ?? '', parking: am.parking ?? '',
+                          termOn: !!am.termFrom, termFrom: am.termFrom ? czToIso(am.termFrom) : '', termTo: am.termTo ? czToIso(am.termTo) : '' })
+                        setAmendForm(true)
+                      }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}>✏️</button>
+                    )}
                     {!isReadOnly && (
                       <button onClick={() => setConfirmDialog({
                         title: 'Smazat změnu?',

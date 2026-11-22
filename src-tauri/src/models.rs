@@ -167,6 +167,11 @@ pub struct ContractAmendment {
     pub note: Option<String>,          // poznámka k důvodu změny (valorizace, dohoda…)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub added: Option<String>,
+    // v1.6.1 – dodatek prodlužuje smlouvu: nové období „D. M. RRRR“ (jen evidence; term_to se propíše do konce smlouvy)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub term_from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub term_to: Option<String>,
 }
 
 // ─────────────────────────────────────────
