@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useApp } from '../AppContext.jsx'
+import DocumentEditDialog from '../DocumentEditDialog.jsx'
 import { FirmPicker } from '../FirmUI.jsx'
 import { selectionMatches, contractSubject, isContractOccupying, hasSuccessor } from '../utils.js'
 import { StatusPill, contractStatus } from '../StatusUI.jsx'
@@ -52,6 +53,7 @@ function SubjectSelector({ subjects, active, onSelect, label = 'Vyberte subjekt'
 export function Docs() {
   const { documents = [], contracts = [], tenants = [], assets = [], addDocument, deleteDocument, getSettings, subjects = [], showToast, confirmAction } = useApp() || {}
   const [activeSub, setActiveSub] = useState(subjects[0] || '')
+  const [editDoc, setEditDoc] = useState(null) // úprava dokumentu
   const [showForm, setShowForm]   = useState(false)
   const [newName, setNewName]     = useState('')
   const [newType, setNewType]     = useState('Smlouva')
@@ -321,6 +323,7 @@ export function Docs() {
           {hasFile && (
             <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => handleOpen(d)}>Otevřít</button>
           )}
+          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setEditDoc(d)} title="Upravit název, kategorii, poznámku">✏️ Upravit</button>
           <button className="btn btn-sm" style={{ color: '#DC2626', background: 'var(--tone-red-soft)', borderColor: 'var(--tone-red-border)', fontSize: 11 }} onClick={() => confirmAction({ title: 'Smazat dokument?', text: `Dokument „${d.name}“ bude odstraněn.`, okLabel: 'Smazat', danger: true, onOk: () => deleteDocument(d.id) })}>Smazat</button>
         </div>
       </div>
@@ -332,6 +335,7 @@ export function Docs() {
 
   return (
     <div style={{ paddingBottom: 60 }}>
+      {editDoc && <DocumentEditDialog doc={editDoc} onClose={() => setEditDoc(null)} />}
       <div className="page-header" data-icon="📁" style={{ marginBottom: 24 }}>
         <div>
           <div className="page-title">Dokumenty a Soubory</div>

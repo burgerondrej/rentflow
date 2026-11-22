@@ -140,6 +140,8 @@ fn main() {
             commands::get_meter_readings,
             commands::add_meter_reading,
             commands::delete_meter_reading,
+            commands::update_meter_reading,
+            commands::update_document,
             commands::get_sync_status,
             commands::add_log,
             commands::get_trash,

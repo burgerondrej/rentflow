@@ -8,6 +8,8 @@ import ContractHistory from './ContractHistory.jsx'
 import DialogShell, { isDialogOpen } from './DialogShell.jsx'
 import { requestFloorPlanFocus } from './shortcuts.js'
 import { ContractTimeline, ContractRentBreakdown } from './ContractInsights.jsx'
+import QuickEditDialog from './QuickEditDialog.jsx'
+import DocumentEditDialog from './DocumentEditDialog.jsx'
 import { SectionHeader, Segmented, EmptyState, PayAmountHint, partiesLabel, prefersReducedMotion } from './UI.jsx'
 import TenantTimeline from './TenantTimeline.jsx'
 import AssetRentHistory from './AssetRentHistory.jsx'
@@ -110,6 +112,8 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
   const [payType, setPayType] = useState('rent') // rent | deposit
   const [payDate, setPayDate] = useState('')
   const [amendForm, setAmendForm] = useState(false)
+  const [editDoc, setEditDoc] = useState(null) // úprava dokumentu (název, kategorie, poznámka)
+  const [quickEdit, setQuickEdit] = useState(null) // rychlá úprava jednoho údaje smlouvy (QuickEditDialog)
   const [amendData, setAmendData] = useState({ id: '', effectiveFrom: '', rent: '', deposit: '', depositWater: '', flatFee: '', parking: '', note: '', termOn: false, termFrom: '', termTo: '' })
   const [depYear, setDepYear] = useState(() => new Date().getFullYear())
   const [settleEdit, setSettleEdit] = useState(null) // { type: 'doplatek'|'preplatek', amount } – vyúčtování záloh za depYear
@@ -332,6 +336,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
                       onClick={() => openDocFile(d)}>
                       📂 Otevřít
                     </button>
+                  )}
+                  {!isReadOnly && (
+                    <button className="btn btn-sm btn-ghost" style={{ padding: '4px 8px' }} title="Upravit dokument" onClick={() => setEditDoc(d)}>✏️</button>
                   )}
                   {!isReadOnly && (
                     <button className="btn btn-sm btn-ghost" style={{ color: '#DC2626', padding: '4px 8px' }} title="Smazat dokument"
@@ -2753,20 +2760,31 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8 }}>
           {[
-            ...(!CONTRACT_ONLY_TYPES.includes(a?.type) && tenancySince(c, contracts) ? [{ label: 'V nájmu od', value: tenancySince(c, contracts), icon: '🕰' }] : []),
+            ...(!CONTRACT_ONLY_TYPES.includes(a?.type) && tenancySince(c, contracts) ? [{ label: 'V nájmu od', value: tenancySince(c, contracts), icon: '🕰', edit: 'tenancySince' }] : []),
             ...(() => { const term = currentTerm(c); return term
               ? [{ label: 'Platnost aktuální smlouvy od', value: term.from, icon: '▶', sub: `prodlouženo dodatkem · původně od ${c.start || '—'}` }]
               : [{ label: 'Platnost od', value: c.start || '—', icon: '▶' }] })(),
-            { label: 'Platnost do', value: c.end || '♾ Na dobu neurčitou', icon: '⏹' },
-            ...(c.dueDay && c.paymentFrequency !== 'Zahrnuto v nájemném' ? [{ label: 'Splatnost', value: c.dueDay, icon: '📅' }] : []),
-          ].map(({ label, value, icon, sub }) => (
-            <div key={label} style={{ background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 10, padding: '10px 14px' }}>
+            { label: 'Platnost do', value: c.end || '♾ Na dobu neurčitou', icon: '⏹', edit: 'end' },
+            ...(c.dueDay && c.paymentFrequency !== 'Zahrnuto v nájemném' ? [{ label: 'Splatnost', value: c.dueDay, icon: '📅', edit: 'dueDay' }] : []),
+            // Poslední navýšení / valorizace (byty, komerční) – rychlá úprava místo celého formuláře
+            ...((a?.type === 'residential' || a?.type === 'commercial') && c.paymentFrequency !== 'Zahrnuto v nájemném'
+              ? [{ label: a?.type === 'residential' ? 'Poslední navýšení nájmu' : 'Poslední valorizace', value: c.valorizationDate || '—', icon: '📈', edit: 'valorizationDate' }] : []),
+          ].map(({ label, value, icon, sub, edit }) => (
+            <div key={label} className="qe-card" style={{ position: 'relative', background: 'var(--tone-green-soft)', border: '1px solid var(--tone-green-border)', borderRadius: 10, padding: '10px 14px' }}>
+              {edit && !isReadOnly && (
+                <button className="qe-btn" title={`Upravit: ${label}`} onClick={() => setQuickEdit(edit)}>✏️</button>
+              )}
               <div style={{ fontSize: 10, color: 'var(--tone-green-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }}>{label}</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{value}</div>
               {sub && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>{sub}</div>}
             </div>
           ))}
         </div>
+        )}
+
+        {quickEdit && (
+          <QuickEditDialog field={quickEdit} contract={c} assetType={a?.type} onClose={() => setQuickEdit(null)}
+            onSave={(updates) => updateContract(c.id, { ...c, ...updates })} />
         )}
 
         {/* Dluh – po splatnosti této smlouvy (u skupiny celé skupiny), stejný výpočet jako Platby → Po splatnosti */}
@@ -3626,6 +3644,7 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
       {changeFor && (
         <ChangeTenantDialog contract={changeFor} onClose={() => setChangeFor(null)} onDone={() => { setChangeFor(null); onClose() }} />
       )}
+      {editDoc && <DocumentEditDialog doc={editDoc} onClose={() => setEditDoc(null)} />}
       {renewFor && (
         <RenewContractsDialog contract={renewFor} onClose={() => setRenewFor(null)} onDone={() => { setRenewFor(null); onClose() }} />
       )}

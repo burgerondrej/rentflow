@@ -1084,6 +1084,15 @@ impl Database {
         Ok(result)
     }
 
+    /// Úprava dokumentu: název, kategorie, firma / budova, poznámka (soubor ani vazba na smlouvu se nemění).
+    pub fn update_document(&self, d: &Document) -> Result<Document> {
+        self.conn.execute(
+            "UPDATE documents SET name=?1, doc_type=?2, subject=?3, notes=?4 WHERE id=?5",
+            params![d.name, d.doc_type, d.subject, d.notes, d.id],
+        )?;
+        Ok(d.clone())
+    }
+
     pub fn delete_document(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM documents WHERE id=?1", params![id])?;
         Ok(())
@@ -1569,6 +1578,15 @@ impl Database {
 
     pub fn get_meter_reading(&self, id: &str) -> Option<MeterReading> {
         self.get_meter_readings().ok()?.into_iter().find(|m| m.id == id)
+    }
+
+    /// Úprava odečtu (datum, druh, hodnoty, jednotky, poznámka) – smlouva zůstává.
+    pub fn update_meter_reading(&self, m: &MeterReading) -> Result<MeterReading> {
+        self.conn.execute(
+            "UPDATE meter_readings SET date=?1, kind=?2, electricity=?3, water_cold=?4, water_hot=?5, gas=?6, heat=?7, note=?8, cooling=?9, heat_unit=?10, cooling_unit=?11 WHERE id=?12",
+            params![m.date, m.kind, m.electricity, m.water_cold, m.water_hot, m.gas, m.heat, m.note, m.cooling, m.heat_unit, m.cooling_unit, m.id],
+        )?;
+        Ok(m.clone())
     }
 
     pub fn delete_meter_reading(&self, id: &str) -> Result<()> {

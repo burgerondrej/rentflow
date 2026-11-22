@@ -714,6 +714,14 @@ export function AppProvider({ children }) {
       return saved
     } catch (err) { console.error('addMeterReading error:', err); showToast('Stav měřidel se nepodařilo uložit.'); return null }
   }
+  const updateMeterReading = async (reading) => {
+    if (guardWrite()) return null
+    try {
+      const saved = await invoke('update_meter_reading', { reading, user: currentUser })
+      if (saved) setMeterReadings(prev => prev.map(x => x.id === saved.id ? saved : x))
+      return saved
+    } catch (err) { console.error('updateMeterReading error:', err); showToast('Stav měřidel se nepodařilo uložit: ' + err); return null }
+  }
   const deleteMeterReading = async (id) => {
     if (guardWrite()) return
     try {
@@ -820,6 +828,14 @@ export function AppProvider({ children }) {
     }
   }
 
+  const updateDocument = async (d) => {
+    if (guardWrite()) return null
+    try {
+      const saved = await invoke('update_document', { document: d, user: currentUser })
+      if (saved) setDocuments(prev => prev.map(x => x.id === saved.id ? { ...x, ...saved } : x))
+      return saved
+    } catch (err) { console.error('updateDocument error:', err); showToast('Dokument se nepodařilo uložit: ' + err); return null }
+  }
   const deleteDocument = async (id) => {
     if (guardWrite()) return
     try {
@@ -1053,14 +1069,14 @@ export function AppProvider({ children }) {
     // CRUD – Platby
     addPayment, updatePayment, updatePaymentAmount, deletePayment, removePayments, confirmAction,
     cauceSettlements, saveCauceSettlement, deleteCauceSettlement, debtNotes, saveDebtNote, deleteDebtNote,
-    meterReadings, addMeterReading, deleteMeterReading,
+    meterReadings, addMeterReading, updateMeterReading, deleteMeterReading,
     floorPlans, saveFloorPlan, deleteFloorPlan,
     // CRUD – Kanban
     addTask, updateTask, deleteTask,
     // CRUD – Revize
     addRevision, updateRevision, deleteRevision,
     // CRUD – Dokumenty
-    addDocument, deleteDocument,
+    addDocument, updateDocument, deleteDocument,
     // CRUD – Provozní náklady
     addOperationalCost, updateOperationalCost, deleteOperationalCost,
     // CRUD – Dodatky smluv (změny nájemného/záloh)

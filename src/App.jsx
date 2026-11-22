@@ -196,6 +196,7 @@ function AppInner() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [searchIdx, setSearchIdx] = useState(0) // zvýrazněný výsledek (šipky ↑↓, Enter)
+  const [searchPalette, setSearchPalette] = useState(false) // Ctrl+F nad otevřeným oknem / detailem
   const searchInputRef = useRef(null)
   // Nedávno otevřené detaily (Ctrl+F bez textu) – jen pohodlí tohoto počítače, localStorage rf_recent_details
   const [recentDetails, setRecentDetails] = useState(() => {
@@ -208,10 +209,11 @@ function AppInner() {
   // Ctrl+F → fokus na vyhledávání, Ctrl+S → záloha
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      // Ctrl+F odkudkoli (i s Caps Lockem / jiným rozložením): bez okna → hledání v liště, s oknem / detailem → paleta nad ním
+      if ((e.ctrlKey || e.metaKey) && ((e.key || '').toLowerCase() === 'f' || e.code === 'KeyF')) {
         e.preventDefault()
-        searchInputRef.current?.focus()
-        searchInputRef.current?.select()
+        if (isOverlayOpen()) { setSearchQuery(''); setSearchIdx(0); setSearchPalette(true) }
+        else { searchInputRef.current?.focus(); searchInputRef.current?.select() }
       }
       // Ctrl+N → „Nový …“ na aktuální obrazovce (Smlouvy, Nájemníci, Předměty, Úkoly, Revize, Náklady)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N')) {
@@ -443,10 +445,11 @@ function AppInner() {
   }
 
   const handleResultClick = (res) => {
+    setSearchPalette(false)
     if (res.type === 'task') {
-      handleNav('kanban')
+      setStack([]); handleNav('kanban')
     } else if (res.type === 'doc') {
-      handleNav('docs')
+      setStack([]); handleNav('docs')
     } else if (res.type === 'contract') {
       openDetail('contract', res.id)
     } else {
@@ -534,6 +537,47 @@ function AppInner() {
             {pinError && <div style={{ fontSize: 12, color: '#EF4444', textAlign: 'center', fontWeight: 700 }}>Nesprávný PIN — zkus to znovu.</div>}
         </DialogShell>
       )}
+      {/* Ctrl+F nad otevřeným oknem / detailem – stejné hledání jako v liště; výsledek se otevře nad aktuálním oknem */}
+      {searchPalette && (() => {
+        const TYPE_TONE = { tenant: 'violet', contract: 'blue', asset: 'green', task: 'amber', doc: 'gray' }
+        return (
+          <DialogShell icon="🔍" tone="green" title="Hledat" subtitle="Nájemce, předmět, smlouva, telefon, částka…" width={600} zIndex={3500}
+            onClose={() => { setSearchPalette(false); setSearchQuery('') }} bodyStyle={{ padding: 0 }}>
+            <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
+              <input autoFocus className="btn" value={searchQuery} placeholder="Začněte psát…"
+                onChange={e => { setSearchQuery(e.target.value); setSearchIdx(0) }}
+                onKeyDown={e => {
+                  if (!searchResults.length) return
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setSearchIdx(i => Math.min(i + 1, searchResults.length - 1)) }
+                  else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx(i => Math.max(i - 1, 0)) }
+                  else if (e.key === 'Enter') { e.preventDefault(); handleResultClick(searchResults[Math.min(searchIdx, searchResults.length - 1)]); setSearchQuery('') }
+                }}
+                style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', cursor: 'text', fontSize: 15, padding: '10px 14px' }} />
+            </div>
+            <div style={{ maxHeight: 'calc(55vh / var(--ui-zoom, 1))', overflowY: 'auto' }}>
+              {!searchQuery.trim() && searchResults.length > 0 && (
+                <div style={{ padding: '7px 14px', fontSize: 10.5, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>🕑 Nedávno otevřené</div>
+              )}
+              {searchResults.length > 0 ? searchResults.map((res, i) => {
+                const tone = TYPE_TONE[res.type] || 'gray'
+                const on = i === Math.min(searchIdx, searchResults.length - 1)
+                return (
+                  <div key={i} onClick={() => { handleResultClick(res); setSearchQuery('') }} onMouseEnter={() => setSearchIdx(i)}
+                    style={{ padding: '9px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: on ? 'var(--tone-green-soft)' : 'var(--bg)' }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, minWidth: 64, textAlign: 'center', flexShrink: 0,
+                      background: `var(--tone-${tone}-soft)`, border: `1px solid var(--tone-${tone}-border)`, color: `var(--tone-${tone}-text)` }}>{res.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{res.text}</span>
+                    {(res.firms || []).map(f => <FirmBadge key={f.name} firm={f} size={22} />)}
+                  </div>
+                )
+              }) : searchQuery.trim() ? (
+                <div style={{ padding: 16, fontSize: 13, color: 'var(--text3)', textAlign: 'center', fontWeight: 500 }}>Nic nenalezeno pro „{searchQuery.trim()}“.</div>
+              ) : null}
+            </div>
+            <div style={{ padding: '7px 14px', fontSize: 11, color: 'var(--text3)', background: 'var(--bg2)' }}>↑↓ výběr · Enter otevřít · Esc zpět</div>
+          </DialogShell>
+        )
+      })()}
       {showShortcuts && (
         <DialogShell icon="⌨️" tone="blue" title="Klávesové zkratky" subtitle="Tento přehled otevřeš kdykoli klávesou ?" width={480}
           onClose={() => setShowShortcuts(false)}
@@ -596,7 +640,7 @@ function AppInner() {
               />
 
               {/* Našeptávač výsledků */}
-              {isSearchFocused && (searchQuery.trim() !== '' || searchResults.length > 0) && (() => {
+              {isSearchFocused && !searchPalette && (searchQuery.trim() !== '' || searchResults.length > 0) && (() => {
                 const TYPE_TONE = { tenant: 'violet', contract: 'blue', asset: 'green', task: 'amber', doc: 'gray' }
                 return (
                   <div className="dlg" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, minWidth: 'min(460px, calc(90vw / var(--ui-zoom, 1)))', zIndex: 1000, borderRadius: 14 }}>

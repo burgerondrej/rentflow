@@ -35,7 +35,7 @@ const num = (v) => (v === '' || v == null || isNaN(Number(String(v).replace(/\s/
 const fmt = (v) => v == null ? '—' : Number(v).toLocaleString('cs-CZ', { maximumFractionDigits: 3 })
 
 export default function MeterReadings({ contract }) {
-  const { meterReadings = [], addMeterReading, deleteMeterReading, confirmAction, isReadOnly, assets = [], contracts = [], subjectData = [] } = useApp()
+  const { meterReadings = [], addMeterReading, updateMeterReading, deleteMeterReading, confirmAction, isReadOnly, assets = [], contracts = [], subjectData = [] } = useApp()
   const asset = assets.find(a => a.id === contract.assetId)
   const fields = METER_FIELDS.filter(f => sectionMeters(subjectData.find(s => s.name === asset?.subject) || { assetType: asset?.type }).includes(f.key))
   const list = meterReadings.filter(m => m.contractId === contract.id)
@@ -46,14 +46,24 @@ export default function MeterReadings({ contract }) {
     .sort((a, b) => (parseDate(b.date)?.getTime() || 0) - (parseDate(a.date)?.getTime() || 0))[0]?.[key] || ''
   const [form, setForm] = useState(null)
   const open = () => setForm({ dateIso: new Date().toLocaleDateString('sv-SE'), kind: list.length ? 'jiny' : 'nastup', note: '', heatUnit: lastUnit('heatUnit'), coolingUnit: lastUnit('coolingUnit') })
+  // Úprava odečtu: formulář předvyplněný z uloženého odečtu (pole měřidel = nastavení sekce + co už odečet obsahuje)
+  const openEdit = (m) => {
+    const p = parseDate(m.date)
+    const f = { id: m.id, dateIso: p ? `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, '0')}-${String(p.getDate()).padStart(2, '0')}` : '',
+      kind: m.kind || 'jiny', note: m.note || '', heatUnit: m.heatUnit || '', coolingUnit: m.coolingUnit || '' }
+    METER_FIELDS.forEach(x => { if (m[x.key] != null) f[x.key] = String(m[x.key]).replace('.', ',') })
+    setForm(f)
+  }
+  const editing = form?.id ? meterReadings.find(x => x.id === form.id) : null
+  const formFields = editing ? METER_FIELDS.filter(f => fields.some(x => x.key === f.key) || editing[f.key] != null) : fields
   const save = async () => {
     const [y, m, d] = (form.dateIso || '').split('-').map(Number)
     if (!y) return
-    const reading = { id: '', contractId: contract.id, date: toCzDate(new Date(y, m - 1, d)), kind: form.kind, note: form.note?.trim() || null,
+    const reading = { id: form.id || '', contractId: contract.id, date: toCzDate(new Date(y, m - 1, d)), kind: form.kind, note: form.note?.trim() || null,
       heatUnit: form.heatUnit?.trim() || null, coolingUnit: form.coolingUnit?.trim() || null }
-    METER_FIELDS.forEach(f => { reading[f.key] = fields.some(x => x.key === f.key) ? num(form[f.key]) : null })
+    METER_FIELDS.forEach(f => { reading[f.key] = formFields.some(x => x.key === f.key) ? num(form[f.key]) : null })
     if (METER_FIELDS.every(f => reading[f.key] == null)) return
-    if (await addMeterReading(reading)) setForm(null)
+    if (form.id ? await updateMeterReading(reading) : await addMeterReading(reading)) setForm(null)
   }
   const inp = { width: '100%', boxSizing: 'border-box', textAlign: 'left', cursor: 'text' }
   const lbl = { display: 'block', fontSize: 10.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }
@@ -76,7 +86,7 @@ export default function MeterReadings({ contract }) {
               </select></div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-            {fields.map(f => (
+            {formFields.map(f => (
               <div key={f.key}><label style={lbl}>{f.label}{f.unit ? ` (${f.unit})` : ''}</label>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input type="text" inputMode="decimal" className="btn" style={inp} value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
@@ -90,7 +100,7 @@ export default function MeterReadings({ contract }) {
             <input type="text" className="btn" style={inp} value={form.note} placeholder="např. číslo měřidla, fotka v Dokumentech…" onChange={e => setForm({ ...form, note: e.target.value })} /></div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
             <button className="btn btn-sm" onClick={() => setForm(null)}>Zrušit</button>
-            <button className="btn btn-sm btn-primary" onClick={save}>Uložit stav</button>
+            <button className="btn btn-sm btn-primary" onClick={save}>{form.id ? 'Uložit úpravu' : 'Uložit stav'}</button>
           </div>
         </div>
       )}
@@ -106,6 +116,7 @@ export default function MeterReadings({ contract }) {
             {METER_FIELDS.filter(f => m[f.key] != null).map(f => <span key={f.key}>{f.label}: <b style={{ color: 'var(--text)' }}>{fmt(m[f.key])}</b> {unitOf(m, f)}</span>)}
             {m.note && <span style={{ color: 'var(--text3)' }}>· {m.note}</span>}
           </div>
+          {!isReadOnly && <button className="btn btn-sm btn-ghost" style={{ padding: '4px 8px' }} title="Upravit odečet" onClick={() => openEdit(m)}>✏️</button>}
           {!isReadOnly && <button className="btn btn-sm btn-ghost" style={{ color: '#DC2626', padding: '4px 8px' }} title="Smazat odečet"
             onClick={() => confirmAction({ title: 'Smazat stav měřidel?', text: `Odečet k ${m.date} bude smazán.`, okLabel: 'Smazat', danger: true, onOk: () => deleteMeterReading(m.id) })}>✕</button>}
         </div>

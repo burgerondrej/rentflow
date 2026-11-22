@@ -373,6 +373,14 @@ pub fn delete_revision(id: String, user: String, state: State<AppState>) -> std:
 // ─────────────────────────────────────────
 
 #[tauri::command]
+pub fn update_document(document: Document, user: String, state: State<AppState>) -> std::result::Result<Document, AppError> {
+    let db = db!(state);
+    let out = db.update_document(&document)?;
+    db.add_log(&user, "Úprava", "Dokumenty", &format!("Upraven dokument: {} ({}) | {}", document.name, document.doc_type, document.subject))?;
+    Ok(out)
+}
+
+#[tauri::command]
 pub fn get_documents(state: State<AppState>) -> std::result::Result<Vec<Document>, AppError> {
     db!(state).get_documents()
 }
@@ -1131,6 +1139,15 @@ pub fn add_meter_reading(reading: MeterReading, user: String, state: State<AppSt
     let out = db.add_meter_reading(&reading)?;
     let label = contract_label(&db, &reading.contract_id).unwrap_or_else(|| reading.contract_id.clone());
     db.add_log(&user, "Přidání", "Měřidla", &format!("Stav měřidel k {} | {}", reading.date, label))?;
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn update_meter_reading(reading: MeterReading, user: String, state: State<AppState>) -> std::result::Result<MeterReading, AppError> {
+    let db = db!(state);
+    let out = db.update_meter_reading(&reading)?;
+    let label = contract_label(&db, &reading.contract_id).unwrap_or_else(|| reading.contract_id.clone());
+    db.add_log(&user, "Úprava", "Měřidla", &format!("Upraven stav měřidel k {} | {}", reading.date, label))?;
     Ok(out)
 }
 
