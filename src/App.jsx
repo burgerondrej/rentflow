@@ -467,7 +467,7 @@ function AppInner() {
     vehicle: () => <Assets type="vehicle" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     service: () => <Assets type="service" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
     ostatni: () => <Assets type="ostatni" activeSubject={subject} onOpen={(id) => openDetail('asset', id)} />,
-    floorplans: () => <FloorPlans onOpen={(id) => openDetail('asset', id)} />,
+    floorplans: () => <FloorPlans onOpen={(id) => openDetail('asset', id)} onOpenContract={(id, tab) => openDetail('contract', id, tab ? { tab } : undefined)} />,
     contracts: () => <Contracts activeSubject={subject} onOpen={(id) => openDetail('contract', id)} />, 
     payments: () => <Payments />, 
     'operational-costs': () => <OperationalCosts />,

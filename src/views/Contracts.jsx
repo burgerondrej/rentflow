@@ -7,11 +7,11 @@ import { StatusPill, contractStatus } from '../StatusUI.jsx'
 import { Segmented, EmptyState } from '../UI.jsx'
 import { useNewShortcut, peekContractsFilter, clearContractsFilter } from '../shortcuts.js'
 import { cauceInfo, fmtKc, CauceSettleDialog } from '../CauceUI.jsx'
-import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES, rentIncreaseLock } from '../utils.js'
+import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES, rentIncreaseLock, selectionLabel } from '../utils.js'
 import { spanText } from '../ContractInsights.jsx'
 
 export default function Contracts({ activeSubject, onOpen }) {
-  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [] } = useApp()
+  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [], showToast } = useApp()
   const [settleFor, setSettleFor] = useState(null) // smlouva, u které se vypořádává kauce
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -344,6 +344,84 @@ export default function Contracts({ activeSubject, onOpen }) {
     )
   }
 
+  // ── Export tabulky (Excel CSV / PDF): přesně to, co je vidět – firma, záložka, filtry, hledání, řazení; firmy ve vlastních blocích ──
+  const exportGroups = () => subjects.filter(sub => selectionMatches(activeSubject, sub)).map(subject => {
+    const sc = filtered.filter(c => c.assetSubject === subject).filter(c => tab === 'valid' ? isValid(c) && endMatch(c) : !isValid(c))
+    const act = tab === 'valid' ? getOrdered(sc.filter(c => c.status === 'active')) : []
+    const arch = sc.filter(c => c.status !== 'active').sort((a, b) => tab === 'ended' ? endTs(b) - endTs(a) : 0)
+    return { subject, rows: sortRows([...act, ...arch]) }
+  }).filter(g => g.rows.length)
+  const rowVals = (c) => {
+    const inc = c.status === 'active' || isEndingArchived(c) ? increaseInfo(c) : null
+    const incl = c.paymentFrequency === 'Zahrnuto v nájemném'
+    return {
+      unit: c.assetUnit || '', tenant: c.tenantName || '',
+      rent: incl ? '' : Math.round((c.effRent || 0) + (c.effParking || 0)), freq: incl ? 'zahrnuto v nájmu' : (c.paymentFrequency || 'Měsíčně'),
+      m2: sqmOf(c) ?? '', start: c.start || '', end: c.end || 'Na dobu neurčitou', inc: inc ? inc.text : '', status: contractStatus(c).text,
+    }
+  }
+  const exportDesc = () => [
+    selectionLabel(activeSubject),
+    tab === 'valid' ? 'platné smlouvy' : 'ukončené smlouvy',
+    tab === 'valid' && endFilter !== 'all' ? (endFilter === 'expired' ? 'propadlé' : `končí do ${endFilter} dní`) : '',
+    search ? `hledání „${search}“` : '',
+  ].filter(Boolean).join(' · ')
+  const todayCz = `${today0.getDate()}. ${today0.getMonth() + 1}. ${today0.getFullYear()}`
+  const exportFileBase = () => `Smlouvy ${selectionLabel(activeSubject)} ${todayCz.replace(/\s/g, '')}`.replace(/[\\/:*?"<>|]/g, '-')
+  const exportCsv = async () => {
+    try {
+      const esc = (v) => { const t = String(v ?? ''); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t }
+      const lines = [['Sekce', 'Předmět', 'Nájemce', 'Nájem (Kč)', 'Frekvence', 'm²', 'Od', 'Do', 'Navýšení nájmu', 'Stav'].join(';')]
+      exportGroups().forEach(g => g.rows.forEach(c => { const v = rowVals(c); lines.push([g.subject, v.unit, v.tenant, v.rent, v.freq, v.m2, v.start, v.end, v.inc, v.status].map(esc).join(';')) }))
+      const { save } = await import('@tauri-apps/api/dialog')
+      const outPath = await save({ defaultPath: `${exportFileBase()}.csv`, filters: [{ name: 'Excel (CSV)', extensions: ['csv'] }] })
+      if (!outPath) return
+      const { writeTextFile } = await import('@tauri-apps/api/fs')
+      await writeTextFile(outPath, '\uFEFF' + lines.join('\r\n')) // BOM kvůli diakritice v Excelu
+      showToast && showToast('Tabulka smluv uložena pro Excel (CSV).', 'success')
+    } catch (e) { console.error('Export CSV:', e); showToast && showToast('Export se nepodařil: ' + e) }
+  }
+  const exportPdf = async () => {
+    try {
+      const esc = (t) => String(t ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]))
+      const body = exportGroups().map(g => {
+        const firm = getFirm ? getFirm(g.subject) : null
+        const col = firm ? firmColors(firm.color, 'light').mid : '#12654A'
+        const tr = g.rows.map(c => { const v = rowVals(c); const warn = v.inc.startsWith('navýšení') ? ' class="w"' : ''
+          return `<tr><td class="b">${esc(v.unit)}</td><td>${esc(v.tenant)}</td><td class="r b">${v.rent === '' ? 'v nájmu' : esc(v.rent.toLocaleString('cs-CZ')) + ' Kč'}${v.freq !== 'Měsíčně' && v.rent !== '' ? ` <span class="s">/ ${esc(v.freq.toLowerCase())}</span>` : ''}</td><td class="r">${esc(v.m2 === '' ? '—' : v.m2.toLocaleString('cs-CZ'))}</td><td>${esc(v.start || '—')}</td><td>${esc(v.end)}</td><td${warn}>${esc(v.inc || '—')}</td><td>${esc(v.status)}</td></tr>` }).join('')
+        return `<h2 style="border-color:${col};color:${col}">${esc(g.subject)} <span>${g.rows.length}</span></h2>
+          <table><thead><tr><th>Předmět</th><th>Nájemce</th><th class="r">Nájem</th><th class="r">m²</th><th>Od</th><th>Do</th><th>Navýšení nájmu</th><th>Stav</th></tr></thead><tbody>${tr}</tbody></table>`
+      }).join('')
+      const html = `<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8"><title>Smlouvy</title><style>
+        @page { size: A4 landscape; margin: 10mm; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1c1b; font-size: 10.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #12654A; padding-bottom: 5px; margin-bottom: 10px; }
+        .title { font-size: 19px; font-weight: 800; color: #12654A; } .sub { font-size: 11px; color: #555; margin-top: 2px; }
+        .date { font-size: 11.5px; font-weight: 700; color: #374151; text-align: right; }
+        h2 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .8px; border-bottom: 2px solid; padding-bottom: 3px; margin: 14px 0 6px; }
+        h2 span { color: #6B7280; font-weight: 600; letter-spacing: 0; }
+        table { width: 100%; border-collapse: collapse; } tr { page-break-inside: avoid; }
+        th { text-align: left; background: #F3F4F6; color: #374151; padding: 4px 6px; border-bottom: 1.5px solid #D1D5DB; font-size: 9.5px; text-transform: uppercase; }
+        td { padding: 3.5px 6px; border-bottom: 1px solid #E5E7EB; } .b { font-weight: 700; } .r { text-align: right; white-space: nowrap; }
+        .s { color: #6B7280; font-weight: 400; } td.w { color: #B45309; font-weight: 700; }
+      </style></head><body><div class="head"><div><div class="title">Smlouvy</div><div class="sub">${esc(exportDesc())}</div></div><div class="date">Stav k ${todayCz}</div></div>${body}</body></html>`
+      const { save } = await import('@tauri-apps/api/dialog')
+      const outPath = await save({ defaultPath: `${exportFileBase()}.pdf`, filters: [{ name: 'PDF soubor', extensions: ['pdf'] }] })
+      if (!outPath) return
+      const { invoke } = await import('@tauri-apps/api/tauri')
+      await invoke('export_to_pdf', { html, outPath })
+      try { const { open } = await import('@tauri-apps/api/shell'); await open(outPath) } catch { /* uloženo, jen se neotevřelo */ }
+      showToast && showToast('PDF tabulky smluv je uložené a otevřené.', 'success')
+    } catch (e) { console.error('Export PDF:', e); showToast && showToast('PDF se nepodařilo vytvořit: ' + e) }
+  }
+  if (import.meta.env.DEV) window.__rfContractsExport = () => ({ groups: exportGroups().map(g => ({ subject: g.subject, rows: g.rows.map(rowVals) })), desc: exportDesc() })
+  const exportButtons = viewMode === 'table' && (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button className="btn btn-sm" onClick={exportCsv} title="Uložit tabulku pro Excel (CSV) – stejné filtry a řazení">⬇ Excel</button>
+      <button className="btn btn-sm" onClick={exportPdf} title="Tabulka smluv do PDF k tisku">🖨 PDF</button>
+    </div>
+  )
+
   return (
     <div style={{ paddingBottom: 60 }}>
       <div className="page-header" data-icon="📑">
@@ -394,11 +472,13 @@ export default function Contracts({ activeSubject, onOpen }) {
             )
           })}
           <div style={{ flex: 1 }} />
+          {exportButtons}
           <Segmented size="sm" value={viewMode} onChange={setViewMode} items={[{ id: 'cards', label: '▦ Karty' }, { id: 'table', label: '☰ Tabulka' }]} />
         </div>
       )}
       {tab === 'ended' && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '-8px 0 18px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, margin: '-8px 0 18px' }}>
+          {exportButtons}
           <Segmented size="sm" value={viewMode} onChange={setViewMode} items={[{ id: 'cards', label: '▦ Karty' }, { id: 'table', label: '☰ Tabulka' }]} />
         </div>
       )}

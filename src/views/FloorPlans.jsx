@@ -154,7 +154,7 @@ const TONE = {
   gray:   { fill: 'var(--tone-gray-soft)', stroke: 'var(--tone-gray-border)', text: 'var(--text2)', dot: '#9CA3AF', pat: 'gray' },
 }
 
-export default function FloorPlans({ onOpen }) {
+export default function FloorPlans({ onOpen, onOpenContract }) {
   const { payments = [], floorPlans = [], saveFloorPlan, deleteFloorPlan, assets = [], contracts = [], tenants = [], mainObjects = [], isReadOnly, confirmAction, showToast } = useApp()
 
   // ─── výběr budovy a patra (pamatuje se) ───
@@ -554,7 +554,18 @@ export default function FloorPlans({ onOpen }) {
     const focus = !common && RC.focus && s.assetId === RC.focus
     const fill = common ? 'var(--tone-gray-bg)' : s.kind === 'extra' ? `url(#${RC.idp}fp-hatch-${tone.pat})` : tone.fill
     const stroke = isSel || hit || focus ? 'var(--accent)' : common ? 'var(--border)' : tone.stroke
-    const open = () => { if (!editing && !common && info.asset) onOpen?.(info.asset.id) }
+    const open = () => {
+      if (editing || common || !info.asset) return
+      // Režim Platby → smlouva rovnou na záložce Platby (u více nájemců ta neuhrazená), Konce smluv → přehled s časovou osou
+      if ((mode === 'payments' || mode === 'ends') && info.people?.length && onOpenContract) {
+        const ctx = { payments, contracts, assets }
+        const unpaid = mode === 'payments' && info.people.find(({ c }) => c.paymentFrequency !== 'Zahrnuto v nájemném'
+          && (c.groupLabel ? groupMonthStatus(c.groupLabel, NY, NM, ctx).status : contractMonthStatus(c, NY, NM, ctx).status) !== 'paid')
+        onOpenContract((unpaid || info.people[0]).c.id, mode === 'payments' ? 'payments' : undefined)
+        return
+      }
+      onOpen?.(info.asset.id)
+    }
     return (
       <g key={si} data-si={si} className={`fp-shape${!editing && !common && info?.asset ? ' fp-click' : ''}${isSel ? ' fp-sel' : ''}${focus && s.kind === 'unit' ? ' fp-focus' : ''}`}
         style={dim ? { opacity: 0.28 } : undefined}
@@ -945,7 +956,7 @@ export default function FloorPlans({ onOpen }) {
                           <div style={{ color: info.status === 'ending' ? 'var(--tone-amber-text)' : 'var(--text3)' }}>{c.start || '?'} – {c.end || 'na dobu neurčitou'}</div>
                         </div>
                       ))}
-                    <div style={{ color: 'var(--text3)', marginTop: 6, fontSize: 11.5 }}>Klik = detail předmětu</div>
+                    <div style={{ color: 'var(--text3)', marginTop: 6, fontSize: 11.5 }}>{mode === 'payments' ? 'Klik = platby smlouvy' : mode === 'ends' ? 'Klik = detail smlouvy' : 'Klik = detail předmětu'}</div>
                   </div>
                 )
               })()}
