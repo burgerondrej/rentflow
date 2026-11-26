@@ -407,6 +407,26 @@ pub struct DebtNote {
     pub user_name: Option<String>,
 }
 
+/// Poznámka (záznam s datem) ke smlouvě nebo nájemci. Bez FK – smlouva / nájemce v koši se dá obnovit i s poznámkami.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Note {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub entity_type: String, // "contract" | "tenant"
+    #[serde(default)]
+    pub entity_id: String,
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub created_at: String, // "RRRR-MM-DD HH:MM:SS" (místní čas, řaditelné)
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub user_name: Option<String>,
+}
+
 /// Půdorys patra budovy (interaktivní mapa v Portfolio → Půdorysy).
 /// building = název budovy (objects.name, přejmenování se propisuje); shapes = JSON pole ploch
 /// [{ kind: "unit"|"extra"|"common", assetId, label, points: [[x,y],…] }] – zpracovává jen frontend.

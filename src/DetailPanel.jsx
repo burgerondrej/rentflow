@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from './AppContext.jsx'
+import { NotesSection, notesOf } from './NotesUI.jsx'
 import { currentTerm, getEffectiveValuesToday, getCurrentAssetContract, currentAssetContracts, ASSET_TYPES, assetTypeOfSection, getMonthRent, getPeriodMonthKeys, firmOf, firmColors, tenantRentsByFirm, contractSubject, isContractBillable, isContractInMonth, isContractOccupying, assetTypeStyle, parseDate, overdueDays, tenantSaldo, depositMonths, getLastPayDate, setLastPayDate, todayIso, contractMonthStatus, groupMonthStatus, getMonthDeposits, PERIOD_LEN, DUE_PREPAID, dueDateFor, tenantPaymentDiscipline, getEffectiveValuesAt, tenancySince, rentIncreaseLock, contractDebt, contractVatPayer, contractShowsVat, CONTRACT_ONLY_TYPES, assetFreeSince } from './utils.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import RenewContractsDialog from './RenewContractsDialog.jsx'
@@ -41,7 +42,7 @@ const TYPE_META = {
 const DETAIL_TAB_ORDER = ['overview', 'contracts', 'payments', 'amendments', 'docs', 'history']
 
 export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, initialTab, onTabChange, backLabel, morphCloseReady }) {
-  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, moveAsset, confirmAction, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, updateAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast, floorPlans = [] } = useApp()
+  const { tenants = [], assets = [], contracts = [], documents = [], payments = [], updateTenant, updateAsset, moveAsset, confirmAction, updateContract, addDocument, deleteDocument, addPayment, deletePayment, removePayments, cauceSettlements = [], saveCauceSettlement, meterReadings = [], addMeterReading, deleteMeterReading, debtNotes = [], notes = [], deleteTenant, deleteAsset, deleteContract, archiveTenant, archiveAsset, archiveContract, addAsset, addAmendment, updateAmendment, deleteAmendment, isReadOnly, subjectData = [], subjects = [], subjectGroups = [], billingGroups = [], firms = [], getFirm, theme, groupLabelConflict, parkingBillingOptions = [], adsBillingOptions = [], showToast, floorPlans = [] } = useApp()
 
   const SEP = ' – '
   const PREDEFINED_TAGS = [
@@ -977,6 +978,19 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
               })}
             </div>
           )
+        })()}
+
+        {/* Poznámky nájemce + poznámky z jeho smluv (📌 = staré pole poznámky ve smlouvě) */}
+        {(() => {
+          const unitOf = (c) => assets.find(a => a.id === c.assetId)?.unit || '?'
+          const related = []
+          contracts.filter(c => c.tenantId === t.id).forEach(c => {
+            const open = () => onOpen('contract', c.id)
+            if (c.contractNotes && c.contractNotes.trim()) related.push({ note: { id: 'pin:' + c.id, text: c.contractNotes, createdAt: '📌 Poznámka ve smlouvě' }, label: unitOf(c), onOpen: open, pinned: true })
+            notesOf(notes, 'contract', c.id).forEach(n => related.push({ note: n, label: unitOf(c), onOpen: open }))
+          })
+          related.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.note.createdAt).localeCompare(String(a.note.createdAt)))
+          return <NotesSection entityType="tenant" entityId={t.id} related={related} style={{ marginBottom: 16 }} />
         })()}
 
         </>)}
@@ -3160,13 +3174,9 @@ export default function DetailPanel({ type, id, onClose, onCloseAll, onOpen, ini
         {/* Stavy měřidel – jen residential + commercial */}
         {(a?.type === 'residential' || a?.type === 'commercial') && <MeterReadings contract={c} />}
 
-        {/* Poznámky ke smlouvě – všechny typy */}
-        {c.contractNotes && (
-          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <SectionHeader icon="📝" tone="gray" title="Poznámky ke smlouvě" />
-            <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{c.contractNotes}</div>
-          </div>
-        )}
+        {/* Poznámky ke smlouvě – všechny typy: záznamy s datem + 📌 staré pole „Poznámky ke smlouvě“ */}
+        <NotesSection entityType="contract" entityId={c.id}
+          pinned={c.contractNotes && c.contractNotes.trim() ? { title: 'Poznámka ve smlouvě', text: c.contractNotes, onSave: async (txt) => { await updateContract(c.id, { ...c, contractNotes: txt.trim() || null }); return true } } : null} />
 
         {/* Vyúčtování energií – jen residential + commercial */}
         {(a?.type === 'residential' || a?.type === 'commercial') && c.energySettlements && c.energySettlements.length > 0 && (

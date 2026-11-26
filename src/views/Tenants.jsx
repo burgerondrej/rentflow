@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import { NoteBadge } from '../NotesUI.jsx'
 import { useApp } from '../AppContext.jsx'
 import TenantForm from '../TenantForm.jsx'
 import { firmOf, tenantRentsByFirm, isContractOccupying, contractSubject, contractVatPayer } from '../utils.js'
@@ -61,7 +62,7 @@ const czSort = (a, b) => a.localeCompare(b, 'cs', { sensitivity: 'base' })
 const CONTRACT_TYPE_ICON = { residential: '🏠', commercial: '🏢', ads: '📢', parking: '🅿️', land: '🌳', vehicle: '🚗', service: '🤝' }
 
 export default function Tenants({ onOpen }) {
-  const { tenants = [], contracts = [], assets = [], isReadOnly, billingGroups = [], subjects = [], firms = [] } = useApp()
+  const { tenants = [], contracts = [], assets = [], isReadOnly, billingGroups = [], subjects = [], firms = [], notes = [] } = useApp()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   useNewShortcut(() => { if (!isReadOnly) setShowForm(true) }) // Ctrl+N
@@ -168,6 +169,13 @@ export default function Tenants({ onOpen }) {
                     : activeContracts.length < 5
                       ? `${activeContracts.length} aktivní smlouvy`
                       : `${activeContracts.length} aktivních smluv`} />
+              {(() => {
+                // Poznámky nájemce + jeho smluv (stejný počet jako sekce Poznámky v detailu)
+                const ids = new Set(contracts.filter(c => c.tenantId === t.id).map(c => c.id))
+                const list = notes.filter(n => (n.entityType === 'tenant' && n.entityId === t.id) || (n.entityType === 'contract' && ids.has(n.entityId)))
+                const pins = contracts.filter(c => ids.has(c.id) && c.contractNotes && c.contractNotes.trim())
+                return <NoteBadge count={list.length + pins.length} latest={list[0] || (pins[0] ? { createdAt: '📌 Poznámka ve smlouvě', text: pins[0].contractNotes } : null)} />
+              })()}
             </div>
           </div>
         </div>

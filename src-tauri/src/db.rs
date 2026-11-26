@@ -402,6 +402,16 @@ impl Database {
                 user_name     TEXT,
                 UNIQUE(tenant_id, firm)
             );
+            CREATE TABLE IF NOT EXISTS notes (
+                id          TEXT PRIMARY KEY,
+                entity_type TEXT NOT NULL,
+                entity_id   TEXT NOT NULL,
+                text        TEXT NOT NULL DEFAULT '',
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT,
+                user_name   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_notes_entity ON notes(entity_type, entity_id);
             CREATE TABLE IF NOT EXISTS app_prefs (
                 key         TEXT PRIMARY KEY,
                 value       TEXT,
@@ -1195,11 +1205,13 @@ impl Database {
 
     pub fn delete_trash_item(&self, trash_id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM trash WHERE trash_id=?1", params![trash_id])?;
+        self.purge_orphan_notes()?;
         Ok(())
     }
 
     pub fn empty_trash(&self) -> Result<()> {
         self.conn.execute("DELETE FROM trash", [])?;
+        self.purge_orphan_notes()?;
         Ok(())
     }
 
@@ -1512,6 +1524,53 @@ impl Database {
 
     pub fn delete_debt_note(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM debt_notes WHERE id=?1", params![id])?;
+        Ok(())
+    }
+
+    // ─────────────────────────────────────────
+    // POZNÁMKY KE SMLOUVÁM A NÁJEMCŮM (záznamy s datem)
+    // ─────────────────────────────────────────
+    pub fn get_notes(&self) -> Result<Vec<Note>> {
+        let mut stmt = self.conn.prepare("SELECT id, entity_type, entity_id, text, created_at, updated_at, user_name FROM notes ORDER BY created_at DESC")?;
+        let items = stmt.query_map([], |r| Ok(Note {
+            id: r.get(0)?, entity_type: r.get(1)?, entity_id: r.get(2)?, text: r.get(3)?, created_at: r.get(4)?, updated_at: r.get(5)?, user_name: r.get(6)?,
+        }))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
+
+    pub fn add_note(&self, n: &Note, user: &str) -> Result<Note> {
+        let id = Self::new_id();
+        let created = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        self.conn.execute(
+            "INSERT INTO notes (id, entity_type, entity_id, text, created_at, user_name) VALUES (?1,?2,?3,?4,?5,?6)",
+            params![id, n.entity_type, n.entity_id, n.text, created, user],
+        )?;
+        let mut out = n.clone();
+        out.id = id; out.created_at = created; out.updated_at = None; out.user_name = Some(user.to_string());
+        Ok(out)
+    }
+
+    pub fn update_note(&self, id: &str, text: &str) -> Result<Option<Note>> {
+        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        self.conn.execute("UPDATE notes SET text=?1, updated_at=?2 WHERE id=?3", params![text, now, id])?;
+        Ok(self.get_notes()?.into_iter().find(|n| n.id == id))
+    }
+
+    pub fn delete_note(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM notes WHERE id=?1", params![id])?;
+        Ok(())
+    }
+
+    /// Po trvalém smazání z koše: poznámky smluv / nájemců, které už nejsou v DB ani v koši
+    fn purge_orphan_notes(&self) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM notes WHERE
+               (entity_type='contract' AND entity_id NOT IN (SELECT id FROM contracts)
+                  AND entity_id NOT IN (SELECT json_extract(item_data,'$.id') FROM trash WHERE item_type='contract' AND json_valid(item_data)))
+            OR (entity_type='tenant' AND entity_id NOT IN (SELECT id FROM tenants)
+                  AND entity_id NOT IN (SELECT json_extract(item_data,'$.id') FROM trash WHERE item_type='tenant' AND json_valid(item_data)))",
+            [],
+        )?;
         Ok(())
     }
 

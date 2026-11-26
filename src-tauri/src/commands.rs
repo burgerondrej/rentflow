@@ -1105,6 +1105,53 @@ pub fn delete_debt_note(id: String, user: String, state: State<AppState>) -> std
 }
 
 #[tauri::command]
+pub fn get_notes(state: State<AppState>) -> std::result::Result<Vec<Note>, AppError> {
+    db!(state).get_notes()
+}
+
+/// Popis do historie: smlouva = „předmět – nájemce“, nájemce = jméno
+fn note_owner_label(db: &crate::db::Database, entity_type: &str, entity_id: &str) -> String {
+    if entity_type == "contract" { contract_label(db, entity_id).unwrap_or_else(|| "?".to_string()) } else { tenant_name(db, entity_id) }
+}
+
+fn note_snippet(text: &str) -> String {
+    let t: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if t.chars().count() > 80 { format!("{}…", t.chars().take(80).collect::<String>()) } else { t }
+}
+
+#[tauri::command]
+pub fn add_note(note: Note, user: String, state: State<AppState>) -> std::result::Result<Note, AppError> {
+    let db = db!(state);
+    let out = db.add_note(&note, &user)?;
+    let area = if note.entity_type == "contract" { "Smlouvy" } else { "Nájemníci" };
+    db.add_log(&user, "Přidání", area, &format!("Poznámka: {} | {}", note_snippet(&note.text), note_owner_label(&db, &note.entity_type, &note.entity_id)))?;
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn update_note(id: String, text: String, user: String, state: State<AppState>) -> std::result::Result<Option<Note>, AppError> {
+    let db = db!(state);
+    let out = db.update_note(&id, &text)?;
+    if let Some(n) = &out {
+        let area = if n.entity_type == "contract" { "Smlouvy" } else { "Nájemníci" };
+        db.add_log(&user, "Úprava", area, &format!("Upravena poznámka: {} | {}", note_snippet(&text), note_owner_label(&db, &n.entity_type, &n.entity_id)))?;
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn delete_note(id: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    let old = db.get_notes().ok().and_then(|ns| ns.into_iter().find(|n| n.id == id));
+    db.delete_note(&id)?;
+    if let Some(n) = old {
+        let area = if n.entity_type == "contract" { "Smlouvy" } else { "Nájemníci" };
+        db.add_log(&user, "Smazání", area, &format!("Smazána poznámka: {} | {}", note_snippet(&n.text), note_owner_label(&db, &n.entity_type, &n.entity_id)))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_pref(key: String, state: State<AppState>) -> std::result::Result<Option<String>, AppError> {
     db!(state).get_pref(&key)
 }

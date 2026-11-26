@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { NoteBadge, notesOf } from '../NotesUI.jsx'
 import { useApp } from '../AppContext.jsx'
 import { getEffectiveValuesToday, isEndingArchived, applyContractOrder, parseDate, firmOf, firmColors, selectionMatches, assetTypeStyle, hasSuccessor } from '../utils.js'
 import ContractForm from '../ContractForm.jsx' // IMPORT FORMULÁŘE
@@ -11,7 +12,7 @@ import { contractSubject, contractVatPayer, OWN_SUBJECT_TYPES, rentIncreaseLock,
 import { spanText } from '../ContractInsights.jsx'
 
 export default function Contracts({ activeSubject, onOpen }) {
-  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [], showToast, contractOrder = null, saveContractOrder, confirmAction, isReadOnly } = useApp()
+  const { contracts = [], tenants = [], assets = [], subjects = [], residentialSubjects = [], billingGroups = [], subjectGroups = [], getFirm, theme, cauceSettlements = [], showToast, contractOrder = null, saveContractOrder, confirmAction, isReadOnly, notes = [] } = useApp()
   const [settleFor, setSettleFor] = useState(null) // smlouva, u které se vypořádává kauce
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -36,6 +37,12 @@ export default function Contracts({ activeSubject, onOpen }) {
   const dragOverId = useRef(null)
 
   const getOrdered = (items) => applyContractOrder(items, cardOrder, contracts)
+  // Poznámky smlouvy pro ikonku 📝: záznamy + staré pole „Poznámky ke smlouvě“
+  const noteInfo = (c) => {
+    const list = notesOf(notes, 'contract', c.id)
+    const pin = c.contractNotes && c.contractNotes.trim()
+    return { count: list.length + (pin ? 1 : 0), latest: list[0] || (pin ? { createdAt: '📌 Poznámka ve smlouvě', text: c.contractNotes } : null) }
+  }
 
 
   const handleDrop = (items) => {
@@ -241,7 +248,10 @@ export default function Contracts({ activeSubject, onOpen }) {
         <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ padding: '9px 12px', background: 'var(--bg)', borderRadius: 10, border: `1.5px solid ${innerBorderColor}` }}>
             <div style={{ fontSize: 10, color: accentColor, textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.6px', marginBottom: 2 }}>Nájemce</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.tenantName || 'Neznámý'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.tenantName || 'Neznámý'}</div>
+              {(() => { const ni = noteInfo(c); return <NoteBadge count={ni.count} latest={ni.latest} /> })()}
+            </div>
           </div>
 
           {(() => {
@@ -359,7 +369,7 @@ export default function Contracts({ activeSubject, onOpen }) {
                     boxShadow: dragOverRow === c.id ? 'inset 0 3px 0 var(--accent)' : undefined }}>
                   <td style={{ padding: '9px 12px', fontWeight: 800, fontSize: 13.5, color: ts.accent, minWidth: 140 }}>
                     {canDrag && c.status === 'active' && <span title="Přetáhnout – změnit pořadí" style={{ color: 'var(--text3)', marginRight: 6, cursor: 'grab' }}>⠿</span>}
-                    {ts.icon} {c.assetUnit || '—'}</td>
+                    {ts.icon} {c.assetUnit || '—'}{(() => { const ni = noteInfo(c); return <NoteBadge count={ni.count} latest={ni.latest} style={{ marginLeft: 6, fontSize: 10.5, padding: '1px 6px' }} /> })()}</td>
                   <td title={c.tenantName || ''} style={{ padding: '9px 12px', fontWeight: 700, fontSize: 13.5, color: 'var(--text)', whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.tenantName || '—'}</td>
                   <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 800, fontSize: 13.5, whiteSpace: 'nowrap' }}>{c.paymentFrequency === 'Zahrnuto v nájemném' ? <span style={{ color: 'var(--text3)', fontWeight: 600 }}>v nájmu</span> : `${Math.round((c.effRent || 0) + (c.effParking || 0)).toLocaleString('cs-CZ')} Kč${per}`}</td>
                   <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 13, color: 'var(--text2)' }}>{m2 != null ? m2.toLocaleString('cs-CZ') : '—'}</td>

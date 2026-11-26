@@ -40,7 +40,7 @@ function AppWithActivation() {
 }
 
 function AppInner() {
-  const { logs = [], unreadCount, urgentContracts, currentUser, setCurrentUser, isReadOnly, theme, setTheme, tenants = [], assets = [], tasks = [], documents = [], contracts = [], getBackupInfo, createBackup, subjects = [], getFirm } = useApp()
+  const { logs = [], unreadCount, urgentContracts, currentUser, setCurrentUser, isReadOnly, theme, setTheme, tenants = [], assets = [], tasks = [], documents = [], contracts = [], getBackupInfo, createBackup, subjects = [], getFirm, notes = [] } = useApp()
 
   // Sledujeme zda od poslední zálohy došlo ke změnám
   const prevCountRef = useRef(tenants.length + assets.length + contracts.length + tasks.length)
@@ -369,12 +369,15 @@ function AppInner() {
     const qDigits = q.replace(/[\s+\-/]/g, '')
     const digitsMatch = (v) => qDigits.length >= 4 && /^\d+$/.test(qDigits) && (v || '').replace(/\D/g, '').includes(qDigits)
     const has = (v) => !!v && String(v).toLowerCase().includes(q)
+    // Poznámky (záznamy s datem) – smlouvy / nájemci, jejichž poznámka obsahuje hledaný text
+    const noteHit = new Set(notes.filter(n => has(n.text)).map(n => `${n.entityType}:${n.entityId}`))
 
     // Hledání v nájemnících (jméno, email, ico, telefon, kontaktní osoba)
     tenants.forEach(t => {
-      if (has(t.name) || has(t.email) || (t.ico && t.ico.includes(q)) || has(t.contactPerson) || digitsMatch(t.phone) || digitsMatch(t.whatsapp) || digitsMatch(t.bankAccount)) {
+      const inNote = noteHit.has(`tenant:${t.id}`)
+      if (has(t.name) || has(t.email) || (t.ico && t.ico.includes(q)) || has(t.contactPerson) || digitsMatch(t.phone) || digitsMatch(t.whatsapp) || digitsMatch(t.bankAccount) || inNote) {
         const tFirms = [...new Set(contracts.filter(c => c.tenantId === t.id && isContractOccupying(c)).map(c => getFirm && getFirm(contractSubject(c, assets))).filter(Boolean))]
-        results.push({ id: t.id, type: 'tenant', label: 'Nájemce', text: t.name, firms: tFirms })
+        results.push({ id: t.id, type: 'tenant', label: 'Nájemce', text: t.name + (inNote && !has(t.name) ? ' · 📝 v poznámce' : ''), firms: tFirms })
       }
     })
 
@@ -398,7 +401,7 @@ function AppInner() {
       const asset = assets.find(a => a.id === c.assetId)
       const cSubject = contractSubject(c, assets)
       const text = [tenant?.name, asset?.unit, cSubject].filter(Boolean).join(' · ')
-      const hint = has(c.groupLabel) ? ` · 🔗 ${c.groupLabel}` : has(c.contractNotes) ? ' · 📝 v poznámce' : has(c.coResidents) ? ' · 👥 spolubydlící' : ''
+      const hint = has(c.groupLabel) ? ` · 🔗 ${c.groupLabel}` : (has(c.contractNotes) || noteHit.has(`contract:${c.id}`)) ? ' · 📝 v poznámce' : has(c.coResidents) ? ' · 👥 spolubydlící' : ''
       if (text.toLowerCase().includes(q) || hint) {
         results.push({ id: c.id, type: 'contract', label: 'Smlouva', text: text + hint, firms: [getFirm && getFirm(cSubject)].filter(Boolean) })
       }

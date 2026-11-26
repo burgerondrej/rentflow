@@ -40,6 +40,7 @@ export function AppProvider({ children }) {
   const [contractOrder, setContractOrder] = useState(null)       // ruční pořadí smluv (Smlouvy, Platby) – v DB app_prefs, dřív localStorage
   const [floorPlans, setFloorPlans] = useState([])             // půdorysy pater budov (Portfolio → Půdorysy)
   const [debtNotes, setDebtNotes] = useState([])               // poznámky k dlužníkům (nájemce + firma)
+  const [notes, setNotes] = useState([])                       // poznámky (záznamy s datem) ke smlouvám a nájemcům
   const [meterReadings, setMeterReadings] = useState([])       // stavy měřidel ke smlouvám
   const [subjectData, setSubjectData] = useState([])
   const [mainObjects, setMainObjects] = useState([])
@@ -154,6 +155,7 @@ export function AppProvider({ children }) {
           invoke('get_floor_plans').catch(() => []),
         ])
         if (fp) setFloorPlans(fp)
+        invoke('get_notes').then(n => { if (Array.isArray(n)) setNotes(n) }).catch(() => {})
         // Pořadí smluv z DB; při prvním spuštění převzít dosavadní pořadí z tohoto počítače (localStorage)
         try {
           const raw = await invoke('get_pref', { key: 'contract_order' }).catch(() => null)
@@ -703,6 +705,30 @@ export function AppProvider({ children }) {
       setDebtNotes(prev => prev.filter(x => x.id !== id))
     } catch (err) { console.error('deleteDebtNote error:', err) }
   }
+  // ─── Poznámky ke smlouvám / nájemcům (entityType 'contract' | 'tenant'), nejnovější první ───
+  const addNote = async (entityType, entityId, text) => {
+    if (guardWrite() || !text.trim()) return null
+    try {
+      const saved = await invoke('add_note', { note: { id: '', entityType, entityId, text: text.trim() }, user: currentUser })
+      if (saved) setNotes(prev => [saved, ...prev])
+      return saved
+    } catch (err) { console.error('addNote error:', err); showToast('Poznámku se nepodařilo uložit.'); return null }
+  }
+  const updateNote = async (id, text) => {
+    if (guardWrite() || !text.trim()) return null
+    try {
+      const saved = await invoke('update_note', { id, text: text.trim(), user: currentUser })
+      if (saved) setNotes(prev => prev.map(x => x.id === id ? saved : x))
+      return saved
+    } catch (err) { console.error('updateNote error:', err); showToast('Poznámku se nepodařilo uložit.'); return null }
+  }
+  const deleteNote = async (id) => {
+    if (guardWrite()) return
+    try {
+      await invoke('delete_note', { id, user: currentUser })
+      setNotes(prev => prev.filter(x => x.id !== id))
+    } catch (err) { console.error('deleteNote error:', err); showToast('Poznámku se nepodařilo smazat.') }
+  }
   // ─── Ruční pořadí smluv (sdílí Smlouvy a Platby; Pavel jen čte) ───
   const saveContractOrder = (order) => {
     setContractOrder(order)
@@ -1090,7 +1116,7 @@ export function AppProvider({ children }) {
     addContract, updateContract, deleteContract, archiveContract, renewContracts, changeTenant,
     // CRUD – Platby
     addPayment, updatePayment, updatePaymentAmount, deletePayment, removePayments, confirmAction,
-    cauceSettlements, saveCauceSettlement, deleteCauceSettlement, debtNotes, saveDebtNote, deleteDebtNote,
+    cauceSettlements, saveCauceSettlement, deleteCauceSettlement, debtNotes, saveDebtNote, deleteDebtNote, notes, addNote, updateNote, deleteNote,
     meterReadings, addMeterReading, updateMeterReading, deleteMeterReading,
     floorPlans, saveFloorPlan, deleteFloorPlan,
     contractOrder, saveContractOrder,
