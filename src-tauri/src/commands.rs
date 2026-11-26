@@ -1111,7 +1111,17 @@ pub fn get_notes(state: State<AppState>) -> std::result::Result<Vec<Note>, AppEr
 
 /// Popis do historie: smlouva = „předmět – nájemce“, nájemce = jméno
 fn note_owner_label(db: &crate::db::Database, entity_type: &str, entity_id: &str) -> String {
-    if entity_type == "contract" { contract_label(db, entity_id).unwrap_or_else(|| "?".to_string()) } else { tenant_name(db, entity_id) }
+    match entity_type {
+        "contract" => contract_label(db, entity_id).unwrap_or_else(|| "?".to_string()),
+        "tenant" => tenant_name(db, entity_id),
+        "firm" => format!("firma {}", entity_id),
+        "object" => format!("budova {}", entity_id),
+        _ => db.get_note_sections().ok().and_then(|ss| ss.into_iter().find(|s| s.id == entity_id)).map(|s| format!("sekce \"{}\"", s.name)).unwrap_or_else(|| "?".to_string()),
+    }
+}
+
+fn note_area(entity_type: &str) -> &'static str {
+    match entity_type { "contract" => "Smlouvy", "tenant" => "Nájemníci", _ => "Poznámky" }
 }
 
 fn note_snippet(text: &str) -> String {
@@ -1123,7 +1133,7 @@ fn note_snippet(text: &str) -> String {
 pub fn add_note(note: Note, user: String, state: State<AppState>) -> std::result::Result<Note, AppError> {
     let db = db!(state);
     let out = db.add_note(&note, &user)?;
-    let area = if note.entity_type == "contract" { "Smlouvy" } else { "Nájemníci" };
+    let area = note_area(&note.entity_type);
     db.add_log(&user, "Přidání", area, &format!("Poznámka: {} | {}", note_snippet(&note.text), note_owner_label(&db, &note.entity_type, &note.entity_id)))?;
     Ok(out)
 }
@@ -1133,7 +1143,7 @@ pub fn update_note(id: String, text: String, user: String, state: State<AppState
     let db = db!(state);
     let out = db.update_note(&id, &text)?;
     if let Some(n) = &out {
-        let area = if n.entity_type == "contract" { "Smlouvy" } else { "Nájemníci" };
+        let area = note_area(&n.entity_type);
         db.add_log(&user, "Úprava", area, &format!("Upravena poznámka: {} | {}", note_snippet(&text), note_owner_label(&db, &n.entity_type, &n.entity_id)))?;
     }
     Ok(out)
@@ -1145,10 +1155,41 @@ pub fn delete_note(id: String, user: String, state: State<AppState>) -> std::res
     let old = db.get_notes().ok().and_then(|ns| ns.into_iter().find(|n| n.id == id));
     db.delete_note(&id)?;
     if let Some(n) = old {
-        let area = if n.entity_type == "contract" { "Smlouvy" } else { "Nájemníci" };
+        let area = note_area(&n.entity_type);
         db.add_log(&user, "Smazání", area, &format!("Smazána poznámka: {} | {}", note_snippet(&n.text), note_owner_label(&db, &n.entity_type, &n.entity_id)))?;
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_note_sections(state: State<AppState>) -> std::result::Result<Vec<NoteSection>, AppError> {
+    db!(state).get_note_sections()
+}
+
+#[tauri::command]
+pub fn add_note_section(section: NoteSection, user: String, state: State<AppState>) -> std::result::Result<NoteSection, AppError> {
+    let db = db!(state);
+    let out = db.add_note_section(&section)?;
+    db.add_log(&user, "Přidání", "Poznámky", &format!("Nová sekce poznámek \"{}\" | {}", out.name, note_owner_label(&db, &section.parent_type, &section.parent_id)))?;
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn rename_note_section(id: String, name: String, user: String, state: State<AppState>) -> std::result::Result<(), AppError> {
+    let db = db!(state);
+    let old = db.get_note_sections().ok().and_then(|ss| ss.into_iter().find(|s| s.id == id)).map(|s| s.name).unwrap_or_default();
+    db.rename_note_section(&id, &name)?;
+    db.add_log(&user, "Úprava", "Poznámky", &format!("Přejmenována sekce poznámek \"{}\" → \"{}\"", old, name.trim()))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_note_section(id: String, user: String, state: State<AppState>) -> std::result::Result<Vec<String>, AppError> {
+    let db = db!(state);
+    let old = db.get_note_sections().ok().and_then(|ss| ss.into_iter().find(|s| s.id == id)).map(|s| s.name).unwrap_or_default();
+    let ids = db.delete_note_section(&id)?;
+    db.add_log(&user, "Smazání", "Poznámky", &format!("Smazána sekce poznámek \"{}\" (vč. podsekcí: {})", old, ids.len().saturating_sub(1)))?;
+    Ok(ids)
 }
 
 #[tauri::command]

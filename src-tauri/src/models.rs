@@ -427,6 +427,22 @@ pub struct Note {
     pub user_name: Option<String>,
 }
 
+/// Vlastní sekce poznámek (Administrativa → Poznámky): pod firmou, budovou nebo jinou sekcí (libovolná hloubka).
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteSection {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub parent_type: String, // "firm" | "object" | "section"
+    #[serde(default)]
+    pub parent_id: String,   // název firmy / název budovy / id sekce
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub created_at: String,
+}
+
 /// Půdorys patra budovy (interaktivní mapa v Portfolio → Půdorysy).
 /// building = název budovy (objects.name, přejmenování se propisuje); shapes = JSON pole ploch
 /// [{ kind: "unit"|"extra"|"common", assetId, label, points: [[x,y],…] }] – zpracovává jen frontend.

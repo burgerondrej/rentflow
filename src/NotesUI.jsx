@@ -32,7 +32,7 @@ const taStyle = { width: '100%', minHeight: 64, resize: 'vertical', padding: '9p
   background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, boxSizing: 'border-box' }
 
 /** Textové pole: Ctrl+Enter = uložit, Esc = zrušit (Esc nezavře detail). */
-function NoteEditor({ initial = '', placeholder, saveLabel = 'Uložit', onSave, onCancel, autoFocus }) {
+export function NoteEditor({ initial = '', placeholder, saveLabel = 'Uložit', onSave, onCancel, autoFocus }) {
   const [text, setText] = useState(initial)
   const [busy, setBusy] = useState(false)
   const save = async () => {
@@ -61,7 +61,7 @@ function NoteEditor({ initial = '', placeholder, saveLabel = 'Uložit', onSave, 
 
 const iconBtn = { border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, padding: '2px 5px', borderRadius: 6, color: 'var(--text3)' }
 
-function NoteItem({ note, label, onOpen, readOnly }) {
+export function NoteItem({ note, label, onOpen, readOnly }) {
   const { updateNote, deleteNote, confirmAction } = useApp()
   const [editing, setEditing] = useState(false)
   const snippet = note.text.length > 60 ? note.text.slice(0, 60) + '…' : note.text

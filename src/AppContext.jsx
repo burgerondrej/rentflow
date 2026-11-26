@@ -40,6 +40,7 @@ export function AppProvider({ children }) {
   const [contractOrder, setContractOrder] = useState(null)       // ruční pořadí smluv (Smlouvy, Platby) – v DB app_prefs, dřív localStorage
   const [floorPlans, setFloorPlans] = useState([])             // půdorysy pater budov (Portfolio → Půdorysy)
   const [debtNotes, setDebtNotes] = useState([])               // poznámky k dlužníkům (nájemce + firma)
+  const [noteSections, setNoteSections] = useState([])         // vlastní sekce poznámek (pod firmou / budovou / sekcí)
   const [notes, setNotes] = useState([])                       // poznámky (záznamy s datem) ke smlouvám a nájemcům
   const [meterReadings, setMeterReadings] = useState([])       // stavy měřidel ke smlouvám
   const [subjectData, setSubjectData] = useState([])
@@ -156,6 +157,7 @@ export function AppProvider({ children }) {
         ])
         if (fp) setFloorPlans(fp)
         invoke('get_notes').then(n => { if (Array.isArray(n)) setNotes(n) }).catch(() => {})
+        invoke('get_note_sections').then(n => { if (Array.isArray(n)) setNoteSections(n) }).catch(() => {})
         // Pořadí smluv z DB; při prvním spuštění převzít dosavadní pořadí z tohoto počítače (localStorage)
         try {
           const raw = await invoke('get_pref', { key: 'contract_order' }).catch(() => null)
@@ -223,6 +225,9 @@ export function AppProvider({ children }) {
     if (objs) setMainObjects(objs)
     if (objFirms) setObjectFirms(objFirms)
     if (l) setLogs(l)
+    // poznámky firem / budov se při přejmenování přepisují v DB
+    invoke('get_notes').then(n => { if (Array.isArray(n)) setNotes(n) }).catch(() => {})
+    invoke('get_note_sections').then(n => { if (Array.isArray(n)) setNoteSections(n) }).catch(() => {})
   }
 
   // Správa firem a sekcí (Nastavení): záloha → operace → znovunačtení. Vrací true/false.
@@ -729,6 +734,33 @@ export function AppProvider({ children }) {
       setNotes(prev => prev.filter(x => x.id !== id))
     } catch (err) { console.error('deleteNote error:', err); showToast('Poznámku se nepodařilo smazat.') }
   }
+  // ─── Sekce poznámek (parentType 'firm' | 'object' | 'section') ───
+  const addNoteSection = async (parentType, parentId, name) => {
+    if (guardWrite() || !name.trim()) return null
+    try {
+      const saved = await invoke('add_note_section', { section: { id: '', parentType, parentId, name: name.trim() }, user: currentUser })
+      if (saved) setNoteSections(prev => [...prev, saved])
+      return saved
+    } catch (err) { console.error('addNoteSection error:', err); showToast(String(err?.message || err || 'Sekci se nepodařilo založit.')); return null }
+  }
+  const renameNoteSection = async (id, name) => {
+    if (guardWrite() || !name.trim()) return false
+    try {
+      await invoke('rename_note_section', { id, name: name.trim(), user: currentUser })
+      setNoteSections(prev => prev.map(x => x.id === id ? { ...x, name: name.trim() } : x))
+      return true
+    } catch (err) { console.error('renameNoteSection error:', err); showToast('Sekci se nepodařilo přejmenovat.'); return false }
+  }
+  const deleteNoteSection = async (id) => {
+    if (guardWrite()) return false
+    try {
+      const ids = await invoke('delete_note_section', { id, user: currentUser })
+      const gone = new Set(Array.isArray(ids) ? ids : [id])
+      setNoteSections(prev => prev.filter(x => !gone.has(x.id)))
+      setNotes(prev => prev.filter(n => !(n.entityType === 'section' && gone.has(n.entityId))))
+      return true
+    } catch (err) { console.error('deleteNoteSection error:', err); showToast('Sekci se nepodařilo smazat.'); return false }
+  }
   // ─── Ruční pořadí smluv (sdílí Smlouvy a Platby; Pavel jen čte) ───
   const saveContractOrder = (order) => {
     setContractOrder(order)
@@ -1116,7 +1148,7 @@ export function AppProvider({ children }) {
     addContract, updateContract, deleteContract, archiveContract, renewContracts, changeTenant,
     // CRUD – Platby
     addPayment, updatePayment, updatePaymentAmount, deletePayment, removePayments, confirmAction,
-    cauceSettlements, saveCauceSettlement, deleteCauceSettlement, debtNotes, saveDebtNote, deleteDebtNote, notes, addNote, updateNote, deleteNote,
+    cauceSettlements, saveCauceSettlement, deleteCauceSettlement, debtNotes, saveDebtNote, deleteDebtNote, notes, addNote, updateNote, deleteNote, noteSections, addNoteSection, renameNoteSection, deleteNoteSection,
     meterReadings, addMeterReading, updateMeterReading, deleteMeterReading,
     floorPlans, saveFloorPlan, deleteFloorPlan,
     contractOrder, saveContractOrder,

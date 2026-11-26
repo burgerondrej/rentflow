@@ -11,6 +11,7 @@ import Maintenance from './views/Maintenance.jsx'
 import Export from './views/Export.jsx'
 import Kanban from './views/Kanban.jsx'
 import Calendar from './views/Calendar.jsx'
+import Notes from './views/Notes.jsx'
 import Trash from './views/Trash.jsx' 
 import { Docs, Alerts } from './views/DocsAlerts.jsx'
 import History from './views/History.jsx'
@@ -484,6 +485,7 @@ function AppInner() {
     export: () => <Export />, 
     kanban: () => <Kanban />, 
     calendar: () => <Calendar onNav={handleNav} onOpen={(type, id) => openDetail(type, id)} />,
+    notes: () => <Notes onOpen={(type, id) => openDetail(type, id)} />,
     docs: () => <Docs />, 
     alerts: () => <Alerts />, 
     trash: () => <Trash />, 

@@ -412,6 +412,13 @@ impl Database {
                 user_name   TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_notes_entity ON notes(entity_type, entity_id);
+            CREATE TABLE IF NOT EXISTS note_sections (
+                id          TEXT PRIMARY KEY,
+                parent_type TEXT NOT NULL,
+                parent_id   TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                created_at  TEXT
+            );
             CREATE TABLE IF NOT EXISTS app_prefs (
                 key         TEXT PRIMARY KEY,
                 value       TEXT,
@@ -1356,6 +1363,8 @@ impl Database {
             tx.execute("UPDATE contracts SET billing_subject = ?1 WHERE billing_subject = ?2", params![new_firm, old_firm])?;
             tx.execute("UPDATE objects SET firm = ?1 WHERE firm = ?2", params![new_firm, old_firm])?;
             tx.execute("UPDATE debt_notes SET firm = ?1 WHERE firm = ?2", params![new_firm, old_firm])?;
+            tx.execute("UPDATE notes SET entity_id = ?1 WHERE entity_type = 'firm' AND entity_id = ?2", params![new_firm, old_firm])?;
+            tx.execute("UPDATE note_sections SET parent_id = ?1 WHERE parent_type = 'firm' AND parent_id = ?2", params![new_firm, old_firm])?;
             // Štítky úkolů (Kanban) – čárkami oddělené, firma přesnou shodou
             let tags: Vec<(String, String)> = {
                 let mut stmt = tx.prepare("SELECT id, tag FROM tasks WHERE tag IS NOT NULL AND tag <> ''")?;
@@ -1437,6 +1446,8 @@ impl Database {
                 tx.execute("UPDATE revisions SET subject = ?1 WHERE subject = ?2", params![name, old_name])?;
                 tx.execute("UPDATE documents SET subject = ?1 WHERE subject = ?2", params![name, old_name])?;
                 tx.execute("UPDATE floor_plans SET building = ?1 WHERE building = ?2", params![name, old_name])?;
+                tx.execute("UPDATE notes SET entity_id = ?1 WHERE entity_type = 'object' AND entity_id = ?2", params![name, old_name])?;
+                tx.execute("UPDATE note_sections SET parent_id = ?1 WHERE parent_type = 'object' AND parent_id = ?2", params![name, old_name])?;
             }
             tx.execute("UPDATE objects SET firm = ?1 WHERE name = ?2", params![firm, name])?;
         }
@@ -1448,9 +1459,10 @@ impl Database {
     pub fn delete_object(&self, name: &str) -> Result<()> {
         let used: i64 = self.conn.query_row(
             "SELECT (SELECT COUNT(*) FROM operational_costs WHERE object_name = ?1) + (SELECT COUNT(*) FROM revisions WHERE subject = ?1)
-                  + (SELECT COUNT(*) FROM documents WHERE subject = ?1) + (SELECT COUNT(*) FROM floor_plans WHERE building = ?1)",
+                  + (SELECT COUNT(*) FROM documents WHERE subject = ?1) + (SELECT COUNT(*) FROM floor_plans WHERE building = ?1)
+                  + (SELECT COUNT(*) FROM notes WHERE entity_type = 'object' AND entity_id = ?1) + (SELECT COUNT(*) FROM note_sections WHERE parent_type = 'object' AND parent_id = ?1)",
             params![name], |r| r.get(0))?;
-        if used > 0 { return Err(AppError::Other(format!("Budovu nelze smazat – používá ji {} záznamů (náklady, revize, dokumenty, půdorysy).", used))); }
+        if used > 0 { return Err(AppError::Other(format!("Budovu nelze smazat – používá ji {} záznamů (náklady, revize, dokumenty, půdorysy, poznámky).", used))); }
         self.conn.execute("DELETE FROM objects WHERE name = ?1", params![name])?;
         Ok(())
     }
@@ -1559,6 +1571,52 @@ impl Database {
     pub fn delete_note(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM notes WHERE id=?1", params![id])?;
         Ok(())
+    }
+
+    pub fn get_note_sections(&self) -> Result<Vec<NoteSection>> {
+        let mut stmt = self.conn.prepare("SELECT id, parent_type, parent_id, name, COALESCE(created_at, '') FROM note_sections")?;
+        let items = stmt.query_map([], |r| Ok(NoteSection {
+            id: r.get(0)?, parent_type: r.get(1)?, parent_id: r.get(2)?, name: r.get(3)?, created_at: r.get(4)?,
+        }))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
+
+    pub fn add_note_section(&self, s: &NoteSection) -> Result<NoteSection> {
+        let name = s.name.trim();
+        if name.is_empty() { return Err(AppError::Other("Název sekce nesmí být prázdný.".into())); }
+        let id = Self::new_id();
+        let created = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        self.conn.execute("INSERT INTO note_sections (id, parent_type, parent_id, name, created_at) VALUES (?1,?2,?3,?4,?5)",
+            params![id, s.parent_type, s.parent_id, name, created])?;
+        let mut out = s.clone();
+        out.id = id; out.name = name.to_string(); out.created_at = created;
+        Ok(out)
+    }
+
+    pub fn rename_note_section(&self, id: &str, name: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() { return Err(AppError::Other("Název sekce nesmí být prázdný.".into())); }
+        self.conn.execute("UPDATE note_sections SET name=?1 WHERE id=?2", params![name, id])?;
+        Ok(())
+    }
+
+    /// Smaže sekci i se všemi podsekcemi a jejich poznámkami; vrací smazaná id sekcí.
+    pub fn delete_note_section(&self, id: &str) -> Result<Vec<String>> {
+        let all = self.get_note_sections()?;
+        let mut ids = vec![id.to_string()];
+        let mut i = 0;
+        while i < ids.len() {
+            let cur = ids[i].clone();
+            for s in all.iter().filter(|s| s.parent_type == "section" && s.parent_id == cur) { ids.push(s.id.clone()); }
+            i += 1;
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        for sid in &ids {
+            tx.execute("DELETE FROM notes WHERE entity_type = 'section' AND entity_id = ?1", params![sid])?;
+            tx.execute("DELETE FROM note_sections WHERE id = ?1", params![sid])?;
+        }
+        tx.commit()?;
+        Ok(ids)
     }
 
     /// Po trvalém smazání z koše: poznámky smluv / nájemců, které už nejsou v DB ani v koši
