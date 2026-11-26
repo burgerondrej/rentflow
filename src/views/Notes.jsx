@@ -4,7 +4,7 @@ import DialogShell from '../DialogShell.jsx'
 import { EmptyState } from '../UI.jsx'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { NoteEditor, NoteItem } from '../NotesUI.jsx'
-import { contractSubject, firmOf } from '../utils.js'
+import { contractSubject, firmOf, isContractOccupying } from '../utils.js'
 
 /**
  * Administrativa → Poznámky: strom firma → budovy + vlastní sekce (libovolná hloubka) a přehled poznámek ze smluv / od nájemců.
@@ -69,10 +69,16 @@ export default function Notes({ onOpen }) {
     const items = []
     firmContracts.forEach(c => notes.filter(n => n.entityType === 'contract' && n.entityId === c.id)
       .forEach(n => items.push({ note: n, group: contractSubject(c, assets), label: `${unitOf(c)} – ${tName(c.tenantId)}`, onOpen: () => onOpen && onOpen('contract', c.id) })))
+    // 📌 původní pole „Poznámky ke smlouvě“ (bez data) – za datovanými poznámkami, podle jednotky
+    firmContracts.filter(c => c.contractNotes && c.contractNotes.trim()).forEach(c => items.push({
+      note: { id: 'pin:' + c.id, text: c.contractNotes.trim(), createdAt: '📌 Poznámka ve smlouvě' }, pinned: true, unit: unitOf(c),
+      group: contractSubject(c, assets), label: `${unitOf(c)} – ${tName(c.tenantId)}${isContractOccupying(c) ? '' : ' (ukončená)'}`, onOpen: () => onOpen && onOpen('contract', c.id),
+    }))
     const tIds = new Set(firmContracts.map(c => c.tenantId))
     notes.filter(n => n.entityType === 'tenant' && tIds.has(n.entityId))
       .forEach(n => items.push({ note: n, group: 'Nájemníci', label: tName(n.entityId), onOpen: () => onOpen && onOpen('tenant', n.entityId) }))
-    return items.sort((a, b) => String(b.note.createdAt).localeCompare(String(a.note.createdAt)))
+    return items.sort((a, b) => (a.pinned ? 1 : 0) - (b.pinned ? 1 : 0)
+      || (a.pinned ? natural(a.unit, b.unit) : String(b.note.createdAt).localeCompare(String(a.note.createdAt))))
   }
 
   // Výchozí výběr: uložený (pokud ještě existuje a je ve viditelné firmě), jinak první firma
@@ -169,7 +175,7 @@ export default function Notes({ onOpen }) {
       const groups = [...new Set(items.map(i => i.group))].sort((a, b) => (a === 'Nájemníci') - (b === 'Nájemníci') || natural(a, b))
       return (
         <>
-          <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text3)', borderBottom: '1px solid var(--border2)' }}>Poznámky ze smluv a od nájemníků této firmy – upravují se v detailu (klik na štítek).</div>
+          <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text3)', borderBottom: '1px solid var(--border2)' }}>Poznámky ze smluv (vč. 📌 Poznámky ke smlouvě z formuláře) a od nájemníků této firmy – upravují se v detailu (klik na štítek).</div>
           {!items.length && <div style={{ padding: 16 }}><EmptyState compact icon="📑" title="Zatím žádné poznámky ke smlouvám ani nájemníkům" /></div>}
           {groups.map(g => (
             <React.Fragment key={g}>
