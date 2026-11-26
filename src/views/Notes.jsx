@@ -4,7 +4,7 @@ import DialogShell from '../DialogShell.jsx'
 import { EmptyState } from '../UI.jsx'
 import { FirmBadge, useObjectFirms } from '../FirmUI.jsx'
 import { NoteEditor, NoteItem } from '../NotesUI.jsx'
-import { contractSubject, firmOf, isContractOccupying } from '../utils.js'
+import { contractSubject, firmOf, isContractOccupying, assetTypeStyle, assetTypeOfSection, firmColors } from '../utils.js'
 
 /**
  * Administrativa → Poznámky: strom firma → budovy + vlastní sekce (libovolná hloubka) a přehled poznámek ze smluv / od nájemců.
@@ -18,7 +18,7 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } cat
 const splitKey = (key) => { const i = (key || '').indexOf(':'); return i < 0 ? ['', ''] : [key.slice(0, i), key.slice(i + 1)] }
 
 export default function Notes({ onOpen }) {
-  const { firms = [], notes = [], noteSections = [], contracts = [], tenants = [], assets = [], getFirm,
+  const { firms = [], notes = [], noteSections = [], contracts = [], tenants = [], assets = [], getFirm, subjectData = [], theme,
     addNote, addNoteSection, renameNoteSection, deleteNoteSection, confirmAction, isReadOnly } = useApp()
   const { itemsByFirm, firmOfObject } = useObjectFirms()
 
@@ -177,12 +177,24 @@ export default function Notes({ onOpen }) {
         <>
           <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text3)', borderBottom: '1px solid var(--border2)' }}>Poznámky ze smluv (vč. 📌 Poznámky ke smlouvě z formuláře) a od nájemníků této firmy – upravují se v detailu (klik na štítek).</div>
           {!items.length && <div style={{ padding: 16 }}><EmptyState compact icon="📑" title="Zatím žádné poznámky ke smlouvám ani nájemníkům" /></div>}
-          {groups.map(g => (
-            <React.Fragment key={g}>
-              <div style={{ padding: '6px 16px', fontSize: 10.5, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', background: 'var(--bg2)', borderTop: '1px solid var(--border2)' }}>{g}</div>
-              {items.filter(i => i.group === g).map(i => <NoteItem key={i.note.id} note={i.note} label={i.label} onOpen={i.onOpen} readOnly />)}
-            </React.Fragment>
-          ))}
+          {groups.map(g => {
+            // Sytý pruh skupiny: barva typu sekce (byt zelená, komerční fialová, parkování modrá…), nájemníci v barvě firmy
+            const list = items.filter(i => i.group === g)
+            const f = getFirm ? getFirm(selId) : firms.find(x => x.name === selId)
+            const isTen = g === 'Nájemníci'
+            const ts = assetTypeStyle(assetTypeOfSection(subjectData.find(sd => sd.name === g)?.assetType))
+            const bg = isTen ? (f ? firmColors(f.color, theme).mid : 'var(--accent)') : ts.strong
+            return (
+              <React.Fragment key={g}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: bg, color: '#fff', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <span style={{ fontSize: 14 }}>{isTen ? '👤' : ts.icon}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>{g}</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 800, padding: '1px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.22)' }}>{list.length}</span>
+                </div>
+                {list.map(i => <NoteItem key={i.note.id} note={i.note} label={i.label} onOpen={i.onOpen} readOnly />)}
+              </React.Fragment>
+            )
+          })}
         </>
       )
     }
